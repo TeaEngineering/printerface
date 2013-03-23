@@ -39,18 +39,18 @@ if __name__=="__main__":
 	# launch the server on the specified port
 	try:
 		os.makedirs(jobdir)
-	except WindowsError:
+	except:
 		pass
 
 	recover()
 
-	s = LpdServer(saveJob, ip='192.168.1.75', port=515)
+	s = LpdServer(saveJob, ip='', port=515)
 	ToyHttpServer(port=8081)
-	while True:
-		try:		
+	try:
+		while True:
 			asyncore.loop(timeout=2, count=1)
-		except KeyboardInterrupt:
-			print "Crtl+C pressed. Shutting down."
+			print '[control] poll'
 
-		print '[control] poll'
+	except KeyboardInterrupt:
+		print "Crtl+C pressed. Shutting down."
 

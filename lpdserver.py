@@ -1,13 +1,17 @@
 
 
-import asynchat, asyncore, socket
+import asynchat, asyncore, socket, exceptions
 
 (AwaitingCommand, NewJob, NewJobControl, NewJobData, EndOfFile ) = range(0,5)
 
 class LpdHandler(asynchat.async_chat):
 
 	def __init__(self, sock, addr, controller):
-		asynchat.async_chat.__init__(self, sock=sock)
+		try:
+			asynchat.async_chat.__init__(self, sock=sock)
+		except exceptions.TypeError:
+			# compat python 2.5.2  bugfix for http://bugs.python.org/issue1519
+			asynchat.async_chat.__init__(self, conn=sock)
 		self.ibuffer = []
 		self.sm = AwaitingCommand
 		self.set_terminator("\n")
@@ -100,8 +104,6 @@ class LpdServer(asyncore.dispatcher):
 				LpdHandler(sock, addr, self.lpd_controller)
 		except socket.error:
 			print '[lpd] warning: server accept() threw an exception'
-		except TypeError:
-			print '[lpd] warning: server accept() threw EWOULDBLOCK'
 
 def jobPrinter(queue, local, remote, control, data):
 	print "    %s" % queue
