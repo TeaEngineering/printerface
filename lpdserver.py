@@ -58,9 +58,14 @@ class LpdHandler(asynchat.async_chat):
 			self.sm = NewJob
 			self.set_terminator("\n")
 		elif self.sm == NewJobData: # Recieve - Job Data file (terminated by close)
-			print '%s end of data file!' % self.id
+			# Windows NT4 lpr sends a well formed size, hits this code
+			print '%s end of data file' % self.id 
+			# put the chunk back on the ibuffer for dispatch()
+			self.ibuffer.insert(0, chunk)
+			self.sm = EndOfFile
+			self.push('\x00')
+			self.close_when_done()
 			self.dispatch()
-			self.sm = NewJob
 		else:
 			print '%s Unknown state, woken up by terminator, buffer was: %s' % (self.id, repr(self.ibuffer))
 			self.close_when_done()
