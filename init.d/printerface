@@ -1,0 +1,155 @@
+#!/bin/sh
+#
+# printerface   This shell script takes care of starting and stopping
+#               printerface on RedHat or other chkconfig-based system.
+#
+# chkconfig: - 24 76
+#
+# processname: printerface
+# description: accepts print jobs over LPD port and emails the results.
+#
+
+# Chris Shucksmith
+#
+# To install:
+#   copy this file to /etc/rc.d/init.d/printerface
+#   shell> chkconfig --add printerface
+
+# To uninstall:
+#   run: chkconfig --del printerface
+
+# Once installed you
+# can start and stop printerface with "service printerface start" and "service
+# printerface stop".
+#
+#   service printerface reload - SIGHUP
+#   service printerface reopen - SIGUSR1
+#   service printerface status - SIGUSR2
+#
+
+# Location of printerface binary
+printerface="/root/repos/printerface/main.py"
+lock="/var/lock/subsys/printerface"
+pidfile=/var/run/printerface
+work=/root/printerface/
+
+. /etc/rc.d/init.d/functions
+
+# Source networking configuration.
+. /etc/sysconfig/network
+
+# Check that networking is up.
+if [ ${NETWORKING} = "no" ]
+then
+  echo "Networking is down"
+  exit 0
+fi
+
+# Check that binary exists
+if ! [ -f  $printerface ] 
+then
+  echo "printerface binary not found"
+  exit 0
+fi
+
+# See how we were called.
+case "$1" in
+  start)
+	echo -n $"Starting printerface: "
+
+	if [ -f $lock ]; then
+	    # we were not shut down correctly
+	    if [ -s $pidf ]; then
+	      kill `cat $pidfile` >/dev/null 2>&1
+	    fi
+	    rm -f $pidfile
+	    rm -f $lock
+	    sleep 2
+	fi
+
+	rm -f $pidfile
+	mkdir -p /var/log/printerface/
+	cd $work
+
+	logfile=/var/log/printerface/`date +'%Y%m%d.%H%M%S'`
+	
+	errors=0
+	successes=0
+	daemonize -a -c $work -e $logfile.err -o $logfile.out -p $pidfile $printerface
+
+	if [ $? = 0 ]; then
+	  successes=1
+	else
+	  errors=1
+	fi
+
+	if [ $errors = 1 ]; then
+	    failure; echo
+	else
+	    success; echo
+	fi
+
+	if [ $successes = 1 ]; then
+	    touch $lock
+	fi
+	;;
+  stop)
+	echo -n $"Shutting down printerface: "
+	if [ -s $pidfile ]; then
+	  kill `cat $pidfile` >/dev/null 2>&1
+	fi
+	rm -f $pidfile
+
+	success; echo
+	rm -f $lock
+	;;
+  restart)
+	$0 stop
+	sleep 2
+	$0 start
+	;;
+  reload)
+	if [ -f $lock ]; then
+	  if [ -s $pidfile ]; then
+	    kill -HUP `cat $pidfile` >/dev/null 2>&1
+	  fi
+	else
+	    echo "printerface: service not started"
+	    exit 1
+	fi
+	;;
+  reopen)
+	if [ -f $lock ]; then
+	    if [ -s $pidfile ]; then
+	      kill -USR1 `cat $pidfile` >/dev/null 2>&1
+	    fi
+	else
+	    echo "printerface: service not started"
+	    exit 1
+	fi
+	;;
+  condrestart)
+	if [ -f $lock ]; then
+	    $0 stop
+	    # avoid race
+	    sleep 2
+	    $0 start
+	fi
+	;;
+  status)
+	if [ -f $lock ]; then
+		if [ -s $pidfile ]; then
+		    kill -USR2 `cat $pidfile` >/dev/null 2>&1
+		fi
+	    echo "Status written to /var/log/messages"
+	else
+	    echo "printerface: service not started"
+	    exit 1
+	fi
+        ;;
+  *)
+	echo "Usage: printerface {start|stop|restart|condrestart|reload|reopen|status}"
+	exit 1
+	;;
+esac
+exit 0

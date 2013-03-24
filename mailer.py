@@ -29,7 +29,7 @@ class JobMailer(object):
 		msg['To'] = you
 
 		s = smtplib.SMTP('localhost')
-		s.sendmail(mee, [you], msg.as_string())
+		s.sendmail(mee, you.split(';'), msg.as_string())
 		s.quit()
 
 if __name__=="__main__":

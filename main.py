@@ -1,9 +1,10 @@
+#!/usr/bin/python
 
 import asynchat, asyncore, socket, os
 from datetime import datetime
 from lpdserver import LpdServer
 from httpserver import ToyHttpServer
-from mailtest import JobMailer
+from mailer import JobMailer
 
 import pickle
 
