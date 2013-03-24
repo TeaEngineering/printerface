@@ -9,13 +9,14 @@ from mailer import JobMailer
 import pickle
 
 jobdir = os.path.expanduser("~/printerface/jobs/")
+rawdir = jobdir + 'raw/'
 jobs = []
 mailqueue = []
 
 def saveJob(queue, local, remote, control, data):
 	ts = datetime.utcnow()
-	d = {'queue':queue, 'from':repr(local), 'to':repr(remote), 'control':control, 'data':data, 'ts': ts}
 	jobname = 'job-%s' % ts.strftime('%Y%m%d-%H%M%S%f')
+	d = {'queue':queue, 'from':repr(local), 'to':repr(remote), 'control':control, 'data':data, 'ts': ts, 'name':jobname}
 	print "    %s" % repr(d)
 	jobs.append(d)
 	if len(jobs) > 100: jobs.pop(0)
@@ -27,24 +28,31 @@ def saveJob(queue, local, remote, control, data):
 	mailqueue.append(d)
 
 def recover():
-	xs = sorted(os.listdir(jobdir))
+	xs = sorted([ x for x in os.listdir(jobdir) if x != 'raw'])
 	if len(xs) > 100: xs = xs[-100:]
 
 	print '[control] recovering from %s' % jobdir
-	for x in xs:
+	for x in xs:		
 		f = file(jobdir + x, "rb")
-		jobs.append(pickle.load(f))
+		s = pickle.load(f)
+		s['name'] = x;
+		jobs.append(s)
 		f.close()
+	for j in jobs:
+		cleanJob(j)
 
-#	print repr(jobs)
-
-def mailjob():
-	pass
+def cleanJob(j):
+	fn = rawdir + j['name']
+	if not os.path.exists( fn ):
+		f = file(fn, "wb")
+		f.write(j['data'])
+		f.close()
 
 if __name__=="__main__":
 	# launch the server on the specified port
 	try:
 		os.makedirs(jobdir)
+		os.makedirs(rawdir)
 	except:
 		pass
 
