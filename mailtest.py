@@ -5,23 +5,38 @@ import smtplib
 # Import the email modules we'll need
 from email.mime.text import MIMEText
 
-# Open a plain text file for reading.  For this example, assume that
-# the text file contains only ASCII characters.
-fp = open(textfile, 'rb')
-# Create a text/plain message
-msg = MIMEText(fp.read())
-fp.close()
+import ConfigParser, os
 
-me == 'chris@shucksmith.co.uk'
-you == 'chris@shucksmith.co.uk'
+config = ConfigParser.ConfigParser()
+config.read(os.path.expanduser('~/printerface/email.cfg'))
 
-msg['Subject'] = 'The contents of %s' % textfile
-msg['From'] = me
-msg['To'] = you
+class JobMailer(object):
 
-# Send the message via our own SMTP server, but don't include the
-# envelope header.
-s = smtplib.SMTP('localhost')
-s.sendmail(me, [you], msg.as_string())
-s.quit()
+	def sendJobEmail(self, s):
+
+		q = s['data']
+	
+		# Create a text/plain message
+		html = '<html><head></head><body><pre style="font-size:8px">%s</pre></body></html>' % q
+	
+		msg = MIMEText(html, 'html')
+
+		mee = config.get('Email', 'from')
+		you = config.get('Email', 'to')
+
+		msg['Subject'] = 'Printerface: %s' % s['control']['U']
+		msg['From'] = mee
+		msg['To'] = you
+
+		s = smtplib.SMTP('localhost')
+		s.sendmail(mee, [you], msg.as_string())
+		s.quit()
+
+if __name__=="__main__":
+	f = file("/root/printerface/jobs/job-20130323-181244%f",'rb')
+	import pickle
+	s = pickle.load(f)
+	f.close()
+	
+	sendJobEmail(s)
 

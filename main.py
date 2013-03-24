@@ -3,10 +3,13 @@ import asynchat, asyncore, socket, os
 from datetime import datetime
 from lpdserver import LpdServer
 from httpserver import ToyHttpServer
+from mailtest import JobMailer
+
 import pickle
 
 jobdir = os.path.expanduser("~/printerface/jobs/")
 jobs = []
+mailqueue = []
 
 def saveJob(queue, local, remote, control, data):
 	ts = datetime.utcnow()
@@ -20,6 +23,8 @@ def saveJob(queue, local, remote, control, data):
 	pickle.dump(d, f)
 	f.close()
 
+	mailqueue.append(d)
+
 def recover():
 	xs = sorted(os.listdir(jobdir))
 	if len(xs) > 100: xs = xs[-100:]
@@ -30,7 +35,7 @@ def recover():
 		jobs.append(pickle.load(f))
 		f.close()
 
-	print repr(jobs)
+#	print repr(jobs)
 
 def mailjob():
 	pass
@@ -50,6 +55,10 @@ if __name__=="__main__":
 		while True:
 			asyncore.loop(timeout=2, count=1)
 			print '[control] poll'
+			if len(mailqueue) > 0:
+				print '[control] sending email'
+				s = mailqueue.pop()
+				JobMailer().sendJobEmail(s)
 
 	except KeyboardInterrupt:
 		print "Crtl+C pressed. Shutting down."
