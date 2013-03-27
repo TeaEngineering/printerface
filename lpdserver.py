@@ -72,7 +72,7 @@ class LpdHandler(asynchat.async_chat):
 	def handle_close(self):
 		
 		if self.sm == NewJobData:
-			print '%s data file: %s' % (self.id, repr(self.ibuffer))
+			print '%s data file: %s' % (self.id, repr(self.ibuffer)[:100])
 			# calling push() after the client has closed the socket will re-invoke handle_close, so 
 			# switch to terminal state to avoid inf recursion
 			self.sm = EndOfFile
