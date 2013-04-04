@@ -668,6 +668,10 @@ class RequestHandler(SimpleHTTPRequestHandler):
 						(self.id,self.log_date_time_string(), self.address_string(),						
 						format%args))
 
+	def log_message(self, format, *args):
+		sys.stdout.write("[httpd] %s %s %s\n" %
+			(self.log_date_time_string(), self.address_string(), format%args))
+
 class ToyHttpServer(asyncore.dispatcher):
 	def __init__ (self, ip='', port=8081, handler=RequestHandler):
 		self.handler = handler

@@ -5,11 +5,12 @@ from datetime import datetime
 from lpdserver import LpdServer
 from httpserver import ToyHttpServer
 from mailer import JobMailer
-
+import sys
 import pickle
 
-jobdir = os.path.expanduser("~/printerface/jobs/")
-rawdir = jobdir + 'raw/'
+dir = os.path.expanduser("~/printerface/")
+jobdir = dir + 'pickle/'
+rawdir = dir + 'raw/'
 jobs = []
 mailqueue = []
 
@@ -17,7 +18,7 @@ def saveJob(queue, local, remote, control, data):
 	ts = datetime.utcnow()
 	jobname = 'job-%s' % ts.strftime('%Y%m%d-%H%M%S%f')
 	d = {'queue':queue, 'from':repr(local), 'to':repr(remote), 'control':control, 'data':data, 'ts': ts, 'name':jobname}
-	print "    %s" % repr(d)
+	# print "    %s" % repr(d)
 	jobs.append(d)
 	if len(jobs) > 100: jobs.pop(0)
 	
@@ -26,6 +27,8 @@ def saveJob(queue, local, remote, control, data):
 	f.close()
 
 	mailqueue.append(d)
+
+	cleanJob(d)
 
 def recover():
 	xs = sorted([ x for x in os.listdir(jobdir) if x != 'raw'])
@@ -42,7 +45,7 @@ def recover():
 		cleanJob(j)
 
 def cleanJob(j):
-	fn = rawdir + j['name']
+	fn = rawdir + j['name'] + '.txt'
 	if not os.path.exists( fn ):
 		f = file(fn, "wb")
 		f.write(j['data'])
@@ -62,8 +65,9 @@ if __name__=="__main__":
 	ToyHttpServer(port=8081)
 	try:
 		while True:
-			asyncore.loop(timeout=2, count=1)
-			print '[control] poll'
+			asyncore.loop(timeout=1, count=10)
+			print '[control] poll %s' % str(datetime.now())
+			sys.stdout.flush()
 			if len(mailqueue) > 0:
 				print '[control] sending email'
 				s = mailqueue.pop()
