@@ -1,10 +1,18 @@
 """
-HTTP server based on the asyncore / asynchat framework
+Simple HTTP server build on the asyncore/asynchat module.
 
-The hierchy of the built-in SimpleHTTPServer is mixed up with SocketServer
-blocking/threading semantics, this class strips it back to work only with
-asynchat.
+Python's built-in SimpleHTTPServer is mixed up with SocketServer blocking/
+threading semantics in the classes it inherits. The various adapters to make
+it work with asynchat are pretty auful. This file class strips it back to 
+work only with asynchat.
 
+Incorporates basic support for dynamic pages, simple logging, connection re-use, 
+and allows http root to be specified.
+
+There are plenty of capable web servers for python, absoutely nobody should use
+this class. _Except_ in the rare case you need a co-operative single 
+threaded HTTP to mix inline with other protocol handlers to avoid locking a 
+datamodel.
 """
 
 import asynchat, asyncore, socket, select, urllib
@@ -127,22 +135,26 @@ class BaseHTTPRequestHandler(asynchat.async_chat):
 			if version_number >= (1, 1) and self.protocol_version >= "HTTP/1.1":
 				self.close_connection = 0
 			if version_number >= (2, 0):
-				self.send_error(505,
-						  "Invalid HTTP Version (%s)" % base_version_number)
+				self.send_error(505, "Invalid HTTP Version (%s)" % base_version_number)
 				return False
 		elif len(words) == 2:
 			command, path = words
 			self.close_connection = 1
 			if command != 'GET':
-				self.send_error(400,
-								"Bad HTTP/0.9 request type (%r)" % command)
+				self.send_error(400, "Bad HTTP/0.9 request type (%r)" % command)
 				return False
 		elif not words:
 			return False
 		else:
 			self.send_error(400, "Bad request syntax (%r)" % requestline)
 			return False
-		self.command, self.path, self.request_version = command, path, version
+
+		querystring = ''
+		qparts = path.split('?', 1);
+		if len(qparts) > 1: 
+			path = qparts[0]
+			querystring = cgi.parse_qs(qparts[1])
+		self.command, self.path, self.request_version, self.query_string = command, path, version, querystring
 
 		# Examine the headers and look for a Connection directive
 		self.headers = CaseInsensitiveDict(self.rfile, 0)
@@ -426,6 +438,24 @@ class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
 		None, in which case the caller has nothing further to do.
 
 		"""
+		handler = self.handlers.get(self.path)
+		if (handler):
+			try:
+				(f, ctype) = handler(query_string=self.query_string)				
+				self.send_response(200)
+				self.send_header("Content-type", ctype)
+				f.seek(0, os.SEEK_END)
+				self.send_header("Content-Length", str(f.tell()))
+				# self.send_header("Last-Modified", self.date_time_string(fs.st_mtime))
+				self.end_headers()
+				f.seek(0)
+				return f
+			except:
+				tb = traceback.format_exc()
+				print tb
+				self.send_error(500, "File not found")
+				return None	
+
 		path = self.translate_path(self.path)
 		f = None
 		if os.path.isdir(path):
@@ -515,7 +545,7 @@ class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
 		path = posixpath.normpath(urllib.unquote(path))
 		words = path.split('/')
 		words = filter(None, words)
-		path = os.getcwd()
+		path = self.webroot
 		for word in words:
 			drive, word = os.path.splitdrive(word)
 			head, word = os.path.split(word)
@@ -559,11 +589,13 @@ class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
 	
 class RequestHandler(SimpleHTTPRequestHandler):
 
-	def __init__(self,conn,addr):
+	def __init__(self,conn,addr, webroot=os.getcwd(), path_handlers={}):
 		asynchat.async_chat.__init__(self,conn)
 		
 		self.client_address = addr
 		self.id = "[httpd-%d]" % addr[1]
+		self.webroot = webroot
+		self.handlers = path_handlers
 		
 		# set the terminator : when it is received, this means that the
 		# http request is complete ; control will be passed to
@@ -634,7 +666,11 @@ class RequestHandler(SimpleHTTPRequestHandler):
 			(self.id, self.log_date_time_string(), self.address_string(), format%args))
 
 class ToyHttpServer(asyncore.dispatcher):
-	def __init__ (self, ip='', port=8081, handler=RequestHandler):
+	
+	def __init__ (self, ip='', port=8081, webroot=os.getcwd(), handler=RequestHandler, pathhandlers={}):
+		
+		self.webroot=webroot
+		self.path_handlers = pathhandlers
 		self.handler = handler
 		asyncore.dispatcher.__init__ (self)
 		self.create_socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -643,55 +679,31 @@ class ToyHttpServer(asyncore.dispatcher):
 		self.bind ((ip, port))
 		self.listen (100)
 
-		print "[httpd] ToyHTTPServer running on port %s" %port
+		print "[httpd] ToyHTTPServer running on port %s, serving from %s" % (port, self.webroot)
 
 	def handle_accept (self):
 		try:
 			pair = self.accept()
 			if pair is not None:
 				sock, addr = pair
-				self.handler(sock,addr)
+				self.handler(sock,addr,webroot=self.webroot, path_handlers=self.path_handlers)
 		except socket.error:
 			self.log_info ('[https] warning: server accept() threw an exception', 'warning')
 			return
 
 if __name__=="__main__":
+	
+	def about(query_string=''):
+		f = StringIO()
+		f.write("hi %s" % query_string)
+		return (f,'text/plain')
+
 	# launch the server on the specified port
-	s = ToyHttpServer(port=8081)	
-#	try:
-#		asyncore.loop(timeout=2)
-#	except KeyboardInterrupt:
-#		print "Crtl+C pressed. Shutting down."
+	s = ToyHttpServer(port=8081, pathhandlers={'/about': about})
+
 	try:
 		while True:
 			asyncore.loop(timeout=2, count=10)
 			print '[control] poll'
 	except KeyboardInterrupt:
 		print "Crtl+C pressed. Shutting down."
-
-# def move():
-#	 """ sample function to be called via a URL"""
-#	 return 'hi'
-
-# class CustomHandler(SimpleHTTPServer.SimpleHTTPRequestHandler):
-#	 def do_GET(self):
-#		 #Sample values in self for URL: http://localhost:8080/jsxmlrpc-0.3/
-#		 #self.path  '/jsxmlrpc-0.3/'
-#		 #self.raw_requestline   'GET /jsxmlrpc-0.3/ HTTP/1.1rn'
-#		 #self.client_address	('127.0.0.1', 3727)
-#		 if self.path=='/move':
-#			 #This URL will trigger our sample function and send what it returns back to the browser
-#			 self.send_response(200)
-#			 self.send_header('Content-type','text/html')
-#			 self.end_headers()
-#			 self.push(move()) #call sample function here
-#			 return
-#		 else:
-#			 #serve files, and directory listings by following self.path from
-#			 #current working directory
-#			 SimpleHTTPServer.SimpleHTTPRequestHandler.do_GET(self)
-#httpd = SocketServer.ThreadingTCPServer(('localhost', PORT),CustomHandler)
-#print "serving at port", PORT
-#httpd.serve_forever()
-
-
