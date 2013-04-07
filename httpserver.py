@@ -155,46 +155,6 @@ class BaseHTTPRequestHandler(asynchat.async_chat):
 			self.close_connection = 0
 		return True
 
-
-	def handle_one_request(self):
-		"""Handle a single HTTP request.
-
-		You normally don't need to override this method; see the class
-		__doc__ string for information on how to handle specific HTTP
-		commands such as GET and POST.
-
-		"""
-		try:
-			raw_requestline = self.rfile.readline(65537)
-			if len(raw_requestline) > 65536:
-				self.send_error(414)
-				return
-			if not raw_requestline:
-				self.close_connection = 1
-				return
-			if not self.parse_request(requestline):
-				# An error code has been sent, just exit
-				return
-			mname = 'do_' + self.command
-			if not hasattr(self, mname):
-				self.send_error(501, "Unsupported method (%r)" % self.command)
-				return
-			method = getattr(self, mname)
-			method()			
-		except socket.timeout, e:
-			#a read or a write timed out.  Discard this connection
-			self.log_error("Request timed out: %r", e)
-			self.close_connection = 1
-			return
-
-	def handle(self):
-		"""Handle multiple requests if necessary."""
-		self.close_connection = 1
-
-		self.handle_one_request()
-		while not self.close_connection:
-			self.handle_one_request()
-
 	def send_error(self, code, message=None):
 		"""Send and log an error reply.
 
@@ -342,7 +302,8 @@ class BaseHTTPRequestHandler(asynchat.async_chat):
 		"""
 
 		host, port = self.client_address[:2]
-		return socket.getfqdn(host)
+		# return socket.getfqdn(host)
+		return host
 
 	# Essentially static class variables
 
@@ -669,8 +630,8 @@ class RequestHandler(SimpleHTTPRequestHandler):
 						format%args))
 
 	def log_message(self, format, *args):
-		sys.stdout.write("[httpd] %s %s %s\n" %
-			(self.log_date_time_string(), self.address_string(), format%args))
+		sys.stdout.write("%s %s %s %s\n" %
+			(self.id, self.log_date_time_string(), self.address_string(), format%args))
 
 class ToyHttpServer(asyncore.dispatcher):
 	def __init__ (self, ip='', port=8081, handler=RequestHandler):
