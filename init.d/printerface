@@ -75,6 +75,7 @@ case "$1" in
 	
 	errors=0
 	successes=0
+	export TZ=:/etc/localtime
 	daemonize -a -c $work -e $logfile.err -o $logfile.out -p $pidfile $printerface
 
 	if [ $? = 0 ]; then
