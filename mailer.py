@@ -17,7 +17,7 @@ class JobMailer(object):
 		q = s['data']
 	
 		# Create a text/plain message
-		html = '<html><head></head><body><pre style="font-size:8px">%s</pre></body></html>' % q
+		html = '<html><head></head><body><pre style="font-size:9px">%s</pre></body></html>' % q
 	
 		msg = MIMEText(html, 'html')
 
