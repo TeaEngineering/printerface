@@ -5,6 +5,7 @@ from datetime import datetime
 from lpdserver import LpdServer
 from httpserver import ToyHttpServer
 from mailer import JobMailer
+from parser import DocParser
 import sys
 import pickle
 from StringIO import StringIO
@@ -15,6 +16,8 @@ rawdir = dir + 'raw/'
 plaindir = dir + 'plain/'
 jobs = []
 mailqueue = []
+
+mainparser = DocParser()
 
 def saveJob(queue, local, remote, control, data):
 	ts = datetime.utcnow()
@@ -56,9 +59,24 @@ def cleanJob(j):
 	control_char_re = re.compile('[^\w\s%s_\'=/]' % re.escape('.*+()-\\;:,#?%$^&!<>|`"'))
 	raw = j['data']
 	plain = control_char_re.sub(' ', j['data'])
+	j['plain'] = plain
+	summary = re.compile('[^\w\s]').sub('', j['data'])
+	summary = re.compile('\s+').sub(' ', summary)
+	summary = summary.strip()[0:80]
 
 	writeFile(rawdir + j['name'] + '.txt', raw)
 	writeFile(plaindir + j['name'] + '.txt', plain)
+
+	j['summary'] = summary
+	j['doctype'] = j.get('control', {}).get('J').strip()
+	j['templ'] = identify(j)
+
+	(j['colouring'],j['parsed']) = mainparser.parse(j)
+	if not j['colouring']: del j['colouring']
+
+def identify(j):
+	types = {'Sttments': 'statement', 'Delvnote':'delnote', 'Cr-note':'crednote', 'Invoice':'invoice' }
+	return types.get(j['doctype'])
 
 def recentjob(query_string=''):
 	f = StringIO()
@@ -66,6 +84,77 @@ def recentjob(query_string=''):
 	for j in jobs:
                 f.write("      %10s    %10s \n" %(j['name'], j['ts']))
 	return (f,'text/plain')
+
+def index(query_string=''):
+	xstr = lambda s: s or ''
+	f = StringIO()
+	f.write('<h3>Recent Jobs</h3>R: raw, T: plain text, B: boxes, J:json, P:pdf <pre>')
+	f.write('Links     Time                templ     doctype    preview<br>')
+	for j in jobs:
+		if j['templ']:
+			f.write('R <a href="/plain/%s.txt">T</a> B <a href="/data?name=%s">J</a> P %19s %-9s %-10s %s <br>' %(j['name'], j['name'],
+				str(j['ts'])[0:19], \
+			 xstr(j['templ']),j['doctype'], j['summary']))
+		else:
+			f.write('R <a href="/plain/%s.txt">T</a>       %19s %-9s %-10s %s <br>' %(j['name'], str(j['ts'])[0:19], \
+			xstr(j['templ']),j['doctype'], j['summary']))
+	f.write('</pre>')
+	return (f,'text/html')
+
+def data(query_string=''):
+	job = None
+	for j in jobs: 
+		if j['name'] == query_string['name'][0]: job = j
+	f = StringIO()
+        f.write('<html><head></head><body>')
+
+	f.write('<h3>Job Data</h3>')
+	if not job:
+		f.write('unknown job %s' % query_string)
+		return (f,'text/html')
+	colouring = job.get('colouring', [ dict(r=1,c=1,w=15,h=2,t='NO COLOURING!') ])
+	f.write(' name: %s<br>' % job.get('name'))
+	f.write(' type: %s<br>' % job.get('templ'))
+	f.write(' data = <pre style="font-size:11px">')
+	import pprint
+	pp = pprint.PrettyPrinter(indent=4, stream=f)
+	pp.pprint(job.get('parsed'))
+	f.write('</pre>')
+
+	f.write('<h3>Annotated Document</h3>')
+	lines = job['plain'].splitlines()
+	(rows, cols) = (len(lines), max([len(line) for line in lines]))
+	f.write('plain text dimensions: lines %d, width %d<br>' % (rows, cols))
+	cols = max(cols, max([c['c']+c['w'] for c in colouring]))
+	rows = max(rows, max([c['r']+c['h'] for c in colouring]))
+
+	high = [[None for col in range(cols)] for row in range(rows)]
+
+	for c in colouring:
+		for row in range(c['r'], c['r']+c['h']):
+			for col in range(c['c'], c['c']+c['w']):
+				high[row][col] = c
+
+	f.write('<pre style="font-size:10px">')
+	chunks10 = 16 
+	f.write('     ' +  ''.join(["%-10d" % (d*10) for d in range(chunks10)]))
+	f.write('\n     ' + ('0123456789' * chunks10))
+	for (row,line) in enumerate(lines):
+		f.write('\n%-4d ' % row)
+		pad = ' '*(max(0,len(high[row])-len(line)))
+		for col,char in enumerate(line + pad):
+			if high[row][col]:
+				f.write('<span title="%s" style="background-color: #00FFFF">' % high[row][col]['t'])
+				f.write(char)
+				f.write('</span>')
+			else: f.write(char)
+
+	f.write('<h3>PDF Output</h3>')
+	
+
+	if query_string.get('raw'): f.write(job)
+	f.write('</pre></body></html>')
+	return (f,'text/html')
 
 if __name__=="__main__":
 	# launch the server on the specified port
@@ -84,7 +173,7 @@ if __name__=="__main__":
 	recover()
 
 	s = LpdServer(saveJob, ip='', port=515)
-	ToyHttpServer(port=8081, pathhandlers={'/json/recent': recentjob})
+	ToyHttpServer(port=8081, pathhandlers={'/json/recent': recentjob, '/index':index, '/data':data})
 	try:
 		while True:
 			asyncore.loop(timeout=1, count=10)
