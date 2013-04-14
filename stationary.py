@@ -29,7 +29,7 @@ def headerDetails(c, ctx, doctype="DELIVERY NOTE"):
 	c.setFont("Helvetica", 18)
 	c.drawRightString(pagewidth, top, doctype)
 	c.restoreState()
-	c.drawImage(pdir + 'logo.gif', 0,top-2.5*cm, width=2.5*cm,height=3*cm, preserveAspectRatio=True, anchor='nw')
+	c.drawImage(pdir + 'logo.gif', 0,top+0.5*cm, width=2.5*cm,height=3*cm, preserveAspectRatio=True, anchor='nw')
 
 def topBox(c, x, y, title="Title", content="The quick brown", w=2*cm, h=2.0*cm, padleft=0.8*cm, align='l'):
 	c.saveState()
@@ -180,7 +180,12 @@ def writePage(drawfn, content):
  	drawfn(c, content)
  	c.save()
 
- 	os.startfile(p)
+	return p
+
+class DocFormatter(object):
+	def format(self, ctx):
+		print('formatting %s' % ctx['name'])
+		return []
 
 if __name__=="__main__":
 	# launch the server on the specified port
@@ -211,5 +216,11 @@ if __name__=="__main__":
 
 		ctx.append( dict(order.items() + chuff.items()))
 
-	writePage(deliveryNote, ctx)
+	p = writePage(deliveryNote, ctx)
+
+ 	try:
+		os.startfile(p)
+	except:
+		pass
+
 
