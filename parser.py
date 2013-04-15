@@ -39,7 +39,7 @@ class DocParser(object):
 			field(fs, line+5, 10,w=16,t='vat_cust')
 			field(fs, line+8, 12,w=38,h=6,t='addr_invoice')
 			field(fs, line+8, 66,w=38,h=6,t='addr_delivery')
-			field(fs, line+15,75,t='instruction',w=30,h=2)
+			field(fs, line+15,75,t='instructions',w=30,h=2)
 			field(fs, line+16,0,w=8,t='accno')
 			field(fs, line+16,9,w=8,t='custref')
 			field(fs, line+16,20,w=7,t='ourref')

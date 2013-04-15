@@ -6,6 +6,8 @@ from lpdserver import LpdServer
 from httpserver import ToyHttpServer
 from mailer import JobMailer
 from parser import DocParser
+from stationary import DocFormatter
+
 import sys
 import pickle
 from StringIO import StringIO
@@ -18,6 +20,7 @@ jobs = []
 mailqueue = []
 
 mainparser = DocParser()
+formatter = DocFormatter()
 
 def saveJob(queue, local, remote, control, data):
 	ts = datetime.utcnow()
@@ -74,6 +77,18 @@ def cleanJob(j):
 	(j['colouring'],j['parsed']) = mainparser.parse(j)
 	if not j['colouring']: del j['colouring']
 
+	# if colouring succeded, might be able to generate docs
+	if j.get('colouring'):
+		(j['files']) = formatter.format(j)
+
+		for f in [j['files']]:
+			from subprocess import call
+			proc = ['convert','-size','150x150','%s[0]' % f, '%s.png' % f]
+			print(proc)
+			call(proc)
+	
+	# all done
+
 def identify(j):
 	types = {'Sttments': 'statement', 'Delvnote':'delnote', 'Cr-note':'crednote', 'Invoice':'invoice' }
 	return types.get(j['doctype'])
@@ -92,7 +107,8 @@ def index(query_string=''):
 	f.write('Links     Time                templ     doctype    preview<br>')
 	for j in jobs:
 		if j['templ']:
-			f.write('R <a href="/plain/%s.txt">T</a> B <a href="/data?name=%s">J</a> P %19s %-9s %-10s %s <br>' %(j['name'], j['name'],
+			f.write('R <a href="/plain/%s.txt">T</a>   <a href="/data?name=%s">J</a> <a href="/pdf/%s.pdf">P</a> %19s %-9s %-10s %s <br>' %(
+				j['name'], j['name'],j['name'],
 				str(j['ts'])[0:19], \
 			 xstr(j['templ']),j['doctype'], j['summary']))
 		else:
@@ -148,9 +164,14 @@ def data(query_string=''):
 				f.write(char)
 				f.write('</span>')
 			else: f.write(char)
-
+	f.write('</pre>')
 	f.write('<h3>PDF Output</h3>')
 	
+	if job.get('files'):
+	# for pdffile in job.get('files', []):
+	#	f.write(pdffile)
+
+		f.write('<a href="/pdf/%s.pdf"> <img src="/pdf/%s.pdf.png" width="400px"><br> PDF File</a>' % (job['name'], job['name']))
 
 	if query_string.get('raw'): f.write(job)
 	f.write('</pre></body></html>')
