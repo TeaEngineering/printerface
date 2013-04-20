@@ -16,11 +16,12 @@ dir = os.path.expanduser("~/repos/printerface/web/")
 jobdir = dir + 'pickle/'
 rawdir = dir + 'raw/'
 plaindir = dir + 'plain/'
+pdfdir = dir + 'plain/'
 jobs = []
 mailqueue = []
 
 mainparser = DocParser()
-formatter = DocFormatter()
+formatter = DocFormatter(pdfdir)
 
 def saveJob(queue, local, remote, control, data):
 	ts = datetime.utcnow()
@@ -184,17 +185,11 @@ def data(query_string=''):
 
 if __name__=="__main__":
 	# launch the server on the specified port
-	try:
-		os.makedirs(jobdir)
-		os.makedirs(rawdir)
-		os.makedirs(plaindir)
-	except:
-		pass
-
-	try:
-		os.makedirs(plaindir)
-	except:
-		pass
+	for x in [jobdir, rawdir, plaindir, pdfdir]:
+		try:
+			os.makedirs(x)
+		except:
+			pass
 
 	recover()
 

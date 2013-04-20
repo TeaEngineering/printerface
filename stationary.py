@@ -5,9 +5,6 @@ import os
 config = ConfigParser.ConfigParser()
 config.read(os.path.expanduser('~/printerface/email.cfg'))
 
-pdir = os.path.expanduser("~/printerface/")
-jobdir = pdir + 'pdf/'
-
 from reportlab.lib.units import cm
 from reportlab.lib.pagesizes import A4
 
@@ -309,6 +306,9 @@ def writePage(drawfn, content, count=0):
 	return p
 
 class DocFormatter(object):
+	def __init__(self, pdfdir):
+		self.jobdir = pdfdir
+
 	def format(self, ctx):
 		print('formatting %s' % ctx['name'])
 		mname = 'write' + ctx['templ'].title()
@@ -338,7 +338,7 @@ class DocFormatter(object):
 	def writePage(self,drawfn, content, count=0):
 		from reportlab.pdfgen import canvas
 	
-		p = jobdir + "%s.pdf" % str(count)
+		p = self.jobdir + "%s.pdf" % str(count)
 		c = canvas.Canvas(p, pagesize=A4)
 	 	print('formatting %s to %s with %s' % (content, p, drawfn))
 	 	drawfn(c, content)
@@ -348,14 +348,15 @@ class DocFormatter(object):
 
 if __name__=="__main__":
 	# launch the server on the specified port
+	pdir = os.path.expanduser("~/printerface/")
+	jobdir = pdir + 'pdf/'
+
 	try:
 		os.makedirs(jobdir)
-		os.makedirs(rawdir)
-
 	except:
 		pass
 
-	formatter = DocFormatter()
+	formatter = DocFormatter(jobdir)
 
 	chuff = dict(date='04/10/12', doc_num='731/289073', 
 		addr_invoice='SAMPLE ACCOUNT\nCHRIS SHUCKSMITH',
@@ -387,7 +388,7 @@ if __name__=="__main__":
 	# CREDIT NOTE / STATEMENT / INVOICE paperwork
 	extra = dict( doctype='CREDIT NOTE', 
 		summ_code='5\n'*4, summ_netamt='12345.67\n'*4,summ_rate='0.00\n'*4, summ_vat='0.00\n'*4,
-		tot_net='12345.00', tot_vat='0.00', tot_due='12345.00')
+		tot_net='12345.00', tot_vat='0.00', tot_due='12345.00', summ_box='xyz')
 
 	ctx = []
 	for page,sz in enumerate([18,3]):
@@ -408,4 +409,7 @@ if __name__=="__main__":
 
 	p = formatter.writePage(formatter.writeInvoice, ctx, count=1)
 
-    
+	try:
+		os.startfile(p)
+	except:
+		pass
