@@ -5,14 +5,14 @@ from datetime import datetime
 from lpdserver import LpdServer
 from httpserver import ToyHttpServer
 from mailer import JobMailer
-from parser import DocParser
+from docparser import DocParser
 from stationary import DocFormatter
 
 import sys
 import pickle
 from StringIO import StringIO
 
-dir = os.path.expanduser("~/printerface/")
+dir = os.path.expanduser("~/repos/printerface/web/")
 jobdir = dir + 'pickle/'
 rawdir = dir + 'raw/'
 plaindir = dir + 'plain/'
@@ -199,7 +199,7 @@ if __name__=="__main__":
 	recover()
 
 	s = LpdServer(saveJob, ip='', port=515)
-	ToyHttpServer(port=8081, pathhandlers={'/json/recent': recentjob, '/index':index, '/data':data})
+	ToyHttpServer(port=8081, pathhandlers={'/json/recent': recentjob, '/index':index, '/data':data}, webroot=dir)
 	try:
 		while True:
 			asyncore.loop(timeout=1, count=10)
