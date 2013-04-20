@@ -13,10 +13,10 @@ from reportlab.lib.pagesizes import A4
 
 pagewidth = A4[0] - 2*0.8*cm
 vpad = 0.4*cm
+top = 27.6*cm
 
 def headerDetails(c, ctx, doctype="DELIVERY NOTE"):
 	c.saveState()
-	top = 27.6*cm
 	textobject = c.beginText()
 	textobject.setTextOrigin(2.75*cm, top)
 	textobject.setFont("Helvetica", 8)
@@ -34,7 +34,7 @@ def headerDetails(c, ctx, doctype="DELIVERY NOTE"):
 	c.setFont("Helvetica", 10)
 	c.drawString(0, 0.5*cm, config.get('Printing', 'terms'))
 
-def topBox(c, x, y, title="Title", content="The quick brown", w=2*cm, h=2.0*cm, padleft=0.8*cm, align='l', ht=0.45*cm):
+def topBox(c, x, y, title="Title", content="The quick brown", w=2*cm, h=2.0*cm, padleft=0.8*cm, align='l', ht=0.45*cm, fontsz=10.5):
 	c.saveState()
 	c.translate(x,y)
 	c.rect(0.0,0,w,-h)
@@ -52,12 +52,15 @@ def topBox(c, x, y, title="Title", content="The quick brown", w=2*cm, h=2.0*cm, 
 		c.drawString(0.8*cm, -.33*cm, title)
 	
 	textobject = c.beginText()
-	textobject.setFont("Helvetica", 10.5)
+	textobject.setFont("Helvetica", fontsz)
 	textobject.setTextOrigin(padleft, -(0.55*cm + ht))	
 	textobject.textLines(content)
 	c.drawText(textobject)
 	c.restoreState()
 	return (x+w, y-h)
+
+def stTopBox(c, x, y, title="Title", content="The quick brown", w=2*cm, h=2.0*cm, ht=0.45*cm):
+	return topBox(c, x, y, title=title, content=content, w=w, h=h, padleft=0.1*cm, align='c', fontsz=8, ht=ht)
 
 def leftBox(c, x, y, title="Title", content="Quick brown", h=0.85*cm, w=2.0*cm, padding=0.3*cm, split=0.5):
 	p = padding
@@ -99,7 +102,7 @@ def rightHeaderBlock(c, ctx, y=3*cm):
 	w = 9*cm
 	(x, y) = leftBox(c, pagewidth-w, y, w=w, title='DATE', content=ctx['date'])
 	(x, y) = leftBox(c, pagewidth-w, y, w=w, title='PAGE', content=ctx['page'])
-	(x, y) = leftBox(c, pagewidth-w, y, w=w, title='DOCUMENT No.', content=ctx['doc_num'])
+	(x, y) = leftBox(c, pagewidth-w, y, w=w, title='DOCUMENT No.', content=ctx['doc_num'].replace('\n',' '))
 	return y
 
 def addressHorizDoubleBox(c, ctx, h=3.4*cm, w=9.0*cm, y=3*cm, lhs='INVOICE TO', rhs='DELIVERY ADDRESS'):
@@ -118,13 +121,8 @@ def accountSection(c, ctx, h = 1.25*cm, y=0):
 
 	w = pagewidth / 2.0
 	topBox(c, 0*w, y, w=w, h=h, title="SALES PERSON", content=ctx['salesperson'])
-	topBox(c, 1*w, y, w=w, h=h, title="INSTRUCTIONS", content=ctx['instructions'])
+	topBox(c, 1*w, y, w=w, h=h, title="INSTRUCTIONS", content=ctx['instructions'].replace('\n', ' '))
 	return y-h
-
-def writeDelnote(c, ctx):
-	for mark in ['CUSTOMER COPY', 'ACCOUNTS COPY']:
-		for page in ctx:
-			deliveryNotePage(c, page, mark)
 
 def deliveryNotePage(c, ctx, mark):	
 	
@@ -133,7 +131,7 @@ def deliveryNotePage(c, ctx, mark):
 	c.translate(0.8*cm,0.8*cm)
 	
 	watermark(c, mark=mark)
-	outline(c)
+	#outline(c)
 	headerDetails(c, ctx)
 
 	y = rightHeaderBlock(c, ctx, y = 27.2*cm)		
@@ -172,14 +170,6 @@ def deliveryNotePage(c, ctx, mark):
 
 	c.showPage()
 
-def writeInvoice(c, ctx):
-	for mark in ['CUSTOMERS COPY', 'ACCOUNTS COPY']:
-		for page in ctx:
-			accountNotePage(c, page, mark)
-
-def writeCrednote(c, ctx):
-	writeInvoice(c, ctx)
-
 def accountNotePage(c, ctx, mark):
 		
 	# move the origin up and to the left
@@ -187,7 +177,7 @@ def accountNotePage(c, ctx, mark):
 	c.translate(0.8*cm,0.8*cm)
 	
 	watermark(c, mark=mark)
-	outline(c)
+	#outline(c)
 	headerDetails(c, ctx, doctype=ctx['doctype'])
 
 	y = rightHeaderBlock(c, ctx, y = 27.2*cm)		
@@ -222,6 +212,91 @@ def accountNotePage(c, ctx, mark):
 
 	c.showPage()
 
+def statementPage(c, ctx, mark):
+		
+	# move the origin up and to the left
+	c.setFillColorRGB(0,0,0)
+	c.translate(0.8*cm,0.8*cm)
+
+	# entire page breaks at 12cm, LHS is tear off (originally perferated)	
+	watermark(c, mark=mark)
+	outline(c)
+	headerDetails(c, ctx, 'Statement')
+
+	divide = 12*cm
+
+
+	textobject = c.beginText()
+	textobject.setTextOrigin(divide+vpad, top-vpad)
+	textobject.setFont("Helvetica", 8)
+	textobject.textLines('PLEASE DETACH AND RETURN\nWITH YOUR REMITTANCE TO:') 
+	textobject.textLines(config.get('Printing', 'address').replace("\\n", '\n'))
+	textobject.textLines(config.get('Printing', 'fax1'))
+	c.drawText(textobject)
+
+	h = 0.85*cm
+	y = 25*cm
+        (x,y0) = topBox(c, 0*cm, y, h=3.8*cm, w=8.2*cm, title='TO', content=ctx['addr_invoice'])
+	w = divide - vpad - (x + vpad)
+	(x0,y) = topBox(c, x+vpad, y, h=1.25*cm, w=w, title='ACCOUNT NO.', content=ctx['accno'])
+	(x0,y) = topBox(c, x+vpad, y, h=1.25*cm, w=w, title='DATE', content=ctx['date'])
+	(x0,y) = topBox(c, x+vpad, y, h=y-y0, w=w, title='PAGE No.', content=ctx['page'])
+	
+	x = divide+vpad; y = 25*cm; w=(pagewidth-x)/2
+	(x0,y0) = topBox(c, x, y, h=1.25*cm, w=w, title='ACCOUNT NO.', content=ctx['accno'])
+	(x0,y)  = topBox(c, x0,y, h=1.25*cm, w=w, title='DATE', content=ctx['date'])
+	(x0,y0) = topBox(c, x, y, h=1.25*cm, w=w, title='PAGE No.', content=ctx['page'])
+	(x0,y)  = topBox(c, x0,y, h=1.25*cm, w=w, title='DATE RECEIVED', content=ctx['date_recv'])
+	(x0,y)  = topBox(c, x, y, h=1.25*cm, w=2*w, title='FROM', content=ctx['addr_invoice'].split('\n')[0])
+
+	#y = accountSection(c, ctx, y=y-vpad)
+	
+	# 8 column section, individual widths
+	y = y - vpad
+	h = 15.5*cm; hs=0.9*cm
+	(x, y0) = stTopBox(c, 0, y, w=1.3*cm, h=h, title="DATE", content=ctx['prod_date']);
+	(x, y0) = stTopBox(c, x, y, w=4.1*cm, h=h, title="OUR REF.                DETAILS", content=ctx['prod_code'])
+	(x, y0) = stTopBox(c, x, y, w=1.3*cm, h=h, title="TRANS", content=ctx['prod_trans'])
+	(x1,y0) = stTopBox(c, x, y, w=1.6*cm, h=h, title="DEBT", content=ctx['prod_debt'])
+	(x1,y1) = stTopBox(c, x, y0,w=1.6*cm, h=hs,title="", content=ctx['tot_debt'], ht=0)
+
+	(x2,y0) = stTopBox(c, x1, y, w=1.6*cm, h=h, title="CREDIT", content=ctx['prod_credit'])
+	(x2,y1) = stTopBox(c, x1, y0,w=1.6*cm, h=hs,title="", content=ctx['tot_credit'], ht=0)
+
+	w = divide - vpad - x2
+	(x3,y0) = stTopBox(c, x2, y, w=w, h=h, title="BALANCE", content=ctx['prod_bal'])
+	(x3,y1) = stTopBox(c, x2, y0,w=w, h=hs,title="", content=ctx['tot_bal'], ht=0)
+	
+	x = divide+vpad
+	(x, y0) = stTopBox(c, x, y, w=1.6*cm, h=h, title="DATE", content=ctx['prod_date'])
+	(x, y0) = stTopBox(c, x, y, w=1.8*cm, h=h, title="OUR REF.", content=ctx['prod_ref'])
+	(x, y0) = stTopBox(c, x, y, w=2.5*cm, h=h, title="OUTSTANDING", content=ctx['prod_total'])
+	(x, y0) = stTopBox(c, x, y, w=pagewidth-x, h=h, title="TICK", content='')
+
+	c.setFont("Helvetica", 8)
+        c.drawString(0, y0-vpad, ctx['summ_box'])
+
+	
+	w=(divide-vpad)/4; x=0; y=4.0*cm; h=1.3*cm;
+	(x, y0) = stTopBox(c, x, y, w=w, h=h, title="CURRENT", content=ctx['age_curr'])
+	(x, y0) = stTopBox(c, x, y, w=w, h=h, title="ONE MONTH", content=ctx['age_1m'])
+	(x, y0) = stTopBox(c, x, y, w=w, h=h, title="TWO MONTHS", content=ctx['age_2m'])
+	(x, y0) = stTopBox(c, x, y, w=w, h=h, title="THREE MONTHS", content=ctx['age_3m'])
+	
+	y=y0-vpad; x=0; w=4.5*cm;
+	(x, y0) = stTopBox(c, x, y, w=w, h=h, title="CURRENCY", content='')
+	(x, y0) = stTopBox(c, x+vpad, y, w=w, h=h, title="AMOUNT DUE", content=ctx['age_due'])
+
+	(x, y0) = stTopBox(c, divide+vpad, y, w=4.5*cm, h=h, title="TOTAL TO BE PAID", content=ctx['tot_topay'])
+
+	c.saveState()
+	c.setDash(array=[5,5])
+	c.line(divide,0*cm,divide,28*cm)
+	c.restoreState()
+
+	c.showPage()
+
+
 def writePage(drawfn, content, count=0):
 	from reportlab.pdfgen import canvas
 	
@@ -243,12 +318,17 @@ class DocFormatter(object):
 		return []
 
 	def writeInvoice(self,c, ctx):
-		for mark in ['CUSTOMERS COPY', 'ACCOUNTS COPY']:
+		for mark in ['CUSTOMER COPY', 'ACCOUNTS COPY']:
 			for page in ctx:
 				accountNotePage(c, page, mark)
 
 	def writeCrednote(self,c, ctx):
-		writeInvoice(c, ctx)
+		self.writeInvoice(c, ctx)
+
+	def writeStatement(self, c, ctx):
+		for mark in ['CUSTOMER COPY', 'ACCOUNTS COPY', 'FILE COPY']:
+			for page in ctx:
+				statementPage(c, page, mark)
 
 	def writeDelnote(self,c, ctx):
 		for mark in ['CUSTOMER COPY', 'ACCOUNTS COPY']:
@@ -275,6 +355,8 @@ if __name__=="__main__":
 	except:
 		pass
 
+	formatter = DocFormatter()
+
 	chuff = dict(date='04/10/12', doc_num='731/289073', 
 		addr_invoice='SAMPLE ACCOUNT\nCHRIS SHUCKSMITH',
 		addr_delivery='CHRIS SHUCKSMITH\nFLAT 999 MIDNIGHT TERRACE\n32 GREAT NOWHERE ST. LONDON SE1 W1J\n IF OUT PSE LEAVE WITH THE\nCAT',
@@ -295,7 +377,7 @@ if __name__=="__main__":
 
 		ctx.append( dict(order.items() + chuff.items()))
 
-	p = writePage(writeDelnote, ctx, count=0)
+	p = formatter.writePage(formatter.writeDelnote, ctx, count=0)
 
  	try:
 		os.startfile(p)
@@ -324,6 +406,6 @@ if __name__=="__main__":
 		ctx.append( dict(order.items() + chuff.items() + extra.items()))
 
 
-	writePage(writeInvoice, ctx, count=1)
+	p = formatter.writePage(formatter.writeInvoice, ctx, count=1)
 
     

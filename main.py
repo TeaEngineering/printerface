@@ -58,6 +58,7 @@ def writeFile(fn, string):
 	f.close()
 
 def cleanJob(j):
+	print(' recovering %s' % j['name'])
 	fn = rawdir + j['name'] + '.txt'
 	control_char_re = re.compile('[^\w\s%s_\'=/]' % re.escape('.*+()-\\;:,#?%$^&!<>|`"'))
 	raw = j['data']
@@ -65,7 +66,7 @@ def cleanJob(j):
 	j['plain'] = plain
 	summary = re.compile('[^\w\s]').sub('', j['data'])
 	summary = re.compile('\s+').sub(' ', summary)
-	summary = summary.strip()[0:80]
+	summary = summary.strip()[0:70]
 
 	writeFile(rawdir + j['name'] + '.txt', raw)
 	writeFile(plaindir + j['name'] + '.txt', plain)
@@ -90,7 +91,7 @@ def cleanJob(j):
 	# all done
 
 def identify(j):
-	types = {'Sttments': 'statement', 'Delvnote':'delnote', 'Cr-note':'crednote', 'Invoice':'invoice' }
+	types = {'Sttments': 'statement', 'Delvnote':'delnote', 'Cr-note':'crednote', 'Invoice':'invoice', 'P order':'purchase'}
 	return types.get(j['doctype'])
 
 def recentjob(query_string=''):
@@ -104,16 +105,17 @@ def index(query_string=''):
 	xstr = lambda s: s or ''
 	f = StringIO()
 	f.write('<h3>Recent Jobs</h3>R: raw, T: plain text, B: boxes, J:json, P:pdf <pre>')
-	f.write('Links     Time                templ     doctype    preview<br>')
+	f.write('Links     Time                templ     doctype    host       preview<br>')
 	for j in jobs:
+		h = xstr(j['control'].get('H'))
 		if j['templ']:
-			f.write('R <a href="/plain/%s.txt">T</a>   <a href="/data?name=%s">J</a> <a href="/pdf/%s.pdf">P</a> %19s %-9s %-10s %s <br>' %(
+			f.write('R <a href="/plain/%s.txt">T</a>   <a href="/data?name=%s">J</a> <a href="/pdf/%s.pdf">P</a> %19s %-9s %-10s %-10s %s <br>' %(
 				j['name'], j['name'],j['name'],
 				str(j['ts'])[0:19], \
-			 xstr(j['templ']),j['doctype'], j['summary']))
+			 xstr(j['templ']),j['doctype'],h,j['summary']))
 		else:
-			f.write('R <a href="/plain/%s.txt">T</a>       %19s %-9s %-10s %s <br>' %(j['name'], str(j['ts'])[0:19], \
-			xstr(j['templ']),j['doctype'], j['summary']))
+			f.write('R <a href="/plain/%s.txt">T</a>       %19s %-9s %-10s %-10s %s <br>' %(j['name'], str(j['ts'])[0:19], \
+			xstr(j['templ']),j['doctype'], h,j['summary']))
 	f.write('</pre>')
 	return (f,'text/html')
 
@@ -128,7 +130,7 @@ def data(query_string=''):
 	if not job:
 		f.write('unknown job %s' % query_string)
 		return (f,'text/html')
-	colouring = job.get('colouring', [ dict(r=1,c=1,w=15,h=2,t='NO COLOURING!') ])
+	colouring = job.get('colouring', [])
 	f.write(' name: %s<br>' % job.get('name'))
 	f.write(' type: %s<br>' % job.get('templ'))
 	f.write(' data = <pre style="font-size:11px">')
@@ -141,8 +143,8 @@ def data(query_string=''):
 	lines = job['plain'].splitlines()
 	(rows, cols) = (len(lines), max([len(line) for line in lines]))
 	f.write('plain text dimensions: lines %d, width %d<br>' % (rows, cols))
-	cols = max(cols, max([c['c']+c['w'] for c in colouring]))
-	rows = max(rows, max([c['r']+c['h'] for c in colouring]))
+	cols = max([cols] + [c['c']+c['w'] for c in colouring])
+	rows = max([rows] + [c['r']+c['h'] for c in colouring])
 
 	high = [[None for col in range(cols)] for row in range(rows)]
 
@@ -155,12 +157,15 @@ def data(query_string=''):
 	chunks10 = 16 
 	f.write('     ' +  ''.join(["%-10d" % (d*10) for d in range(chunks10)]))
 	f.write('\n     ' + ('0123456789' * chunks10))
+
+	def htmlcol(rgb):
+		return ''.join([('%02x' % int(c*256)) for c in rgb])
 	for (row,line) in enumerate(lines):
 		f.write('\n%-4d ' % row)
 		pad = ' '*(max(0,len(high[row])-len(line)))
 		for col,char in enumerate(line + pad):
 			if high[row][col]:
-				f.write('<span title="%s" style="background-color: #00FFFF">' % high[row][col]['t'])
+				f.write('<span title="%s" style="background-color: #%s">' % (high[row][col]['t'],htmlcol(high[row][col]['rgb'])))
 				f.write(char)
 				f.write('</span>')
 			else: f.write(char)
