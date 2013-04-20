@@ -16,7 +16,7 @@ dir = os.path.expanduser("~/repos/printerface/web/")
 jobdir = dir + 'pickle/'
 rawdir = dir + 'raw/'
 plaindir = dir + 'plain/'
-pdfdir = dir + 'plain/'
+pdfdir = dir + 'pdf/'
 jobs = []
 mailqueue = []
 

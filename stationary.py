@@ -26,7 +26,7 @@ def headerDetails(c, ctx, doctype="DELIVERY NOTE"):
 	c.setFont("Helvetica", 18)
 	c.drawRightString(pagewidth, top, doctype)
 	c.restoreState()
-	c.drawImage(pdir + 'logo.gif', 0,top+0.5*cm, width=2.5*cm,height=3*cm, preserveAspectRatio=True, anchor='nw')
+	c.drawImage(ctx['logo'], 0,top+0.5*cm, width=2.5*cm,height=3*cm, preserveAspectRatio=True, anchor='nw')
 
 	c.setFont("Helvetica", 10)
 	c.drawString(0, 0.5*cm, config.get('Printing', 'terms'))
@@ -312,6 +312,7 @@ class DocFormatter(object):
 	def format(self, ctx):
 		print('formatting %s' % ctx['name'])
 		mname = 'write' + ctx['templ'].title()
+		for x in ctx['parsed']: x['logo'] = self.jobdir + 'logo.gif'
 		if hasattr(self, mname):
 			return self.writePage( getattr(self, mname), ctx['parsed'], ctx['name'])
 		print('Warning: No formatting function %s' % mname)
