@@ -157,12 +157,12 @@ def recent(query_string=''):
 		for j in jobs:
 			h = xstr(j['control'].get('H'))
 			if j['templ']:
-				f.write('<a href="/plain?/%s.txt">Text</a> <a href="/doc?name=%s">Info</a> <a href="/pdf/%s.pdf">PDF</a> %19s %-9s %-10s %-10s %s <br>' %(
+				f.write('<a href="/plain?/%s.txt">Text</a> <a href="/doc?name=%s">Info</a> <a href="/pdf?name=%s">PDF</a> %19s %-9s %-10s %-10s %s\n' %(
 					j['name'], j['name'],j['name'],
 					str(j['ts'])[0:19], \
 				 xstr(j['templ']),j['doctype'],h,j['summary']))
 			else:
-				f.write('<a href="/plain/%s.txt">Text</a>          %19s %-9s %-10s %-10s %s <br>' %(j['name'], str(j['ts'])[0:19], \
+				f.write('<a href="/plain/%s.txt">Text</a>          %19s %-9s %-10s %-10s %s\n' %(j['name'], str(j['ts'])[0:19], \
 				xstr(j['templ']),j['doctype'], h,j['summary']))
 		f.write('</pre>')
 	return (f,'text/html')
@@ -173,6 +173,17 @@ def printers(query_string=''):
 		f.write('<h3>Printers</h3>')
 		f.write('Links         Time                templ     doctype    host       preview<br>')		
 	return (f,'text/html')
+
+def pdf(query_string=dict()):
+	name = query_string.get('name', [''])[0]
+	with Bootstrap() as f:
+		# style="width: 100%; height: 300px;"
+		f.write('<p><div class="row" style="position: absolute; top: 65px; bottom: 5px; left: 65px; right:65px;"> ')
+		f.write('<object	data="/pdf/%s.pdf#toolbar=1&amp;navpanes=0&amp;scrollbar=1&amp;page=0&amp;zoom=30" ' % name)
+		f.write(' type="application/pdf" width="100%" height="100%">')
+		f.write(' <p>It appears you don\'t have a PDF plugin for this browser. No biggie... you can <a href="/pdf/sample.pdf">click here to download the PDF file.</a></p>')
+		f.write('\n</object>\n</div>')
+	return (f, 'text/html')
 
 def document(query_string=dict()):
 	with Bootstrap() as f:
@@ -250,7 +261,7 @@ if __name__=="__main__":
 	recover()
 
 	s = LpdServer(saveJob, ip='', port=515)
-	ToyHttpServer(port=8081, pathhandlers={'/recent': recent, '/index':index, '/doc':document, '/printers':printers}, webroot=dir)
+	ToyHttpServer(port=8081, pathhandlers={'/recent': recent, '/index':index, '/doc':document, '/printers':printers, '/pdf':pdf}, webroot=dir)
 	try:
 		while True:
 			asyncore.loop(timeout=1, count=10)
