@@ -149,7 +149,7 @@ class BaseHTTPRequestHandler(asynchat.async_chat):
 			self.send_error(400, "Bad request syntax (%r)" % requestline)
 			return False
 
-		querystring = ''
+		querystring = dict()
 		qparts = path.split('?', 1);
 		if len(qparts) > 1: 
 			path = qparts[0]
