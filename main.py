@@ -1,5 +1,7 @@
 #!/usr/bin/python
 
+from __future__ import with_statement
+
 import asynchat, asyncore, socket, os, re
 from datetime import datetime
 from lpdserver import LpdServer
@@ -88,7 +90,7 @@ def cleanJob(j):
 
 		for f in [j['files']]:
 			from subprocess import call
-			proc = ['convert','-size 150x150','%s[0]' % f, '%s.png' % f]
+			proc = ['convert','-size','150x150','%s[0]' % f, '%s.png' % f]
 			print(proc)
 			call(proc)
 	
