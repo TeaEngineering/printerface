@@ -9,6 +9,7 @@ from httpserver import ToyHttpServer
 from mailer import JobMailer
 from docparser import DocParser
 from stationary import DocFormatter
+from printing import getPrinters, printFile
 
 import sys
 import pickle
@@ -100,19 +101,17 @@ def identify(j):
 	types = {'Sttments': 'statement', 'Delvnote':'delnote', 'Cr-note':'crednote', 'Invoice':'invoice', 'P order':'purchase'}
 	return types.get(j['doctype'])
 
-def recentjob(query_string=''):
-	f = StringIO()
-	f.write("hi %s\n" % query_string)
-	for j in jobs:
-                f.write("      %10s    %10s \n" %(j['name'], j['ts']))
-	return (f,'text/plain')
-
 class Bootstrap(object):
-	def __init__(self,recent=False,printers=False,doc=False,settings=False):
-		self.t = printers
+	def __init__(self,recent=False,printers=False,document=False,settings=False):
+		self.kwtoggle = dict(recent=recent, printers=printers, document=document, settings=settings)
 	def __enter__(self):
 		self.f = StringIO()
-		self.f.write(bootstrapTemplate[0])
+		bt = bootstrapTemplate[0]
+		for k,v in self.kwtoggle.items():
+			bt = bt.replace('%%%s%%' % k.upper(), 'class="active"' if v else '' )
+			#'class="active"'bt = bt.replace('%PRINTERS%', 'class="active"')
+			#bt = bt.replace('%DOCUMENT%', 'class="active"')
+		self.f.write(bt)
 		return self.f
 
 	def __exit__(self, type, value, tb):
@@ -124,10 +123,10 @@ def index(query_string=''):
 		f.write('''
 
       <div class="hero-unit" style="margin-top: 30px;">
-        <h1>Printerface!</h1>
+        <h1>Printerface</h1>
         <p>Printerface collects documents sent to the LPR print queue at 192.168.4.1 and stores them. Some documents are recognised and re-formatted to PDF files. 
         </p>
-        <p><a href="#" class="btn btn-primary btn-large">Learn more &raquo;</a></p>
+        <p><a href="/recent" class="btn btn-primary btn-large">Recent Documents &raquo;</a></p>
       </div>
 
       <div class="row">
@@ -151,12 +150,12 @@ def index(query_string=''):
 	return (f,'text/html')
 
 def recent(query_string=''):
-	with Bootstrap() as f:
+	with Bootstrap(recent=True) as f:
 		xstr = lambda s: s or ''
 		f.write('<h3>Recent Jobs</h3>')
 		f.write('<pre style="font-size:11px;line-height: 11px;">')
 		f.write('Links         Time                templ     doctype    host       preview<br>')
-		for j in jobs:
+		for j in reversed(jobs):
 			h = xstr(j['control'].get('H'))
 			if j['templ']:
 				f.write('<a href="/plain?/%s.txt">Text</a> <a href="/doc?name=%s">Info</a> <a href="/pdf?name=%s">PDF</a> %19s %-9s %-10s %-10s %s\n' %(
@@ -167,34 +166,85 @@ def recent(query_string=''):
 				f.write('<a href="/plain/%s.txt">Text</a>          %19s %-9s %-10s %-10s %s\n' %(j['name'], str(j['ts'])[0:19], \
 				xstr(j['templ']),j['doctype'], h,j['summary']))
 		f.write('</pre>')
+
+		f.write('<ul class="pager"><li class="previous"> <a href="#">&larr; Older</a> </li> <li class="next"> <a href="#">Newer &rarr;</a> </li> </ul>')
 	return (f,'text/html')
 
 def printers(query_string=''):
-	with Bootstrap() as f:
-		xstr = lambda s: s or ''
+	with Bootstrap(printers=True) as f:
 		f.write('<h3>Printers</h3>')
-		f.write('Links         Time                templ     doctype    host       preview<br>')		
+		f.write('<ul>')
+		for p in getPrinters():
+			f.write('<li>%s</li>' % (p))
+		f.write('</ul>')
+	return (f,'text/html')
+
+def printfn(query_string=''):
+	job = getJob(query_string)
+	with Bootstrap(printers=True) as f:
+		f.write('<h3>Printing...</h3>')
+		f.write('Document %s sent to printer %s<br>' % (query_string['name'], query_string['printer']) )		
 	return (f,'text/html')
 
 def pdf(query_string=dict()):
-	name = query_string.get('name', [''])[0]
-	with Bootstrap() as f:
+	job = getJob(query_string)
+	with Bootstrap(document=True) as f:
 		# style="width: 100%; height: 300px;"
-		f.write('<p><div class="row" style="position: absolute; top: 65px; bottom: 5px; left: 65px; right:65px;"> ')
-		f.write('<object	data="/pdf/%s.pdf#toolbar=1&amp;navpanes=0&amp;scrollbar=1&amp;page=0&amp;zoom=30" ' % name)
-		f.write(' type="application/pdf" width="100%" height="100%">')
+		f.write('<p><div class="row" style="position: absolute; top: 35px; bottom: 5px; left: 65px; right:65px;"> ')
+		f.write('<p>')
+		f.write('<div class="btn-group">\n')
+		f.write('  <a class="btn dropdown-toggle" data-toggle="dropdown" href="#">Print <span class="caret"></span></a> <ul class="dropdown-menu"> ')
+		for p in getPrinters():
+			f.write('<li><a tabindex="-1" href="/print?name=%s&printer=%s">%s</a></li>' % (job['name'],p,p))
+		f.write('</ul>\n')	
+		f.write('</div> ')
+		f.write(' <div class="btn-group">\n')
+		f.write('  <a class="btn dropdown-toggle" data-toggle="dropdown" href="#">Email <span class="caret"></span></a> <ul class="dropdown-menu"> ')
+		for p in getPrinters():
+			f.write('<li><a tabindex="-1" href="/print?name=%s&printer=%s">%s</a></li>' % (job['name'],p,p))
+		f.write('</ul>\n')	
+
+		f.write('</div>')
+		f.write('<p><object	data="/pdf/%s.pdf#toolbar=1&amp;navpanes=0&amp;scrollbar=1&amp;page=0&amp;zoom=30" ' % name)
+		f.write(' type="application/pdf" width="100%" height="95%">')
 		f.write(' <p>It appears you don\'t have a PDF plugin for this browser. No biggie... you can <a href="/pdf/sample.pdf">click here to download the PDF file.</a></p>')
 		f.write('\n</object>\n</div>')
+		f.write('<p>&nbsp;<p>&nbsp;<p>&nbsp;<p>&nbsp;')
 	return (f, 'text/html')
 
+def plain(query_string=dict()):
+	job = getJob(query_string)
+	with Bootstrap(document=True) as f:
+		# style="width: 100%; height: 300px;"
+		f.write('<p><div class="row" style="position: absolute; top: 35px; bottom: 5px; left: 65px; right:65px;"> ')
+		f.write('<p>')
+		f.write('<div class="btn-group">\n')
+		f.write('  <a class="btn dropdown-toggle" data-toggle="dropdown" href="#">Print <span class="caret"></span></a> <ul class="dropdown-menu"> ')
+		for p in getPrinters():
+			f.write('<li><a tabindex="-1" href="/print?name=%s&printer=%s">%s</a></li>' % (job['name'],p,p))
+		f.write('</ul>\n')	
+		f.write('</div> ')
+		f.write(' <div class="btn-group">\n')
+		f.write('  <a class="btn dropdown-toggle" data-toggle="dropdown" href="#">Email <span class="caret"></span></a> <ul class="dropdown-menu"> ')
+		for p in getPrinters():
+			f.write('<li><a tabindex="-1" href="/print?name=%s&printer=%s">%s</a></li>' % (job['name'],p,p))
+		f.write('</ul>\n')	
+
+		f.write('</div>')
+		for l in job['plain']:
+			f.write(l)
+		f.write('<p>&nbsp;')
+	return (f, 'text/html')
+
+def getJob(query_string, returnLast=False):
+	for j in jobs: 
+		job = j
+		if j['name'] == query_string.get('name', [''])[0]: return j
+	if returnLast: return job
+
 def document(query_string=dict()):
-	with Bootstrap() as f:
-		job = None
-		print(query_string)
-		for j in jobs: 
-			job = j
-			if j['name'] == query_string.get('name', [''])[0]: break
-		
+	with Bootstrap(document=True) as f:
+		job = getJob(query_string, returnLast=True)
 		f.write('<h3>Job Data</h3>')
 		if not job:
 			f.write('unknown job %s' % query_string)
@@ -252,6 +302,8 @@ def document(query_string=dict()):
 		f.write('</pre></body></html>')
 	return (f,'text/html')
 
+# def printFile(file, printer):
+
 if __name__=="__main__":
 	# launch the server on the specified port
 	for x in [jobdir, rawdir, plaindir, pdfdir]:
@@ -263,7 +315,10 @@ if __name__=="__main__":
 	recover()
 
 	s = LpdServer(saveJob, ip='', port=515)
-	ToyHttpServer(port=8081, pathhandlers={'/recent': recent, '/index':index, '/doc':document, '/printers':printers, '/pdf':pdf}, webroot=dir)
+	ToyHttpServer(port=8081, pathhandlers={
+		'/recent': recent, '/index':index, '/doc':document, '/printers':printers, '/pdf':pdf,
+		'/print' : printfn, '/plaintext':plain
+		}, webroot=dir)
 	try:
 		while True:
 			asyncore.loop(timeout=1, count=10)
