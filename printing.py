@@ -18,10 +18,10 @@ def getPrinters():
 
 def printFile(file, printer):
 	cmd = ["lpr","-P", printer, file]
-	#process = subprocess.Popen(cmd, stdout=subprocess.PIPE)
-	#results = process.communicate()
+	process = subprocess.Popen(cmd, stdout=subprocess.PIPE)
+	results = process.communicate()
 	results = (None,None)
-	print("[print] printer=%s file=%d cmd=%s result=%s" %(printer, file, repr(cmd), repr(results)))
+	print("[print] printer=%s file=%s cmd=%s result=%s" %(printer, file, repr(cmd), repr(results)))
 
 if __name__=="__main__":
 	print ('Installed printers: %s' % repr(getPrinters()))

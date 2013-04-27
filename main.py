@@ -181,9 +181,11 @@ def printers(query_string=''):
 
 def printfn(query_string=''):
 	job = getJob(query_string)
+	for f in [job['files']]:
+		printFile(f, ''.join(query_string['printer']) )
 	with Bootstrap(printers=True) as f:
 		f.write('<h3>Printing...</h3>')
-		f.write('Document %s sent to printer %s<br>' % (query_string['name'], query_string['printer']) )		
+		f.write('Document %s sent to printer %s<br>' % (query_string['name'], query_string['printer']) )
 	return (f,'text/html')
 
 def pdf(query_string=dict()):
@@ -201,8 +203,8 @@ def pdf(query_string=dict()):
 		f.write(' <div class="btn-group">\n')
 		f.write('  <a class="btn dropdown-toggle" data-toggle="dropdown" href="#">Email <span class="caret"></span></a> <ul class="dropdown-menu"> ')
 		for p in getPrinters():
-			f.write('<li><a tabindex="-1" href="/print?name=%s&printer=%s">%s</a></li>' % (job['name'],p,p))
-		f.write('</ul>\n')	
+			f.write('<li><a tabindex="-1" href="/email?name=%s&printer=%s">%s</a></li>' % (job['name'],p,p))
+		f.write('</ul>\n')
 
 		f.write('</div>')
 		f.write('<p><object	data="/pdf/%s.pdf#toolbar=1&amp;navpanes=0&amp;scrollbar=1&amp;page=0&amp;zoom=30" ' % job['name'])
@@ -296,7 +298,7 @@ def document(query_string=dict()):
 		# for pdffile in job.get('files', []):
 		#	f.write(pdffile)
 
-			f.write('<a href="/pdf/%s.pdf"> <img src="/pdf/%s.pdf.png" width="400px"><br> PDF File</a>' % (job['name'], job['name']))
+			f.write('<a href="/pdf?name=%s"> <img src="/pdf/%s.pdf.png" width="400px"><br> PDF File</a>' % (job['name'], job['name']))
 
 		if query_string.get('raw'): f.write(job)
 		f.write('</pre></body></html>')
