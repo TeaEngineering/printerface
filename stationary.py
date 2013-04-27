@@ -398,7 +398,7 @@ if __name__=="__main__":
 				prod_code="SMP109\n"*sz,
 				prod_desc="CH CHEESY BOISES Bord Sec     07\n"*sz,
 				prod_qty="3\n"*sz,
-				prod_unit="BOTT\n"*sz,
+				prod_unit="BOTT\n\n"*sz/2,
 				prod_price="200.00\n"*18,
 				prod_blank="\n"*18,
 				prod_net="1499.40\n"*18,

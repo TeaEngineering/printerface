@@ -158,12 +158,12 @@ def recent(query_string=''):
 		for j in reversed(jobs):
 			h = xstr(j['control'].get('H'))
 			if j['templ']:
-				f.write('<a href="/plain?/%s.txt">Text</a> <a href="/doc?name=%s">Info</a> <a href="/pdf?name=%s">PDF</a> %19s %-9s %-10s %-10s %s\n' %(
+				f.write('<a href="/plaintext?name=%s">Text</a> <a href="/doc?name=%s">Info</a> <a href="/pdf?name=%s">PDF</a> %19s %-9s %-10s %-10s %s\n' %(
 					j['name'], j['name'],j['name'],
 					str(j['ts'])[0:19], \
 				 xstr(j['templ']),j['doctype'],h,j['summary']))
 			else:
-				f.write('<a href="/plain/%s.txt">Text</a>          %19s %-9s %-10s %-10s %s\n' %(j['name'], str(j['ts'])[0:19], \
+				f.write('<a href="/plaintext?name=%s">Text</a>          %19s %-9s %-10s %-10s %s\n' %(j['name'], str(j['ts'])[0:19], \
 				xstr(j['templ']),j['doctype'], h,j['summary']))
 		f.write('</pre>')
 
@@ -218,21 +218,23 @@ def plain(query_string=dict()):
 		# style="width: 100%; height: 300px;"
 		f.write('<p><div class="row" style="position: absolute; top: 35px; bottom: 5px; left: 65px; right:65px;"> ')
 		f.write('<p>')
-		f.write('<div class="btn-group">\n')
+		f.write('<div class="btn-group hidden-print">\n')
 		f.write('  <a class="btn dropdown-toggle" data-toggle="dropdown" href="#">Print <span class="caret"></span></a> <ul class="dropdown-menu"> ')
 		for p in getPrinters():
-			f.write('<li><a tabindex="-1" href="/print?name=%s&printer=%s">%s</a></li>' % (job['name'],p,p))
-		f.write('</ul>\n')	
+			f.write(' <li><a tabindex="-1" href="/print?name=%s&printer=%s">%s</a></li>' % (job['name'],p,p))
+		f.write(' </ul>\n')	
 		f.write('</div> ')
-		f.write(' <div class="btn-group">\n')
+		f.write('<div class="btn-group hidden-print">\n')
 		f.write('  <a class="btn dropdown-toggle" data-toggle="dropdown" href="#">Email <span class="caret"></span></a> <ul class="dropdown-menu"> ')
 		for p in getPrinters():
-			f.write('<li><a tabindex="-1" href="/print?name=%s&printer=%s">%s</a></li>' % (job['name'],p,p))
-		f.write('</ul>\n')	
-
+			f.write(' <li><a tabindex="-1" href="/print?name=%s&printer=%s">%s</a></li>' % (job['name'],p,p))
+		f.write(' </ul>\n')	
 		f.write('</div>')
+
+		f.write('<pre style="font-size:10px;line-height: 10px;">')
 		for l in job['plain']:
 			f.write(l)
+		f.write('</pre>')
 		f.write('<p>&nbsp;')
 	return (f, 'text/html')
 
@@ -299,7 +301,7 @@ def document(query_string=dict()):
 			f.write('<a href="/pdf/%s.pdf"> <img src="/pdf/%s.pdf.png" width="400px"><br> PDF File</a>' % (job['name'], job['name']))
 
 		if query_string.get('raw'): f.write(job)
-		f.write('</pre></body></html>')
+		f.write('</body></html>')
 	return (f,'text/html')
 
 # def printFile(file, printer):
