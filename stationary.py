@@ -12,7 +12,7 @@ pagewidth = A4[0] - 2*0.8*cm
 vpad = 0.4*cm
 top = 27.6*cm
 
-def headerDetails(c, ctx, doctype="DELIVERY NOTE"):
+def headerDetails(c, ctx, doctype="DELIVERY NOTE", terms_key='terms'):
 	c.saveState()
 	textobject = c.beginText()
 	textobject.setTextOrigin(2.75*cm, top)
@@ -29,9 +29,9 @@ def headerDetails(c, ctx, doctype="DELIVERY NOTE"):
 	c.drawImage(ctx['logo'], 0,top+0.5*cm, width=2.5*cm,height=3*cm, preserveAspectRatio=True, anchor='nw')
 
 	c.setFont("Helvetica", 10)
-	c.drawString(0, 0.5*cm, config.get('Printing', 'terms'))
+	c.drawString(0, 0.5*cm, config.get('Printing', terms_key))
 
-def topBox(c, x, y, title="Title", content="The quick brown", w=2*cm, h=2.0*cm, padleft=0.8*cm, align='l', ht=0.45*cm, fontsz=10.5):
+def topBox(c, x, y, title="Title", content="The quick brown", w=2*cm, h=2.0*cm, padleft=0.8*cm, align='l', ht=0.45*cm, fontsz=10.5,font='Helvetica'):
 	c.saveState()
 	c.translate(x,y)
 	c.rect(0.0,0,w,-h)
@@ -49,7 +49,7 @@ def topBox(c, x, y, title="Title", content="The quick brown", w=2*cm, h=2.0*cm, 
 		c.drawString(0.8*cm, -.33*cm, title)
 	
 	textobject = c.beginText()
-	textobject.setFont("Helvetica", fontsz)
+	textobject.setFont(font, fontsz)
 	textobject.setTextOrigin(padleft, -(0.55*cm + ht))	
 	for line in content.split('\n'): textobject.textLine(line)
 	c.drawText(textobject)
@@ -80,11 +80,11 @@ def leftBox(c, x, y, title="Title", content="Quick brown", h=0.85*cm, w=2.0*cm, 
 	c.restoreState()
 	return (x+w, y-h)
 
-def watermark(c, mark='CUSTOMER COPY'):
+def watermark(c, mark='CUSTOMER COPY',fontsz=54,x=pagewidth/2):
 	c.saveState()
 	c.setFillColorRGB(0.85,0.85,0.85)
-	c.setFont("Helvetica-Bold", 54)
-	c.drawCentredString(pagewidth/2, 7.5*cm, mark)
+	c.setFont("Helvetica-Bold", fontsz)
+	c.drawCentredString(x, 7.5*cm, mark)
 	c.restoreState()
 
 def outline(c):
@@ -216,13 +216,12 @@ def remittancePage(c, ctx, mark):
 	c.translate(0.8*cm,0.8*cm)
 	
 	watermark(c, mark=mark)
-	outline(c)
 	headerDetails(c, ctx, doctype='REMITTANCE ADVICE')
 
 	y = rightHeaderBlock(c, ctx, y = 27.2*cm)
 	y = addressHorizDoubleBox(c, ctx, lhs='INVOICE ADDRESS', y=y-vpad)
 	
-	# 8 column section, individual widths
+	# 6 column section, individual widths
 	y = y - vpad
 	h = 15.5*cm
 	(x, y0) = topBox(c, 0, y, w=4.1*cm, h=h, title="TRANSACTION", content=ctx['rem_desc'], padleft=0.2*cm, align='c')
@@ -241,6 +240,57 @@ def remittancePage(c, ctx, mark):
 
 	c.showPage()
 
+def purchasePage(c, ctx, mark):
+		
+	# move the origin up and to the left
+	c.setFillColorRGB(0,0,0)
+	c.translate(0.8*cm,0.8*cm)
+	
+	watermark(c, mark=mark, x=6.7*cm, fontsz=46)
+	headerDetails(c, ctx, doctype='PURCHASE ORDER', terms_key='terms_purch')
+
+	y = rightHeaderBlock(c, ctx, y = 27.2*cm)
+	y = addressHorizDoubleBox(c, ctx, lhs='ORDER TO', y=y-vpad)
+	
+	# 8 column section, individual widths
+	y = y - vpad
+	h = 1.25*cm
+	w = pagewidth/3.0
+	(x, y0) = topBox(c, 0, y, w=w, h=h, title="ACCOUNT", content=ctx['accno'], padleft=0.2*cm, align='c')
+	(x, y0) = topBox(c, x, y, w=w, h=h, title="YOUR REFERENCE", content=ctx['custref'], padleft=0.2*cm, align='c')
+	(x, y) = topBox(c, x, y, w=w, h=h, title="YOUR CONTACT", content=ctx['ourref'], padleft=0.2*cm, align='c')
+	x3 = x
+	(x, y0) = topBox(c, 0, y, w=w, h=h, title="OUR CONTACT", content=ctx['ourcontact'], padleft=0.2*cm, align='c')
+	(x, y0) = topBox(c, x, y, w=3.1*cm, h=h, title="ORDER DATE", content=ctx['orderdate'], padleft=0.2*cm, align='c')
+	(x, y) = topBox(c, x, y, w=pagewidth-x, h=h, title="INSTRUCTIONS", content=ctx['instructions'], padleft=0.2*cm, align='c')
+	
+	w = 10.0*cm
+
+	# 6 column section, individual widths
+	y = y - vpad
+	h = 12.4*cm
+	ht = 0.9*cm
+	(x, y0) = topBox(c, 0, y, w=2.4*cm, h=h, ht=ht, title="PRODUCT\nCODE", content=ctx['prod_code'], padleft=0.2*cm, align='c')
+	(x, y0) = topBox(c, x, y, w=6.5*cm, h=h, ht=ht, title="PRODUCT DESCRIPTION", content=ctx['prod_desc'], padleft=0.2*cm, align='c', font='Courier',fontsz=9.5)
+	(x, y0) = topBox(c, x, y, w=1.4*cm, h=h, ht=ht, title="QTY", content=ctx['prod_qty'], padleft=0.2*cm, align='c')
+	(x, y0) = topBox(c, x, y, w=1.9*cm, h=h, ht=ht, title="PRICE", content=ctx['prod_price'], padleft=0.2*cm, align='c')
+	(x, y0) = topBox(c, x, y, w=1.2*cm, h=h, ht=ht, title="UNIT", content=ctx['prod_unit'], padleft=0.2*cm, align='c')
+	w = pagewidth-vpad-x
+	(x0,y1) = topBox(c, x+vpad, y, w=w, ht=ht, title="COLLECTION DELIVERY\nDATE REQUIRED BY", content=ctx['orderdate'], align='c')
+	(x0,y1) = topBox(c, x+vpad, y1-vpad, w=w, ht=ht, title="THIS SECTION TO BE COMPLETED\nAND FAXED BACK BY SUPPLIER", content='', align='c')
+	(x0,y1) = topBox(c, x+vpad, y1, w=w, ht=ht, title="DATE OF AVAILABILITY", content='', align='c')
+	(x0,y1) = topBox(c, x+vpad, y1, w=w, ht=ht, title="ACTUAL COLLECTION DATE", content='', align='c')
+	(x0,y1) = topBox(c, x+vpad, y1, w=w, ht=ht, h=h-(y-y1), title="IMPORTANT NOTES", content='', align='c')
+
+	x = 10.67*cm
+	(x, y1) = leftBox(c, x, y0-vpad, w=pagewidth-x, title='TOTAL NET', content=ctx['tot_net'])
+
+	w = 10.4*cm
+	(x, y) = topBox(c, 0, y0-vpad, w=w, h=2.1*cm, padleft=0.2*cm, title="THIS INSTRUCTION IS MANDATORY", align='c', content=config.get('Printing', 'purch_instruction_fr').replace("\\n", '\n'))
+	(x, y) = topBox(c, 0, y, w=w, h=1.6*cm, title="", padleft=0.2*cm, ht=0, content=config.get('Printing', 'purch_instruction_en').replace("\\n", '\n'))
+
+	c.showPage()
+
 def statementPage(c, ctx, mark):
 		
 	# move the origin up and to the left
@@ -248,12 +298,12 @@ def statementPage(c, ctx, mark):
 	c.translate(0.8*cm,0.8*cm)
 
 	# entire page breaks at 12cm, LHS is tear off (originally perferated)	
-	watermark(c, mark=mark)
-	outline(c)
+        watermark(c, mark=mark, x=6*cm, fontsz=36)
+        watermark(c, mark=mark, x=16*cm, fontsz=20)
+
 	headerDetails(c, ctx, 'Statement')
 
 	divide = 12*cm
-
 
 	textobject = c.beginText()
 	textobject.setTextOrigin(divide+vpad, top-vpad)
@@ -372,6 +422,11 @@ class DocFormatter(object):
 		for mark in ['CUSTOMER COPY', 'ACCOUNTS COPY']:
 			for page in ctx:
 				remittancePage(c, page, mark)
+
+	def writePurchase(self, c, ctx):
+		for mark in ['SUPPLIER COPY', 'ACCOUNTS COPY']:
+			for page in ctx:
+				purchasePage(c, page, mark)
 
 	def writePage(self,drawfn, content, count=0):
 		from reportlab.pdfgen import canvas
