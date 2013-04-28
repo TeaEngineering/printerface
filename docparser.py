@@ -46,7 +46,7 @@ class DocParser(object):
 			field(fs, line+8, 66,w=38,h=6,t='addr_delivery')
 			field(fs, line+15,75,t='instructions',w=30,h=2)
 			field(fs, line+16,0,w=8,t='accno')
-			field(fs, line+16,9,w=8,t='custref')
+			field(fs, line+16,9,w=10,t='custref')
 			field(fs, line+16,20,w=7,t='ourref')
 			field(fs, line+16,28,w=8,t='ord_date')
 			field(fs, line+16,66,w=8,t='req_date')
@@ -57,14 +57,14 @@ class DocParser(object):
 			field(fs, line+19,55,w=6, t='prod_qty',h=18)
 			field(fs, line+19,64,w=9,t='prod_price',h=18)
 			field(fs, line+19,75,w=5,t='prod_unit',h=18)
-			field(fs, line+19,83,w=5,t='prod_blank',h=18)
+			field(fs, line+19,81,w=6,t='prod_blank',h=18)
 			field(fs, line+19,90,w=11,t='prod_net',h=18)
 			field(fs, line+19,103,w=2,t='prod_vcode',h=18)
 
 			field(fs, line+38,0, w=4,t='summ_code',h=4)
 			field(fs, line+38,5, w=9,t='summ_netamt',h=4)
-			field(fs, line+38,16,w=6,t='summ_rate',h=4)
-			field(fs, line+38,26,w=6,t='summ_vat',h=4)
+			field(fs, line+38,14,w=6,t='summ_rate',h=4)
+			field(fs, line+38,25,w=7,t='summ_vat',h=4)
 
 			field(fs, line+37, 89,w=12,t='tot_net')
 			field(fs, line+39, 89,w=12,t='tot_vat')
@@ -184,6 +184,34 @@ class DocParser(object):
 			all_fields += fs
 			page_data.append( self.populate(lines, fs) )
 
+		return (all_fields, page_data)
+
+	def extractRemittance(self, lines, (rows,cols)):
+	        all_fields = []
+		page_data = []
+
+		pages = (rows-48)/48
+		for page in range(pages):
+			line =(page+1) * 48 
+			fs = []
+			field(fs, line+0, 8,w=38,h=5,t='addr_firm')
+			field(fs, line+0, 68,w=10,t='date')
+			field(fs, line+2, 68,w=10,t='page')
+			field(fs, line+4, 68,w=14,t='doc_num')
+			field(fs, line+6, 8,w=38,h=5,t='addr_invoice')
+
+			field(fs, line+17,0,w=20,h=20,t='rem_desc')
+			field(fs, line+17,21,w=10,h=20,t='rem_ourref')
+			field(fs, line+17,32,w=13,h=20,t='rem_yourref')
+			field(fs, line+17,46,w=10,h=20,t='rem_net')
+			field(fs, line+17,58,w=8,h=20,t='rem_vat')
+			field(fs, line+17,70,w=9,h=20,t='rem_gross')
+			
+			field(fs, line+40,8,w=40,t='instructions',h=2)
+			field(fs, line+38,60,w=19,t='amt_discount')
+			field(fs, line+40,60,w=19,t='amt_encl')
+			all_fields += fs
+			page_data.append( self.populate(lines, fs) )
 		return (all_fields, page_data)
 
 	def populate(self, lines, fs):

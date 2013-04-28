@@ -98,7 +98,7 @@ def cleanJob(j):
 	# all done
 
 def identify(j):
-	types = {'Sttments': 'statement', 'Delvnote':'delnote', 'Cr-note':'crednote', 'Invoice':'invoice', 'P order':'purchase'}
+	types = {'Sttments': 'statement', 'Delvnote':'delnote', 'Cr-note':'crednote', 'Invoice':'invoice', 'P order':'purchase', 'Rem Advs':'remittance'}
 	return types.get(j['doctype'])
 
 class Bootstrap(object):
@@ -154,16 +154,16 @@ def recent(query_string=''):
 		xstr = lambda s: s or ''
 		f.write('<h3>Recent Jobs</h3>')
 		f.write('<pre style="font-size:11px;line-height: 11px;">')
-		f.write('Links         Time                templ     doctype    host       preview<br>')
+		f.write('Links         Time                templ      doctype    host       preview<br>')
 		for j in reversed(jobs):
 			h = xstr(j['control'].get('H'))
 			if j['templ']:
-				f.write('<a href="/plain?/%s.txt">Text</a> <a href="/doc?name=%s">Info</a> <a href="/pdf?name=%s">PDF</a> %19s %-9s %-10s %-10s %s\n' %(
+				f.write('<a href="/plain?/%s.txt">Text</a> <a href="/doc?name=%s">Info</a> <a href="/pdf?name=%s">PDF</a> %19s %-10s %-10s %-10s %s\n' %(
 					j['name'], j['name'],j['name'],
 					str(j['ts'])[0:19], \
 				 xstr(j['templ']),j['doctype'],h,j['summary']))
 			else:
-				f.write('<a href="/plain/%s.txt">Text</a>          %19s %-9s %-10s %-10s %s\n' %(j['name'], str(j['ts'])[0:19], \
+				f.write('<a href="/plain/%s.txt">Text</a>          %19s %-10s %-10s %-10s %s\n' %(j['name'], str(j['ts'])[0:19], \
 				xstr(j['templ']),j['doctype'], h,j['summary']))
 		f.write('</pre>')
 
@@ -177,6 +177,7 @@ def printers(query_string=''):
 		for p in getPrinters():
 			f.write('<li>%s</li>' % (p))
 		f.write('</ul>')
+		f.write('<p>To add or change printers use <a href="https://192.168.12.4:631/">CUPS Administration</a>') 
 	return (f,'text/html')
 
 def printfn(query_string=''):

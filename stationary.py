@@ -51,7 +51,7 @@ def topBox(c, x, y, title="Title", content="The quick brown", w=2*cm, h=2.0*cm, 
 	textobject = c.beginText()
 	textobject.setFont("Helvetica", fontsz)
 	textobject.setTextOrigin(padleft, -(0.55*cm + ht))	
-	textobject.textLines(content)
+	for line in content.split('\n'): textobject.textLine(line)
 	c.drawText(textobject)
 	c.restoreState()
 	return (x+w, y-h)
@@ -104,7 +104,7 @@ def rightHeaderBlock(c, ctx, y=3*cm):
 
 def addressHorizDoubleBox(c, ctx, h=3.4*cm, w=9.0*cm, y=3*cm, lhs='INVOICE TO', rhs='DELIVERY ADDRESS'):
 	topBox(c, 0*cm, y, h=h, w=w, title=lhs, content=ctx['addr_invoice'])
-	topBox(c, pagewidth-w, y, h=h, w=w, title=rhs, content=ctx['addr_delivery'])
+	topBox(c, pagewidth-w, y, h=h, w=w, title=rhs, content=ctx.get('addr_delivery', ctx['addr_invoice']))
 	return y - h
 
 def accountSection(c, ctx, h = 1.25*cm, y=0):
@@ -206,6 +206,38 @@ def accountNotePage(c, ctx, mark):
 	(x, y)  = topBox(c, x, y, w=2.8*cm, h=h, title="VAT", content=ctx['summ_vat'], padleft=0.2*cm, align='c')
 
 	(x, y0) = topBox(c, 0, y-vpad, w=x, h=h, title="", content=ctx['summ_box'], ht=0)
+
+	c.showPage()
+
+def remittancePage(c, ctx, mark):
+		
+	# move the origin up and to the left
+	c.setFillColorRGB(0,0,0)
+	c.translate(0.8*cm,0.8*cm)
+	
+	watermark(c, mark=mark)
+	outline(c)
+	headerDetails(c, ctx, doctype='REMITTANCE ADVICE')
+
+	y = rightHeaderBlock(c, ctx, y = 27.2*cm)
+	y = addressHorizDoubleBox(c, ctx, lhs='INVOICE ADDRESS', y=y-vpad)
+	
+	# 8 column section, individual widths
+	y = y - vpad
+	h = 15.5*cm
+	(x, y0) = topBox(c, 0, y, w=4.1*cm, h=h, title="TRANSACTION", content=ctx['rem_desc'], padleft=0.2*cm, align='c')
+	(x, y0) = topBox(c, x, y, w=3.3*cm, h=h, title="OUR REFERENCE", content=ctx['rem_ourref'], padleft=0.2*cm, align='c')
+	(x, y0) = topBox(c, x, y, w=3.3*cm, h=h, title="YOUR REFERENCE", content=ctx['rem_yourref'], padleft=0.2*cm, align='c')
+	x3 = x
+	(x, y0) = topBox(c, x, y, w=2.8*cm, h=h, title="NET", content=ctx['rem_net'], padleft=0.2*cm, align='c')
+	(x, y0) = topBox(c, x, y, w=2.8*cm, h=h, title="VAT", content=ctx['rem_vat'], padleft=0.2*cm, align='c')
+	(x, y0) = topBox(c, x, y, w=pagewidth-x, h=h, title="GROSS", content=ctx['rem_gross'], padleft=0.2*cm, align='c')
+	
+	w = 10.0*cm
+	(x, y) = leftBox(c, x3, y0, w=pagewidth-x3, title='LESS DISCOUNT', content=ctx['amt_discount'])
+	(x, y) = leftBox(c, x3, y,  w=pagewidth-x3, title='AMOUNT ENCLOSED', content=ctx['amt_encl'])
+
+	(x, y0) = topBox(c, 0, y-vpad, w=x, h=1.6*cm, title="", content=ctx['instructions'], ht=0)
 
 	c.showPage()
 
@@ -335,6 +367,11 @@ class DocFormatter(object):
 		for mark in ['CUSTOMER COPY', 'ACCOUNTS COPY']:
 			for page in ctx:
 				deliveryNotePage(c, page, mark)
+
+	def writeRemittance(self, c, ctx):
+		for mark in ['CUSTOMER COPY', 'ACCOUNTS COPY']:
+			for page in ctx:
+				remittancePage(c, page, mark)
 
 	def writePage(self,drawfn, content, count=0):
 		from reportlab.pdfgen import canvas
