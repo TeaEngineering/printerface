@@ -3,6 +3,7 @@ import reportlab
 import os
 
 config = ConfigParser.ConfigParser()
+config.read('defaults.cfg')
 config.read(os.path.expanduser('~/printerface/email.cfg'))
 
 from reportlab.lib.units import cm
