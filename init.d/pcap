@@ -1,0 +1,5 @@
+#!/bin/bash
+OUTPUT=/root/pcap/pcap.`/bin/date +%Y%m%d`.pcap
+
+/usr/bin/nohup /usr/sbin/tcpdump -w $OUTPUT 'port 515' >>/var/log/cronrun 2>&1 &
+

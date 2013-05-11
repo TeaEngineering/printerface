@@ -273,17 +273,17 @@ def purchasePage(c, ctx, mark):
 	(x, y0) = topBox(c, 0, y, w=2.4*cm, h=h, ht=ht, title="PRODUCT\nCODE", content=ctx['prod_code'], padleft=0.2*cm, align='c')
 	(x, y0) = topBox(c, x, y, w=6.5*cm, h=h, ht=ht, title="PRODUCT DESCRIPTION", content=ctx['prod_desc'], padleft=0.2*cm, align='c', font='Courier',fontsz=9.5)
 	(x, y0) = topBox(c, x, y, w=1.4*cm, h=h, ht=ht, title="QTY", content=ctx['prod_qty'], padleft=0.2*cm, align='c')
-	(x, y0) = topBox(c, x, y, w=1.9*cm, h=h, ht=ht, title="PRICE", content=ctx['prod_price'], padleft=0.2*cm, align='c')
+	(x, y0) = topBox(c, x, y, w=1.9*cm, h=h, ht=ht, title="PRICE", content='', padleft=0.2*cm, align='c')
 	(x, y0) = topBox(c, x, y, w=1.2*cm, h=h, ht=ht, title="UNIT", content=ctx['prod_unit'], padleft=0.2*cm, align='c')
 	w = pagewidth-vpad-x
-	(x0,y1) = topBox(c, x+vpad, y, w=w, ht=ht, title="COLLECTION DELIVERY\nDATE REQUIRED BY", content=ctx['orderdate'], align='c')
+	(x0,y1) = topBox(c, x+vpad, y, w=w, ht=ht, title="COLLECTION DELIVERY\nDATE REQUIRED BY", content='', align='c')
 	(x0,y1) = topBox(c, x+vpad, y1-vpad, w=w, ht=ht, title="THIS SECTION TO BE COMPLETED\nAND FAXED BACK BY SUPPLIER", content='', align='c')
 	(x0,y1) = topBox(c, x+vpad, y1, w=w, ht=ht, title="DATE OF AVAILABILITY", content='', align='c')
 	(x0,y1) = topBox(c, x+vpad, y1, w=w, ht=ht, title="ACTUAL COLLECTION DATE", content='', align='c')
 	(x0,y1) = topBox(c, x+vpad, y1, w=w, ht=ht, h=h-(y-y1), title="IMPORTANT NOTES", content='', align='c')
 
 	x = 10.67*cm
-	(x, y1) = leftBox(c, x, y0-vpad, w=pagewidth-x, title='TOTAL NET', content=ctx['tot_net'])
+	(x, y1) = leftBox(c, x, y0-vpad, w=pagewidth-x, title='TOTAL NET', content='')
 
 	w = 10.4*cm
 	(x, y) = topBox(c, 0, y0-vpad, w=w, h=2.1*cm, padleft=0.2*cm, title="THIS INSTRUCTION IS MANDATORY", align='c', content=config.get('Printing', 'purch_instruction_fr').replace("\\n", '\n'))
