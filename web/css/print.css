@@ -1,0 +1,25 @@
+
+@media print {
+  .visible-print  { display: inherit !important; }
+  .hidden-print   { display: none !important; }
+}
+
+body {
+   padding: 0;
+}
+
+pre {
+   border: none;
+   padding: 0;
+   margin: 0;
+}
+
+div {
+  left: 30px !important;
+  right: 0px;
+  width: auto;
+  top: 15px !important;
+  position: static;
+  
+}
+
