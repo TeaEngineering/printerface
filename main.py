@@ -25,6 +25,7 @@ mailqueue = []
 
 mainparser = DocParser()
 formatter = DocFormatter(pdfdir)
+recentQty = 300
 
 with open(dir + 'bootstrap.html') as templ:
 	bootstrapTemplate = templ.read().split('BOOTSTRAP', 1)
@@ -35,7 +36,7 @@ def saveJob(queue, local, remote, control, data):
 	d = {'queue':queue, 'from':repr(local), 'to':repr(remote), 'control':control, 'data':data, 'ts': ts, 'name':jobname}
 	# print "    %s" % repr(d)
 	jobs.append(d)
-	if len(jobs) > 100: jobs.pop(0)
+	if len(jobs) > recentQty: jobs.pop(0)
 	
 	f = file(jobdir + jobname, "wb")
 	pickle.dump(d, f)
@@ -47,7 +48,7 @@ def saveJob(queue, local, remote, control, data):
 
 def recover():
 	xs = sorted([ x for x in os.listdir(jobdir) if x != 'raw'])
-	if len(xs) > 100: xs = xs[-100:]
+	if len(xs) > recentQty: xs = xs[-recentQty:]
 
 	print '[control] recovering from %s' % jobdir
 	for x in xs:		
