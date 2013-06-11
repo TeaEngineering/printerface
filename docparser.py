@@ -29,7 +29,7 @@ class DocParser(object):
 		return self.extractInvoice(lines, dims)
 
 	def extractInvoice(self, lines, (rows,cols)):
-	        all_fields = []
+		all_fields = []
 		page_data = []
 
 		pages = (rows-48)/48
@@ -78,7 +78,7 @@ class DocParser(object):
 		return (all_fields, page_data)
 
 	def extractDelnote(self, lines, (rows,cols)):
-	        all_fields = []
+		all_fields = []
 		page_data = []
 
 		pages = (rows-48)/48
@@ -118,7 +118,7 @@ class DocParser(object):
 	def extractStatement(self, lines, (rows,cols)):
 		# any lines after line containing 'PRINT STATEMENT SUMMARY' should be ignored
 		rows = min([rows] + [lnum for (lnum,text) in enumerate(lines) if 'PRINT STATEMENT SUMMARY' in text])
-	        all_fields = []
+		all_fields = []
 		page_data = []
 
 		pages = (rows-51)/51
@@ -161,7 +161,7 @@ class DocParser(object):
 		return (all_fields, page_data)
 
 	def extractPurchase(self, lines, (rows,cols)):
-	        all_fields = []
+		all_fields = []
 		page_data = []
 
 		pages = (rows-48)/48
@@ -194,7 +194,7 @@ class DocParser(object):
 		return (all_fields, page_data)
 
 	def extractRemittance(self, lines, (rows,cols)):
-	        all_fields = []
+		all_fields = []
 		page_data = []
 
 		pages = (rows-48)/48
@@ -236,7 +236,7 @@ class DocParser(object):
 				for col in range(c['c'], c['c']+c['w']):
 					high[row][col] = c
 		
-		for (row,line) in enumerate(lines):
+		for row,line in enumerate(lines):
 			for col,char in enumerate(line + (' '*(cols-len(line)))):
 				if high[row][col]:
 					node = high[row][col]
@@ -246,7 +246,7 @@ class DocParser(object):
 					node['text'] += char
 		data = {}
 		for c in fs:
-			data[c['t']] = c['text'].strip()
+			data[c['t']] = '\n'.join( [ s.strip() for s in c['text'].split('\n')] )
 
 		return data
 

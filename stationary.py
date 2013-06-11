@@ -32,7 +32,7 @@ def headerDetails(c, ctx, doctype="DELIVERY NOTE", terms_key='terms'):
 	c.setFont("Helvetica", 10)
 	c.drawString(0, 0.5*cm, config.get('Printing', terms_key))
 
-def topBox(c, x, y, title="Title", content="The quick brown", w=2*cm, h=2.0*cm, padleft=0.8*cm, align='l', ht=0.45*cm, fontsz=10.5,font='Helvetica'):
+def topBox(c, x, y, title="Title", content="The quick brown", w=2*cm, h=2.0*cm, pad=0.8*cm, align='l', ht=0.45*cm, fontsz=10.5,font='Helvetica', colfmt='l'):
 	c.saveState()
 	c.translate(x,y)
 	c.rect(0.0,0,w,-h)
@@ -42,25 +42,33 @@ def topBox(c, x, y, title="Title", content="The quick brown", w=2*cm, h=2.0*cm, 
 	c.rect(0.0,0,w,-ht, fill=True)
 	c.restoreState()
 	
-	c.setFont("Helvetica", 7)
+	hfontsz = 7
+	c.setFont("Helvetica", hfontsz)
+	lineheight = hfontsz * 1.2
 	if align=='c':
-		for lineon, text in enumerate(title.splitlines()):
-			c.drawCentredString(w*0.5, -.33*cm*(lineon+1), text)
+		for lineno, text in enumerate(title.splitlines()):
+			c.drawCentredString(w*0.5, -.33*cm*(lineno+1), text)
 	else:		
 		c.drawString(0.8*cm, -.33*cm, title)
 	
-	textobject = c.beginText()
-	textobject.setFont(font, fontsz)
-	textobject.setTextOrigin(padleft, -(0.55*cm + ht))	
-	for line in content.split('\n'): textobject.textLine(line)
-	c.drawText(textobject)
+	# default "leading" (line spacing) is 120% of the font size, in points. The native unit of reportlib is points
+	lineheight = fontsz * 1.3
+	c.setFont(font, fontsz)
+	for lineno, line in enumerate(content.split('\n')): 
+		if colfmt == 'da':
+			c.drawAlignedString(w - pad, -(0.52*cm + ht + lineheight*lineno), line)
+		elif colfmt == 'dr':
+			c.drawRightString(w-pad, -(0.52*cm + ht + lineheight*lineno), line)
+		else:
+			c.drawString(pad, -(0.52*cm + ht + lineheight*lineno), line)
+
 	c.restoreState()
 	return (x+w, y-h)
 
-def stTopBox(c, x, y, title="Title", content="The quick brown", w=2*cm, h=2.0*cm, ht=0.45*cm):
-	return topBox(c, x, y, title=title, content=content, w=w, h=h, padleft=0.1*cm, align='c', fontsz=8, ht=ht)
+def stTopBox(c, x, y, title="Title", content="The quick brown", w=2*cm, h=2.0*cm, ht=0.45*cm, pad=0.1*cm, colfmt='l'):
+	return topBox(c, x, y, title=title, content=content, w=w, h=h, pad=pad, align='c', fontsz=8, ht=ht, colfmt=colfmt)
 
-def leftBox(c, x, y, title="Title", content="Quick brown", h=0.85*cm, w=2.0*cm, padding=0.3*cm, split=0.5):
+def leftBox(c, x, y, title="Title", content="Quick brown", h=0.85*cm, w=2.0*cm, padding=0.3*cm, split=0.5, colfmt='l'):
 	p = padding
 	c.saveState()
 	c.translate(x,y)
@@ -75,7 +83,10 @@ def leftBox(c, x, y, title="Title", content="Quick brown", h=0.85*cm, w=2.0*cm, 
 	c.drawString(p, -h+p, title)
 	c.setFont("Helvetica", 10)
 	if split > 0:
-		c.drawString(w*split + p, -h+p, content)
+		if colfmt == 'dr':
+			c.drawRightString(w-p, -h+p, content)
+		else:
+			c.drawString(w*split + p, -h+p, content)
 	else:
 		c.drawCentredString(w*0.5 + p, -h+p, content)
 	c.restoreState()
@@ -140,10 +151,10 @@ def deliveryNotePage(c, ctx, mark):
 	y = y - vpad
 	w = pagewidth / 9.0	
 	h = 11*cm
-	(x, y0) = topBox(c, 0, y, w=2*w, h=h, title="PRODUCT CODE", content=ctx['prod_code'])
-	(x, y0) = topBox(c, x, y, w=5*w, h=h, title="PRODUCT DESCRIPTION", content=ctx['prod_desc'])
-	(x, y0) = topBox(c, x, y, w=w,   h=h, title="QTY", content=ctx['prod_qty'], padleft=0.2*cm)
-	(x, y)  = topBox(c, x, y, w=w,   h=h, title="UNIT", content=ctx['prod_unit'], padleft=0.2*cm)
+	(x, y0) = topBox(c, 0, y, w=2*w, h=h, title="PRODUCT CODE", content=ctx['prod_code'], font='Courier')
+	(x, y0) = topBox(c, x, y, w=5*w, h=h, title="PRODUCT DESCRIPTION", content=ctx['prod_desc'], font='Courier')
+	(x, y0) = topBox(c, x, y, w=w,   h=h, title="QTY", content=ctx['prod_qty'], pad=0.2*cm, colfmt='dr', font='Courier')
+	(x, y)  = topBox(c, x, y, w=w,   h=h, title="UNIT", content=ctx['prod_unit'], pad=0.2*cm, font='Courier')
 	
 	w = pagewidth / 2.0
 	h = 0.45*cm
@@ -185,28 +196,28 @@ def accountNotePage(c, ctx, mark):
 	# 8 column section, individual widths
 	y = y - vpad
 	h = 11*cm
-	(x, y0) = topBox(c, 0, y, w=2.4*cm, h=h, ht=0.9*cm, title="PRODUCT CODE", content=ctx['prod_code'], padleft=0.2*cm, align='c');
-	(x, y0) = topBox(c, x, y, w=6.6*cm, h=h, ht=0.9*cm, title="PRODUCT DESCRIPTION", content=ctx['prod_desc'], padleft=0.2*cm, align='c')
-	(x, y0) = topBox(c, x, y, w=1.5*cm, h=h, ht=0.9*cm, title="QTY", content=ctx['prod_qty'], padleft=0.2*cm, align='c')
-	(x, y0) = topBox(c, x, y, w=2.0*cm, h=h, ht=0.9*cm, title="PRICE", content=ctx['prod_price'], padleft=0.2*cm, align='c')
-	(x, y0) = topBox(c, x, y, w=1.7*cm, h=h, ht=0.9*cm, title="UNIT", content=ctx['prod_unit'], padleft=0.2*cm, align='c')
-	(x, y0) = topBox(c, x, y, w=1.5*cm, h=h, ht=0.9*cm, title="", content=ctx['prod_blank'], padleft=0.2*cm, align='c')
-	(x, y0) = topBox(c, x, y, w=2.5*cm, h=h, ht=0.9*cm, title="NET AMOUNT", content=ctx['prod_net'], padleft=0.2*cm, align='c')
-	(x, y0) = topBox(c, x, y, w=pagewidth-x, h=h, ht=0.9*cm, title="VAT\nCODE", content=ctx['prod_vcode'], padleft=0.2*cm, align='c')
+	(x, y0) = topBox(c, 0, y, w=2.4*cm, h=h, ht=0.9*cm, title="PRODUCT CODE", content=ctx['prod_code'], pad=0.2*cm, align='c', font='Courier');
+	(x, y0) = topBox(c, x, y, w=6.6*cm, h=h, ht=0.9*cm, title="PRODUCT DESCRIPTION", content=ctx['prod_desc'], pad=0.2*cm, align='c', font='Courier')
+	(x, y0) = topBox(c, x, y, w=1.5*cm, h=h, ht=0.9*cm, title="QTY", content=ctx['prod_qty'], pad=0.2*cm, align='c', colfmt='dr', font='Courier')
+	(x, y0) = topBox(c, x, y, w=2.0*cm, h=h, ht=0.9*cm, title="PRICE", content=ctx['prod_price'], pad=0.2*cm, align='c', colfmt='dr', font='Courier')
+	(x, y0) = topBox(c, x, y, w=1.7*cm, h=h, ht=0.9*cm, title="UNIT", content=ctx['prod_unit'], pad=0.2*cm, align='c', font='Courier')
+	(x, y0) = topBox(c, x, y, w=1.5*cm, h=h, ht=0.9*cm, title="", content=ctx['prod_blank'], pad=0.2*cm, align='c', font='Courier')
+	(x, y0) = topBox(c, x, y, w=2.5*cm, h=h, ht=0.9*cm, title="NET AMOUNT", content=ctx['prod_net'], pad=0.8*cm, align='c', colfmt='da', font='Courier')
+	(x, y0) = topBox(c, x, y, w=pagewidth-x, h=h, ht=0.9*cm, title="VAT\nCODE", content=ctx['prod_vcode'], pad=0.2*cm, align='c', font='Courier')
 	
 	w = 8.0*cm
-	(x, y) = leftBox(c, pagewidth-w, y0, w=w, title='TOTAL NET', content=ctx['tot_net'])
-	(x, y) = leftBox(c, pagewidth-w, y,  w=w, title='TOTAL VAT', content=ctx['tot_vat'])
-	(x, y) = leftBox(c, pagewidth-w, y,  w=w, title='AMOUNT DUE', content=ctx['tot_due'])
+	(x, y) = leftBox(c, pagewidth-w, y0, w=w, title='TOTAL NET', content=ctx['tot_net'], colfmt='dr')
+	(x, y) = leftBox(c, pagewidth-w, y,  w=w, title='TOTAL VAT', content=ctx['tot_vat'], colfmt='dr')
+	(x, y) = leftBox(c, pagewidth-w, y,  w=w, title='AMOUNT DUE', content=ctx['tot_due'], colfmt='dr')
 
 	y = y0 - vpad
 	h = 2.4*cm
-	(x, y0) = topBox(c, 0, y, w=2.5*cm, h=h, title="VAT CODE", content=ctx['summ_code'], padleft=0.2*cm, align='c');
-	(x, y0) = topBox(c, x, y, w=2.8*cm, h=h, title="NET", content=ctx['summ_netamt'], padleft=0.2*cm, align='c')
-	(x, y0) = topBox(c, x, y, w=2.8*cm, h=h, title="VAT RATE", content=ctx['summ_rate'], padleft=0.2*cm, align='c')
-	(x, y)  = topBox(c, x, y, w=2.8*cm, h=h, title="VAT", content=ctx['summ_vat'], padleft=0.2*cm, align='c')
+	(x, y0) = topBox(c, 0, y, w=2.5*cm, h=h, title="VAT CODE", content=ctx['summ_code'], pad=0.2*cm, align='c');
+	(x, y0) = topBox(c, x, y, w=2.8*cm, h=h, title="NET", content=ctx['summ_netamt'], pad=0.2*cm, align='c', colfmt='dr')
+	(x, y0) = topBox(c, x, y, w=2.8*cm, h=h, title="VAT RATE", content=ctx['summ_rate'], pad=0.2*cm, align='c', colfmt='dr')
+	(x, y)  = topBox(c, x, y, w=2.8*cm, h=h, title="VAT", content=ctx['summ_vat'], pad=0.2*cm, align='c', colfmt='dr')
 
-	(x, y0) = topBox(c, 0, y-vpad, w=x, h=h, title="", content=ctx['summ_box'], ht=0)
+	(x, y0) = topBox(c, 0, y-vpad, w=x, h=h, title="", content=ctx['summ_box'].strip(), ht=0)
 
 	c.showPage()
 
@@ -225,13 +236,13 @@ def remittancePage(c, ctx, mark):
 	# 6 column section, individual widths
 	y = y - vpad
 	h = 15.5*cm
-	(x, y0) = topBox(c, 0, y, w=4.1*cm, h=h, title="TRANSACTION", content=ctx['rem_desc'], padleft=0.2*cm, align='c')
-	(x, y0) = topBox(c, x, y, w=3.3*cm, h=h, title="OUR REFERENCE", content=ctx['rem_ourref'], padleft=0.2*cm, align='c')
-	(x, y0) = topBox(c, x, y, w=3.3*cm, h=h, title="YOUR REFERENCE", content=ctx['rem_yourref'], padleft=0.2*cm, align='c')
+	(x, y0) = topBox(c, 0, y, w=4.1*cm, h=h, title="TRANSACTION", content=ctx['rem_desc'], pad=0.2*cm, align='c')
+	(x, y0) = topBox(c, x, y, w=3.3*cm, h=h, title="OUR REFERENCE", content=ctx['rem_ourref'], pad=0.2*cm, align='c')
+	(x, y0) = topBox(c, x, y, w=3.3*cm, h=h, title="YOUR REFERENCE", content=ctx['rem_yourref'], pad=0.2*cm, align='c')
 	x3 = x
-	(x, y0) = topBox(c, x, y, w=2.8*cm, h=h, title="NET", content=ctx['rem_net'], padleft=0.2*cm, align='c')
-	(x, y0) = topBox(c, x, y, w=2.8*cm, h=h, title="VAT", content=ctx['rem_vat'], padleft=0.2*cm, align='c')
-	(x, y0) = topBox(c, x, y, w=pagewidth-x, h=h, title="GROSS", content=ctx['rem_gross'], padleft=0.2*cm, align='c')
+	(x, y0) = topBox(c, x, y, w=2.8*cm, h=h, title="NET", content=ctx['rem_net'], pad=0.2*cm, align='c')
+	(x, y0) = topBox(c, x, y, w=2.8*cm, h=h, title="VAT", content=ctx['rem_vat'], pad=0.2*cm, align='c')
+	(x, y0) = topBox(c, x, y, w=pagewidth-x, h=h, title="GROSS", content=ctx['rem_gross'], pad=0.2*cm, align='c')
 	
 	w = 10.0*cm
 	(x, y) = leftBox(c, x3, y0, w=pagewidth-x3, title='LESS DISCOUNT', content=ctx['amt_discount'])
@@ -247,7 +258,7 @@ def purchasePage(c, ctx, mark):
 	c.setFillColorRGB(0,0,0)
 	c.translate(0.8*cm,0.8*cm)
 	
-	watermark(c, mark=mark, x=6.7*cm, fontsz=46)
+	watermark(c, mark=mark, x=6.7*cm, fontsz=40)
 	headerDetails(c, ctx, doctype='PURCHASE ORDER', terms_key='terms_purch')
 
 	y = rightHeaderBlock(c, ctx, y = 27.2*cm)
@@ -257,13 +268,13 @@ def purchasePage(c, ctx, mark):
 	y = y - vpad
 	h = 1.25*cm
 	w = pagewidth/3.0
-	(x, y0) = topBox(c, 0, y, w=w, h=h, title="ACCOUNT", content=ctx['accno'], padleft=0.2*cm, align='c')
-	(x, y0) = topBox(c, x, y, w=w, h=h, title="YOUR REFERENCE", content=ctx['custref'], padleft=0.2*cm, align='c')
-	(x, y) = topBox(c, x, y, w=w, h=h, title="YOUR CONTACT", content=ctx['ourref'], padleft=0.2*cm, align='c')
+	(x, y0) = topBox(c, 0, y, w=w, h=h, title="ACCOUNT", content=ctx['accno'], pad=0.2*cm, align='c')
+	(x, y0) = topBox(c, x, y, w=w, h=h, title="YOUR REFERENCE", content=ctx['custref'], pad=0.2*cm, align='c')
+	(x, y) = topBox(c, x, y, w=w, h=h, title="YOUR CONTACT", content=ctx['ourref'], pad=0.2*cm, align='c')
 	x3 = x
-	(x, y0) = topBox(c, 0, y, w=w, h=h, title="OUR CONTACT", content=ctx['ourcontact'], padleft=0.2*cm, align='c')
-	(x, y0) = topBox(c, x, y, w=3.1*cm, h=h, title="ORDER DATE", content=ctx['orderdate'], padleft=0.2*cm, align='c')
-	(x, y) = topBox(c, x, y, w=pagewidth-x, h=h, title="INSTRUCTIONS", content=ctx['instructions'], padleft=0.2*cm, align='c')
+	(x, y0) = topBox(c, 0, y, w=w, h=h, title="OUR CONTACT", content=ctx['ourcontact'], pad=0.2*cm, align='c')
+	(x, y0) = topBox(c, x, y, w=3.1*cm, h=h, title="ORDER DATE", content=ctx['orderdate'], pad=0.2*cm, align='c')
+	(x, y) = topBox(c, x, y, w=pagewidth-x, h=h, title="INSTRUCTIONS", content=ctx['instructions'], pad=0.2*cm, align='c')
 	
 	w = 10.0*cm
 
@@ -271,11 +282,11 @@ def purchasePage(c, ctx, mark):
 	y = y - vpad
 	h = 12.4*cm
 	ht = 0.9*cm
-	(x, y0) = topBox(c, 0, y, w=2.4*cm, h=h, ht=ht, title="PRODUCT\nCODE", content=ctx['prod_code'], padleft=0.2*cm, align='c')
-	(x, y0) = topBox(c, x, y, w=6.5*cm, h=h, ht=ht, title="PRODUCT DESCRIPTION", content=ctx['prod_desc'], padleft=0.2*cm, align='c', font='Courier',fontsz=9.5)
-	(x, y0) = topBox(c, x, y, w=1.4*cm, h=h, ht=ht, title="QTY", content=ctx['prod_qty'], padleft=0.2*cm, align='c')
-	(x, y0) = topBox(c, x, y, w=1.9*cm, h=h, ht=ht, title="PRICE", content='', padleft=0.2*cm, align='c')
-	(x, y0) = topBox(c, x, y, w=1.2*cm, h=h, ht=ht, title="UNIT", content=ctx['prod_unit'], padleft=0.2*cm, align='c')
+	(x, y0) = topBox(c, 0, y, w=2.4*cm, h=h, ht=ht, title="PRODUCT\nCODE", content=ctx['prod_code'], pad=0.2*cm, align='c', font='Courier')
+	(x, y0) = topBox(c, x, y, w=6.5*cm, h=h, ht=ht, title="PRODUCT DESCRIPTION", content=ctx['prod_desc'], pad=0.2*cm, align='c', font='Courier',fontsz=9.5)
+	(x, y0) = topBox(c, x, y, w=1.4*cm, h=h, ht=ht, title="QTY", content=ctx['prod_qty'], pad=0.2*cm, align='c', colfmt='dr', font='Courier')
+	(x, y0) = topBox(c, x, y, w=1.9*cm, h=h, ht=ht, title="PRICE", content='', pad=0.2*cm, align='c', font='Courier')
+	(x, y0) = topBox(c, x, y, w=1.2*cm, h=h, ht=ht, title="UNIT", content=ctx['prod_unit'], pad=0.2*cm, align='c', font='Courier')
 	w = pagewidth-vpad-x
 	(x0,y1) = topBox(c, x+vpad, y, w=w, ht=ht, title="COLLECTION DELIVERY\nDATE REQUIRED BY", content='', align='c')
 	(x0,y1) = topBox(c, x+vpad, y1-vpad, w=w, ht=ht, title="THIS SECTION TO BE COMPLETED\nAND FAXED BACK BY SUPPLIER", content='', align='c')
@@ -287,8 +298,8 @@ def purchasePage(c, ctx, mark):
 	(x, y1) = leftBox(c, x, y0-vpad, w=pagewidth-x, title='TOTAL NET', content='')
 
 	w = 10.4*cm
-	(x, y) = topBox(c, 0, y0-vpad, w=w, h=2.1*cm, padleft=0.2*cm, title="THIS INSTRUCTION IS MANDATORY", align='c', content=config.get('Printing', 'purch_instruction_fr').replace("\\n", '\n'))
-	(x, y) = topBox(c, 0, y, w=w, h=1.6*cm, title="", padleft=0.2*cm, ht=0, content=config.get('Printing', 'purch_instruction_en').replace("\\n", '\n'))
+	(x, y) = topBox(c, 0, y0-vpad, w=w, h=2.1*cm, pad=0.2*cm, title="THIS INSTRUCTION IS MANDATORY", align='c', content=config.get('Printing', 'purch_instruction_fr').replace("\\n", '\n'))
+	(x, y) = topBox(c, 0, y, w=w, h=1.6*cm, title="", pad=0.2*cm, ht=0, content=config.get('Printing', 'purch_instruction_en').replace("\\n", '\n'))
 
 	c.showPage()
 
@@ -336,38 +347,37 @@ def statementPage(c, ctx, mark):
 	h = 15.5*cm; hs=0.9*cm
 	(x, y0) = stTopBox(c, 0, y, w=1.3*cm, h=h, title="DATE", content=ctx['prod_date']);
 	(x, y0) = stTopBox(c, x, y, w=4.1*cm, h=h, title="OUR REF.                DETAILS", content=ctx['prod_code'])
-	(x, y0) = stTopBox(c, x, y, w=1.3*cm, h=h, title="TRANS", content=ctx['prod_trans'])
-	(x1,y0) = stTopBox(c, x, y, w=1.6*cm, h=h, title="DEBT", content=ctx['prod_debt'])
-	(x1,y1) = stTopBox(c, x, y0,w=1.6*cm, h=hs,title="", content=ctx['tot_debt'], ht=0)
+	(x, y0) = stTopBox(c, x, y, w=1.0*cm, h=h, title="TRANS", content=ctx['prod_trans'])
+	(x1,y0) = stTopBox(c, x, y, w=1.6*cm, h=h, title="DEBT", content=ctx['prod_debt'], colfmt='dr')
+	(x1,y1) = stTopBox(c, x, y0,w=1.6*cm, h=hs,title="", content=ctx['tot_debt'], ht=0, colfmt='dr')
 
-	(x2,y0) = stTopBox(c, x1, y, w=1.6*cm, h=h, title="CREDIT", content=ctx['prod_credit'])
-	(x2,y1) = stTopBox(c, x1, y0,w=1.6*cm, h=hs,title="", content=ctx['tot_credit'], ht=0)
+	(x2,y0) = stTopBox(c, x1, y, w=1.6*cm, h=h, title="CREDIT", content=ctx['prod_credit'], colfmt='dr')
+	(x2,y1) = stTopBox(c, x1, y0,w=1.6*cm, h=hs,title="", content=ctx['tot_credit'], ht=0, colfmt='dr')
 
 	w = divide - vpad - x2
-	(x3,y0) = stTopBox(c, x2, y, w=w, h=h, title="BALANCE", content=ctx['prod_bal'])
-	(x3,y1) = stTopBox(c, x2, y0,w=w, h=hs,title="", content=ctx['tot_bal'], ht=0)
+	(x3,y0) = stTopBox(c, x2, y, w=w, h=h, title="BALANCE", content=ctx['prod_bal'], colfmt='da', pad=0.85*cm)
+	(x3,y1) = stTopBox(c, x2, y0,w=w, h=hs,title="", content=ctx['tot_bal'], ht=0, colfmt='dr')
 	
 	x = divide+vpad
 	(x, y0) = stTopBox(c, x, y, w=1.6*cm, h=h, title="DATE", content=ctx['prod_date'])
 	(x, y0) = stTopBox(c, x, y, w=1.8*cm, h=h, title="OUR REF.", content=ctx['prod_ref'])
-	(x, y0) = stTopBox(c, x, y, w=2.5*cm, h=h, title="OUTSTANDING", content=ctx['prod_total'])
+	(x, y0) = stTopBox(c, x, y, w=2.5*cm, h=h, title="OUTSTANDING", content=ctx['prod_total'], colfmt='da', pad=0.85*cm)
 	(x, y0) = stTopBox(c, x, y, w=pagewidth-x, h=h, title="TICK", content='')
 
 	c.setFont("Helvetica", 8)
-        c.drawString(0, y0-vpad, ctx['summ_box'])
-
+	c.drawString(0, y0-vpad, ctx['summ_box'].strip())
 	
 	w=(divide-vpad)/4; x=0; y=4.0*cm; h=1.3*cm;
-	(x, y0) = stTopBox(c, x, y, w=w, h=h, title="CURRENT", content=ctx['age_curr'])
-	(x, y0) = stTopBox(c, x, y, w=w, h=h, title="ONE MONTH", content=ctx['age_1m'])
-	(x, y0) = stTopBox(c, x, y, w=w, h=h, title="TWO MONTHS", content=ctx['age_2m'])
-	(x, y0) = stTopBox(c, x, y, w=w, h=h, title="THREE MONTHS", content=ctx['age_3m'])
+	(x, y0) = stTopBox(c, x, y, w=w, h=h, title="CURRENT", content=ctx['age_curr'], colfmt='dr')
+	(x, y0) = stTopBox(c, x, y, w=w, h=h, title="ONE MONTH", content=ctx['age_1m'], colfmt='dr')
+	(x, y0) = stTopBox(c, x, y, w=w, h=h, title="TWO MONTHS", content=ctx['age_2m'], colfmt='dr')
+	(x, y0) = stTopBox(c, x, y, w=w, h=h, title="THREE MONTHS", content=ctx['age_3m'], colfmt='dr')
 	
 	y=y0-vpad; x=0; w=4.5*cm;
 	(x, y0) = stTopBox(c, x, y, w=w, h=h, title="CURRENCY", content='')
-	(x, y0) = stTopBox(c, x+vpad, y, w=w, h=h, title="AMOUNT DUE", content=ctx['age_due'])
+	(x, y0) = stTopBox(c, x+vpad, y, w=w, h=h, title="AMOUNT DUE", content=ctx['age_due'], colfmt='dr')
 
-	(x, y0) = stTopBox(c, divide+vpad, y, w=4.5*cm, h=h, title="TOTAL TO BE PAID", content=ctx['tot_topay'])
+	(x, y0) = stTopBox(c, divide+vpad, y, w=4.5*cm, h=h, title="TOTAL TO BE PAID", content=ctx['tot_topay'], colfmt='dr')
 
 	c.saveState()
 	c.setDash(array=[5,5])
