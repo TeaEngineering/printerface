@@ -197,8 +197,8 @@ def accountNotePage(c, ctx, mark):
 	y = y - vpad
 	h = 11*cm
 	(x, y0) = topBox(c, 0, y, w=2.4*cm, h=h, ht=0.9*cm, title="PRODUCT CODE", content=ctx['prod_code'], pad=0.2*cm, align='c', font='Courier');
-	(x, y0) = topBox(c, x, y, w=6.6*cm, h=h, ht=0.9*cm, title="PRODUCT DESCRIPTION", content=ctx['prod_desc'], pad=0.2*cm, align='c', font='Courier')
-	(x, y0) = topBox(c, x, y, w=1.5*cm, h=h, ht=0.9*cm, title="QTY", content=ctx['prod_qty'], pad=0.2*cm, align='c', colfmt='dr', font='Courier')
+	(x, y0) = topBox(c, x, y, w=6.5*cm, h=h, ht=0.9*cm, title="PRODUCT DESCRIPTION", content=ctx['prod_desc'], pad=0.2*cm, align='c', font='Courier')
+	(x, y0) = topBox(c, x, y, w=1.7*cm, h=h, ht=0.9*cm, title="QTY", content=ctx['prod_qty'], pad=0.1*cm, align='c', colfmt='dr', font='Courier')
 	(x, y0) = topBox(c, x, y, w=2.0*cm, h=h, ht=0.9*cm, title="PRICE", content=ctx['prod_price'], pad=0.2*cm, align='c', colfmt='dr', font='Courier')
 	(x, y0) = topBox(c, x, y, w=1.7*cm, h=h, ht=0.9*cm, title="UNIT", content=ctx['prod_unit'], pad=0.2*cm, align='c', font='Courier')
 	(x, y0) = topBox(c, x, y, w=1.5*cm, h=h, ht=0.9*cm, title="", content=ctx['prod_blank'], pad=0.2*cm, align='c', font='Courier')
