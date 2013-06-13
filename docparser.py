@@ -132,8 +132,8 @@ class DocParser(object):
 			field(fs, line+10,58,w=10,t='accno')
 			
 			field(fs, line+19,1 ,w=9, t='prod_date',h=18)
-			field(fs, line+19,12,w=22,t='prod_code',h=18)
-			field(fs, line+19,36,w=5, t='prod_trans',h=18)
+			field(fs, line+19,12,w=24,t='prod_code',h=18)
+			field(fs, line+19,37,w=4, t='prod_trans',h=18)
 			field(fs, line+19,43,w=12,t='prod_debt',h=18)
 			field(fs, line+19,57,w=12,t='prod_credit',h=18)
 			field(fs, line+19,71,w=12,t='prod_bal',h=18)
@@ -149,11 +149,11 @@ class DocParser(object):
 
 			field(fs, line+42, 16,w=40,t='summ_box',h=3)
 
-			field(fs, line+47,6,w=14,t='age_curr')
-			field(fs, line+47,20,w=14,t='age_1m')
-			field(fs, line+47,36,w=12,t='age_2m')
-			field(fs, line+47,50,w=12,t='age_3m')
-			field(fs, line+47,69,w=12,t='age_due')
+			field(fs, line+47,8,w=14,t='age_curr')
+			field(fs, line+47,22,w=14,t='age_1m')
+			field(fs, line+47,36,w=14,t='age_2m')
+			field(fs, line+47,50,w=14,t='age_3m')
+			field(fs, line+47,69,w=14,t='age_due')
 
 			all_fields += fs
 			page_data.append( self.populate(lines, fs) )
@@ -187,7 +187,7 @@ class DocParser(object):
 			field(fs, line+20,65,w=11,t='prod_price',h=18)
 			field(fs, line+20,74,w=8,t='prod_unit',h=18)
 			
-			field(fs, line+43,86,w=10,t='tot_net')
+			field(fs, line+43,84,w=12,t='tot_net')
 			all_fields += fs
 			page_data.append( self.populate(lines, fs) )
 

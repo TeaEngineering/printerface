@@ -32,7 +32,7 @@ def headerDetails(c, ctx, doctype="DELIVERY NOTE", terms_key='terms'):
 	c.setFont("Helvetica", 10)
 	c.drawString(0, 0.5*cm, config.get('Printing', terms_key))
 
-def topBox(c, x, y, title="Title", content="The quick brown", w=2*cm, h=2.0*cm, pad=0.8*cm, align='l', ht=0.45*cm, fontsz=10.5,font='Helvetica', colfmt='l'):
+def topBox(c, x, y, title="Title", content="The quick brown", w=2*cm, h=2.0*cm, pad=0.3*cm, align='l', ht=0.45*cm, fontsz=10.5,font='Helvetica', colfmt='l'):
 	c.saveState()
 	c.translate(x,y)
 	c.rect(0.0,0,w,-h)
@@ -253,12 +253,16 @@ def remittancePage(c, ctx, mark):
 	c.showPage()
 
 def purchasePage(c, ctx, mark):
-		
+	price_col, price_tot = ('', '')
+	if 'MASTER' in mark or 'BOOKING IN' in mark:
+		price_col = ctx['prod_price']
+		price_tot = ctx['tot_net']
+
 	# move the origin up and to the left
 	c.setFillColorRGB(0,0,0)
 	c.translate(0.8*cm,0.8*cm)
 	
-	watermark(c, mark=mark, x=6.7*cm, fontsz=40)
+	watermark(c, mark=mark, x=6.7*cm, fontsz=36)
 	headerDetails(c, ctx, doctype='PURCHASE ORDER', terms_key='terms_purch')
 
 	y = rightHeaderBlock(c, ctx, y = 27.2*cm)
@@ -285,7 +289,7 @@ def purchasePage(c, ctx, mark):
 	(x, y0) = topBox(c, 0, y, w=2.4*cm, h=h, ht=ht, title="PRODUCT\nCODE", content=ctx['prod_code'], pad=0.2*cm, align='c', font='Courier')
 	(x, y0) = topBox(c, x, y, w=6.5*cm, h=h, ht=ht, title="PRODUCT DESCRIPTION", content=ctx['prod_desc'], pad=0.2*cm, align='c', font='Courier',fontsz=9.5)
 	(x, y0) = topBox(c, x, y, w=1.4*cm, h=h, ht=ht, title="QTY", content=ctx['prod_qty'], pad=0.2*cm, align='c', colfmt='dr', font='Courier')
-	(x, y0) = topBox(c, x, y, w=1.9*cm, h=h, ht=ht, title="PRICE", content='', pad=0.2*cm, align='c', font='Courier')
+	(x, y0) = topBox(c, x, y, w=1.9*cm, h=h, ht=ht, title="PRICE", content=price_col, pad=0.2*cm, align='c', font='Courier')
 	(x, y0) = topBox(c, x, y, w=1.2*cm, h=h, ht=ht, title="UNIT", content=ctx['prod_unit'], pad=0.2*cm, align='c', font='Courier')
 	w = pagewidth-vpad-x
 	(x0,y1) = topBox(c, x+vpad, y, w=w, ht=ht, title="COLLECTION DELIVERY\nDATE REQUIRED BY", content='', align='c')
@@ -295,7 +299,7 @@ def purchasePage(c, ctx, mark):
 	(x0,y1) = topBox(c, x+vpad, y1, w=w, ht=ht, h=h-(y-y1), title="IMPORTANT NOTES", content='', align='c')
 
 	x = 10.67*cm
-	(x, y1) = leftBox(c, x, y0-vpad, w=pagewidth-x, title='TOTAL NET', content='')
+	(x, y1) = leftBox(c, x, y0-vpad, w=pagewidth-x, title='TOTAL NET', content=price_tot, colfmt='dr')
 
 	w = 10.4*cm
 	(x, y) = topBox(c, 0, y0-vpad, w=w, h=2.1*cm, pad=0.2*cm, title="THIS INSTRUCTION IS MANDATORY", align='c', content=config.get('Printing', 'purch_instruction_fr').replace("\\n", '\n'))
@@ -420,7 +424,7 @@ class DocFormatter(object):
 		self.writeInvoice(c, ctx)
 
 	def writeStatement(self, c, ctx):
-		for mark in ['CUSTOMER COPY', 'ACCOUNTS COPY', 'FILE COPY']:
+		for mark in ['CUSTOMER COPY', 'ACCOUNTS COPY']:
 			for page in ctx:
 				statementPage(c, page, mark)
 
@@ -435,7 +439,7 @@ class DocFormatter(object):
 				remittancePage(c, page, mark)
 
 	def writePurchase(self, c, ctx):
-		for mark in ['SUPPLIER COPY', 'ACCOUNTS COPY']:
+		for mark in ['SUPPLIER COPY', 'ACCOUNTS COPY','MASTER COPY', 'TRANSPORTER COPY', 'BOOKING IN COPY','PRE LOCATION COPY']:
 			for page in ctx:
 				purchasePage(c, page, mark)
 
