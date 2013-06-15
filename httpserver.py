@@ -441,7 +441,11 @@ class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
 		handler = self.handlers.get(self.path)
 		if (handler):
 			try:
-				(f, ctype) = handler(query_string=self.query_string)				
+				(f, ctype) = handler(query_string=self.query_string)
+				if type(f) is str:
+					c = StringIO()
+					c.write(f)
+					f = c
 				self.send_response(200)
 				self.send_header("Content-type", ctype)
 				f.seek(0, os.SEEK_END)
