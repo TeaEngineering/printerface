@@ -29,6 +29,7 @@ mailqueue = []
 
 mainparser = DocParser()
 formatter = DocFormatter(pdfdir)
+recentQty = 300
 
 with open(dir + 'bootstrap.html') as templ:
 	bootstrapTemplate = templ.read().split('BOOTSTRAP', 1)
@@ -41,7 +42,7 @@ def saveJob(queue, local, remote, control, data):
 	d = {'queue':queue, 'from':repr(local), 'to':repr(remote), 'control':control, 'data':data, 'ts': ts, 'name':jobname}
 	# print "    %s" % repr(d)
 	jobs.append(d)
-	if len(jobs) > 100: jobs.pop(0)
+	if len(jobs) > recentQty: jobs.pop(0)
 	
 	f = file(jobdir + jobname, "wb")
 	pickle.dump(d, f)
@@ -53,7 +54,7 @@ def saveJob(queue, local, remote, control, data):
 
 def recover():
 	xs = sorted([ x for x in os.listdir(jobdir) if x != 'raw'])
-	if len(xs) > 100: xs = xs[-100:]
+	if len(xs) > recentQty: xs = xs[-recentQty:]
 
 	print '[control] recovering from %s' % jobdir
 	for x in xs:		
@@ -202,7 +203,7 @@ def pdf(query_string=dict()):
 	with Bootstrap(document=True) as f:
 		# style="width: 100%; height: 300px;"
 		f.write('<p><div class="row" style="position: absolute; top: 35px; bottom: 5px; left: 65px; right:65px;"> ')
-		f.write('<p>')
+		# f.write('<p>')
 		f.write('<div class="btn-group">\n')
 		f.write('  <a class="btn dropdown-toggle" data-toggle="dropdown" href="#">Print <span class="caret"></span></a> <ul class="dropdown-menu"> ')
 		for p in getPrinters():
@@ -216,7 +217,7 @@ def pdf(query_string=dict()):
 		f.write('</ul>\n')
 
 		f.write('</div>')
-		f.write('<p><object	data="/pdf/%s.pdf#toolbar=1&amp;navpanes=0&amp;scrollbar=1&amp;page=0&amp;zoom=30" ' % job['name'])
+		f.write('<object	data="/pdf/%s.pdf#toolbar=1&amp;navpanes=0&amp;scrollbar=1&amp;page=0&amp;zoom=30" ' % job['name'])
 		f.write(' type="application/pdf" width="100%" height="95%">')
 		f.write(' <p>It appears you don\'t have a PDF plugin for this browser. No biggie... you can <a href="/pdf/sample.pdf">click here to download the PDF file.</a></p>')
 		f.write('\n</object>\n</div>')
