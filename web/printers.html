@@ -1,0 +1,16 @@
+
+<%inherit file="bootstrap.html"/>
+<%block name="title">- Printers</%block>
+
+	<h3>Printers</h3>
+
+	<table class="table table-striped">
+		<tr><th>Printer</th></tr>
+	% for p in printers:
+	  <tr>
+		<td>${p}</td>
+	  </tr>
+	% endfor
+	</table>
+
+	<p>To add or change printers use <a href="https://192.168.12.4:631/">CUPS Administration</a>

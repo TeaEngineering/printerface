@@ -1,0 +1,27 @@
+
+<%inherit file="bootstrap.html"/>
+<%block name="title">- ${job.get('name')}</%block>
+
+	<div class="row" style="position: absolute; top: 35px; bottom: 5px; left: 65px; right:65px;">
+	<p>
+	<div class="btn-group">
+	  <a class="btn dropdown-toggle" data-toggle="dropdown" href="#">Print <span class="caret"></span></a> <ul class="dropdown-menu">
+	% for p in printers:
+	  	<li><a tabindex="-1" href="/print?name=${job['name']}&printer=${p}">${p}</a></li>
+	% endfor
+	</ul>
+	</div>
+	 <div class="btn-group">
+	  <a class="btn dropdown-toggle" data-toggle="dropdown" href="#">Email <span class="caret"></span></a> <ul class="dropdown-menu">
+	% for p in printers:
+	  	<li><a tabindex="-1" href="/email?name=${job['name']}&printer=${p}">${p}</a></li>
+	% endfor
+	</ul>
+
+	</div>
+	<object data="/pdf/${job['name']}.pdf#toolbar=1&amp;navpanes=0&amp;scrollbar=1&amp;page=0&amp;zoom=30" type="application/pdf" width="100%" height="92%">
+	 <p>It appears you don\'t have a PDF plugin for this browser. No biggie... you can <a href="/pdf/${job['name']}.pdf">click here to download the PDF file.</a></p>
+	</object>
+	</div>
+	<p>&nbsp;<p>&nbsp;<p>&nbsp;<p>&nbsp;
+	

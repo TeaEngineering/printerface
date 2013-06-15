@@ -1,0 +1,40 @@
+
+<%inherit file="bootstrap.html"/>
+<%block name="title">- Recent</%block>
+
+	<h3>Recent Jobs</h3>
+
+	<table class="table table-striped table-condensed" style="width: 100%; white-space: nowrap; table-layout: fixed;">
+    <colgroup>
+        <col width="20%" />
+        <col width="15%" />
+        <col width="10%" />
+        <col width="55%" />
+    </colgroup>
+
+		<tr><th>Job</th><th>Time</th><th>Template</th><th>Preview</th></tr>
+	<% xstr = lambda s: s or '' %>
+	% for j in jobs:
+	  <tr>
+		% if j['templ']:
+		<td><a href="/doc?name=${j['name']}">${xstr(j['control'].get('H'))} ${j['doctype']}</a></td>
+		% else:
+		<td><a href="/plaintext?name=${j['name']}">${xstr(j['control'].get('H'))} ${j['doctype']}</a></td>
+		% endif
+			<td>${str(j['ts'])[0:19]}</td>
+		% if j['templ']:
+		<td><a href="/pdf?name=${j['name']}">${xstr(j['templ'])}</a></td>
+		% else:
+			<td></td>
+		% endif
+		
+		<td style="overflow: hidden; text-overflow: ellipsis">${j['summary']}</td>
+	  </tr>
+	% endfor
+	</table>
+
+	<ul class="pager">
+	  <li class="previous"> <a href="#">&larr; Older</a> </li> 
+	  <li class="next"> <a href="#">Newer &rarr;</a> </li> 
+	</ul>
+	

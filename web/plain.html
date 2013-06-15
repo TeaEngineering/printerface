@@ -1,0 +1,29 @@
+
+<%inherit file="bootstrap.html"/>
+<%block name="title">- ${job.get('name')}</%block>
+
+	<p><div class="row" style="position: absolute; top: 35px; bottom: 5px; left: 65px; right:65px;">
+	<p>
+	<div class="btn-group">
+	  <a class="btn dropdown-toggle" data-toggle="dropdown" href="#">Print <span class="caret"></span></a> <ul class="dropdown-menu">
+	% for p in printers:
+	  	<li><a tabindex="-1" href="/print?name=${job['name']}&printer=${p}">${p}</a></li>
+	% endfor
+	</ul>
+	</div>
+	 <div class="btn-group">
+	  <a class="btn dropdown-toggle" data-toggle="dropdown" href="#">Email <span class="caret"></span></a> <ul class="dropdown-menu">
+	% for p in printers:
+	  	<li><a tabindex="-1" href="/email?name=${job['name']}&printer=${p}">${p}</a></li>
+	% endfor
+	</ul>
+
+	</div>
+	
+	<pre style="font-size:10px;line-height: 10px;">
+${job['plain'] }
+	</pre>
+
+	</div>
+	<p>&nbsp;<p>&nbsp;<p>&nbsp;<p>&nbsp;
+	

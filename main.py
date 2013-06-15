@@ -2,6 +2,10 @@
 
 from __future__ import with_statement
 
+from mako.template import Template
+from mako.lookup import TemplateLookup
+from mako import exceptions
+
 import asynchat, asyncore, socket, os, re
 from datetime import datetime
 from lpdserver import LpdServer
@@ -29,9 +33,7 @@ mailqueue = []
 
 mainparser = DocParser()
 formatter = DocFormatter(pdfdir)
-
-with open(dir + 'bootstrap.html') as templ:
-	bootstrapTemplate = templ.read().split('BOOTSTRAP', 1)
+template_lookup = TemplateLookup(directories=[dir],  output_encoding='utf-8', encoding_errors='replace', format_exceptions=True)
 
 summary_regexps = [ re.compile(x) for x in config.get('Main', 'summary_trim').strip().split(',') ]
 	
@@ -109,145 +111,30 @@ def identify(j):
 	types = {'Sttments': 'statement', 'Delvnote':'delnote', 'Cr-note':'crednote', 'Invoice':'invoice', 'P order':'purchase', 'Rem Advs':'remittance'}
 	return types.get(j['doctype'])
 
-class Bootstrap(object):
-	def __init__(self,recent=False,printers=False,document=False,settings=False):
-		self.kwtoggle = dict(recent=recent, printers=printers, document=document, settings=settings)
-	def __enter__(self):
-		self.f = StringIO()
-		bt = bootstrapTemplate[0]
-		for k,v in self.kwtoggle.items():
-			bt = bt.replace('%%%s%%' % k.upper(), 'class="active"' if v else '' )
-			#'class="active"'bt = bt.replace('%PRINTERS%', 'class="active"')
-			#bt = bt.replace('%DOCUMENT%', 'class="active"')
-		self.f.write(bt)
-		return self.f
-
-	def __exit__(self, type, value, tb):
-		self.f.write(bootstrapTemplate[1])
-		return False
-
 def index(query_string=''):
-	with Bootstrap() as f:
-		f.write('''
-
-      <div class="hero-unit" style="margin-top: 30px;">
-        <h1>Printerface</h1>
-        <p>Printerface collects documents sent to the LPR print queue at 192.168.4.1 and stores them. Some documents are recognised and re-formatted to PDF files. 
-        </p>
-        <p><a href="/recent" class="btn btn-primary btn-large">Recent Documents &raquo;</a></p>
-      </div>
-
-      <div class="row">
-        <div class="span4">
-          <h2>Queue</h2>
-          <p>Donec id elit non mi porta gravida at eget metus. Fusce dapibus, tellus ac cursus commodo, tortor mauris condimentum nibh, ut fermentum massa justo sit amet risus. Etiam porta sem malesuada magna mollis euismod. Donec sed odio dui. </p>
-          <p><a class="btn" href="/recent">View details &raquo;</a></p>
-        </div>
-        <div class="span4">
-          <h2>Document Type</h2>
-          <p>Dnec id elit non mi porta gravida at eget metus. Fusce dapibus, tellus ac cursus commodo, tortor mauris condimentum nibh, ut fermentum massa justo sit amet risus. Etiam porta sem malesuada magna mollis euismod. Donec sed odio dui. </p>
-          <p><a class="btn" href="/recent">View details &raquo;</a></p>
-       </div>
-        <div class="span4">
-          <h2>Monthly</h2>
-          <p>Donec sed odio dui. Cras justo odio, dapibus ac facilisis in, egestas eget quam. Vestibulum id ligula porta felis euismod semper. Fusce dapibus, tellus ac cursus commodo, tortor mauris condimentum nibh, ut fermentum massa justo sit amet risus.</p>
-          <p><a class="btn" href="/recent">View details &raquo;</a></p>
-        </div>
-      </div>
-      ''')
-	return (f,'text/html')
+	return ( template_lookup.get_template("/index-templ.html").render() ,'text/html')
 
 def recent(query_string=''):
-	with Bootstrap(recent=True) as f:
-		xstr = lambda s: s or ''
-		f.write('<h3>Recent Jobs</h3>')
-		f.write('<pre style="font-size:11px;line-height: 11px;">')
-		f.write('Links         Time                templ      doctype    host       preview<br>')
-		for j in reversed(jobs):
-			h = xstr(j['control'].get('H'))
-			if j['templ']:
-				f.write('<a href="/plaintext?name=%s">Text</a> <a href="/doc?name=%s">Info</a> <a href="/pdf?name=%s">PDF</a> %19s %-10s %-10s %-10s %s\n' %(
-					j['name'], j['name'],j['name'],
-					str(j['ts'])[0:19], \
-				 xstr(j['templ']),j['doctype'],h,j['summary']))
-			else:
-				f.write('<a href="/plaintext?name=%s">Text</a>          %19s %-10s %-10s %-10s %s\n' %(j['name'], str(j['ts'])[0:19], \
-				xstr(j['templ']),j['doctype'], h,j['summary']))
-		f.write('</pre>')
-
-		f.write('<ul class="pager"><li class="previous"> <a href="#">&larr; Older</a> </li> <li class="next"> <a href="#">Newer &rarr;</a> </li> </ul>')
-	return (f,'text/html')
-
+	return ( template_lookup.get_template("/recent-templ.html").render(jobs=reversed(jobs)), 'text/html')
+	
 def printers(query_string=''):
-	with Bootstrap(printers=True) as f:
-		f.write('<h3>Printers</h3>')
-		f.write('<ul>')
-		for p in getPrinters():
-			f.write('<li>%s</li>' % (p))
-		f.write('</ul>')
-		f.write('<p>To add or change printers use <a href="https://192.168.12.4:631/">CUPS Administration</a>') 
-	return (f,'text/html')
+	return ( template_lookup.get_template("/printers.html").render(printers=getPrinters()), 'text/html')
 
 def printfn(query_string=''):
 	job = getJob(query_string)
 	for f in [job['files']]:
 		printFile(f, ''.join(query_string['printer']) )
-	with Bootstrap(printers=True) as f:
-		f.write('<h3>Printing...</h3>')
-		f.write('Document %s sent to printer %s<br>' % (query_string['name'], query_string['printer']) )
-	return (f,'text/html')
+
+	return doMessage(title='Printing', message='Document %s sent to printer %s<br>' % (query_string['name'], query_string['printer']))
 
 def pdf(query_string=dict()):
 	job = getJob(query_string)
-	with Bootstrap(document=True) as f:
-		# style="width: 100%; height: 300px;"
-		f.write('<p><div class="row" style="position: absolute; top: 35px; bottom: 5px; left: 65px; right:65px;"> ')
-		f.write('<p>')
-		f.write('<div class="btn-group">\n')
-		f.write('  <a class="btn dropdown-toggle" data-toggle="dropdown" href="#">Print <span class="caret"></span></a> <ul class="dropdown-menu"> ')
-		for p in getPrinters():
-			f.write('<li><a tabindex="-1" href="/print?name=%s&printer=%s">%s</a></li>' % (job['name'],p,p))
-		f.write('</ul>\n')	
-		f.write('</div> ')
-		f.write(' <div class="btn-group">\n')
-		f.write('  <a class="btn dropdown-toggle" data-toggle="dropdown" href="#">Email <span class="caret"></span></a> <ul class="dropdown-menu"> ')
-		for p in getPrinters():
-			f.write('<li><a tabindex="-1" href="/email?name=%s&printer=%s">%s</a></li>' % (job['name'],p,p))
-		f.write('</ul>\n')
-
-		f.write('</div>')
-		f.write('<p><object	data="/pdf/%s.pdf#toolbar=1&amp;navpanes=0&amp;scrollbar=1&amp;page=0&amp;zoom=30" ' % job['name'])
-		f.write(' type="application/pdf" width="100%" height="95%">')
-		f.write(' <p>It appears you don\'t have a PDF plugin for this browser. No biggie... you can <a href="/pdf/sample.pdf">click here to download the PDF file.</a></p>')
-		f.write('\n</object>\n</div>')
-		f.write('<p>&nbsp;<p>&nbsp;<p>&nbsp;<p>&nbsp;')
-	return (f, 'text/html')
+	return ( template_lookup.get_template("/pdf.html").render(printers=getPrinters(), job=job), 'text/html')
 
 def plain(query_string=dict()):
 	job = getJob(query_string)
-	with Bootstrap(document=True) as f:
-		# style="width: 100%; height: 300px;"
-		f.write('<p><div class="row" style="position: absolute; top: 35px; bottom: 5px; left: 65px; right:65px;"> ')
-		f.write('<p>')
-		f.write('<div class="btn-group hidden-print">\n')
-		f.write('  <a class="btn dropdown-toggle" data-toggle="dropdown" href="#">Print <span class="caret"></span></a> <ul class="dropdown-menu"> ')
-		for p in getPrinters():
-			f.write(' <li><a tabindex="-1" href="/print?name=%s&printer=%s">%s</a></li>' % (job['name'],p,p))
-		f.write(' </ul>\n')	
-		f.write('</div> ')
-		f.write('<div class="btn-group hidden-print">\n')
-		f.write('  <a class="btn dropdown-toggle" data-toggle="dropdown" href="#">Email <span class="caret"></span></a> <ul class="dropdown-menu"> ')
-		for p in getPrinters():
-			f.write(' <li><a tabindex="-1" href="/print?name=%s&printer=%s">%s</a></li>' % (job['name'],p,p))
-		f.write(' </ul>\n')	
-		f.write('</div>')
 
-		f.write('<pre style="font-size:10px;line-height: 10px;">')
-		for l in job['plain']:
-			f.write(l)
-		f.write('</pre>')
-		f.write('<p>&nbsp;')
-	return (f, 'text/html')
+	return ( template_lookup.get_template("/plain.html").render(printers=getPrinters(), job=job), 'text/html')
 
 def getJob(query_string, returnLast=False):
 	for j in jobs: 
@@ -255,67 +142,53 @@ def getJob(query_string, returnLast=False):
 		if j['name'] == query_string.get('name', [''])[0]: return j
 	if returnLast: return job
 
+def doMessage(message='?', title='Printerface'):
+	return ( template_lookup.get_template("/message.html").render(title=title, message=message), 'text/html')
+
 def document(query_string=dict()):
-	with Bootstrap(document=True) as f:
-		job = getJob(query_string, returnLast=True)
-		f.write('<h3>Job Data</h3>')
-		if not job:
-			f.write('unknown job %s' % query_string)
-			return (f,'text/html')
-		colouring = job.get('colouring', [])
-		f.write(' name: %s<br>' % job.get('name'))
-		f.write(' type: %s<br>' % job.get('templ'))
-		f.write(' data = ')
-		f.write('<pre style="font-size:11px;line-height: 11px;">')
-		import pprint
-		pp = pprint.PrettyPrinter(indent=4, stream=f)
-		pp.pprint(job.get('parsed'))
-		f.write('</pre>')
+	job = getJob(query_string, returnLast=True)
 
-		f.write('<h3>Annotated Document</h3>')
-		lines = job['plain'].splitlines()
-		(rows, cols) = (len(lines), max([len(line) for line in lines]))
-		f.write('plain text dimensions: lines %d, width %d<br>' % (rows, cols))
-		cols = max([cols] + [c['c']+c['w'] for c in colouring])
-		rows = max([rows] + [c['r']+c['h'] for c in colouring])
+	if not job:
+		return doMessage(message=('Unknown job %s' % query_string) )
 
-		high = [[None for col in range(cols)] for row in range(rows)]
+	import pprint
+	pformatted = pprint.pformat(job.get('parsed'), indent=4)
 
-		for c in colouring:
-			for row in range(c['r'], c['r']+c['h']):
-				for col in range(c['c'], c['c']+c['w']):
-					high[row][col] = c
+	colouring = job.get('colouring', [])
 
-		f.write('<pre style="font-size:11px;line-height: 11px;">')
-		chunks10 = 12
-		f.write('     ' +  ''.join(["%-10d" % (d*10) for d in range(chunks10)]))
-		f.write('\n     ' + ('0123456789' * chunks10))
+	lines = job['plain'].splitlines()
+	(rows, cols) = (len(lines), max([len(line) for line in lines]))
 
-		def htmlcol(rgb):
-			return ''.join([('%02x' % int(c*256)) for c in rgb])
-		for (row,line) in enumerate(lines):
-			f.write('\n%-4d ' % row)
-			pad = ' '*(max(0,len(high[row])-len(line)))
-			for col,char in enumerate(line + pad):
-				if high[row][col]:
-					f.write('<span title="%s" style="background-color: #%s">' % (high[row][col]['t'],htmlcol(high[row][col]['rgb'])))
-					f.write(char)
-					f.write('</span>')
-				else: f.write(char)
-		f.write('</pre>')
-		f.write('<h3>PDF Output</h3>')
-		
-		if job.get('files'):
-		# for pdffile in job.get('files', []):
-		#	f.write(pdffile)
+	cols = max([cols] + [c['c']+c['w'] for c in colouring])
+	rows = max([rows] + [c['r']+c['h'] for c in colouring])
 
-			f.write('<a href="/pdf?name=%s"> <img src="/pdf/%s.pdf.png" width="400px"><br> PDF File</a>' % (job['name'], job['name']))
+	high = [[None for col in range(cols)] for row in range(rows)]
 
-		if query_string.get('raw'): f.write(job)
-		f.write('</body></html>')
-	return (f,'text/html')
+	for c in colouring:
+		for row in range(c['r'], c['r']+c['h']):
+			for col in range(c['c'], c['c']+c['w']):
+				high[row][col] = c
 
-# def printFile(file, printer):
+	chunks10 = 12
+	f = StringIO()
+	f.write('     ' +  ''.join(["%-10d" % (d*10) for d in range(chunks10)]))
+	f.write('\n     ' + ('0123456789' * chunks10))
+
+	def htmlcol(rgb):
+		return ''.join([('%02x' % int(c*256)) for c in rgb])
+
+	for (row,line) in enumerate(lines):
+		f.write('\n%-4d ' % row)
+		pad = ' '*(max(0,len(high[row])-len(line)))
+		for col,char in enumerate(line + pad):
+			if high[row][col]:
+				f.write('<span title="%s" style="background-color: #%s">' % (high[row][col]['t'],htmlcol(high[row][col]['rgb'])))
+				f.write(char)
+				f.write('</span>')
+			else: f.write(char)
+	
+	return ( template_lookup.get_template("/detail.html").render( job=job,
+			rows=rows, cols=cols, coloured_plaintext=f.getvalue(), pformatted=pformatted), 'text/html')
 
 if __name__=="__main__":
 	# launch the server on the specified port
