@@ -59,6 +59,8 @@ def topBox(c, x, y, title="Title", content="The quick brown", w=2*cm, h=2.0*cm, 
 			c.drawAlignedString(w - pad, -(0.52*cm + ht + lineheight*lineno), line)
 		elif colfmt == 'dr':
 			c.drawRightString(w-pad, -(0.52*cm + ht + lineheight*lineno), line)
+		elif colfmt == 'dc':
+			c.drawCentredString(w/2, -(0.52*cm + ht + lineheight*lineno), line)
 		else:
 			c.drawString(pad, -(0.52*cm + ht + lineheight*lineno), line)
 
@@ -203,7 +205,7 @@ def accountNotePage(c, ctx, mark):
 	(x, y0) = topBox(c, x, y, w=1.7*cm, h=h, ht=0.9*cm, title="UNIT", content=ctx['prod_unit'], pad=0.2*cm, align='c', font='Courier')
 	(x, y0) = topBox(c, x, y, w=1.5*cm, h=h, ht=0.9*cm, title="", content=ctx['prod_blank'], pad=0.2*cm, align='c', font='Courier')
 	(x, y0) = topBox(c, x, y, w=2.5*cm, h=h, ht=0.9*cm, title="NET AMOUNT", content=ctx['prod_net'], pad=0.8*cm, align='c', colfmt='da', font='Courier')
-	(x, y0) = topBox(c, x, y, w=pagewidth-x, h=h, ht=0.9*cm, title="VAT\nCODE", content=ctx['prod_vcode'], pad=0.2*cm, align='c', font='Courier')
+	(x, y0) = topBox(c, x, y, w=pagewidth-x, h=h, ht=0.9*cm, title="VAT\nCODE", content=ctx['prod_vcode'], pad=0.2*cm, align='c', colfmt='dc', font='Courier')
 	
 	w = 8.0*cm
 	(x, y) = leftBox(c, pagewidth-w, y0, w=w, title='TOTAL NET', content=ctx['tot_net'], colfmt='dr')
