@@ -11,9 +11,13 @@ from docparser import DocParser
 from stationary import DocFormatter
 from printing import getPrinters, printFile
 
-import sys
-import pickle
+import sys, pickle, ConfigParser
 from StringIO import StringIO
+
+config = ConfigParser.ConfigParser()
+config.read('defaults.cfg')
+config.read(os.path.expanduser('~/printerface/email.cfg'))
+
 
 dir = os.path.expanduser("~/repos/printerface/web/")
 jobdir = dir + 'pickle/'
@@ -29,6 +33,8 @@ formatter = DocFormatter(pdfdir)
 with open(dir + 'bootstrap.html') as templ:
 	bootstrapTemplate = templ.read().split('BOOTSTRAP', 1)
 
+summary_regexps = [ re.compile(x) for x in config.get('Main', 'summary_trim').strip().split(',') ]
+	
 def saveJob(queue, local, remote, control, data):
 	ts = datetime.utcnow()
 	jobname = 'job-%s' % ts.strftime('%Y%m%d-%H%M%S')
@@ -72,8 +78,10 @@ def cleanJob(j):
 	plain = control_char_re.sub(' ', j['data'])
 	j['plain'] = plain
 	summary = re.compile('[^\w\s]').sub('', j['data'])
+	for r in summary_regexps:
+		summary = r.sub(' ', summary)
 	summary = re.compile('\s+').sub(' ', summary)
-	summary = summary.strip()[0:70]
+	summary = summary.strip()[0:120]
 
 	writeFile(rawdir + j['name'] + '.txt', raw)
 	writeFile(plaindir + j['name'] + '.txt', plain)
