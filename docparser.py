@@ -173,7 +173,8 @@ class DocParser(object):
 			field(fs, line+4, 95,w=10,t='page')
 			field(fs, line+6, 95,w=14,h=1,t='doc_num')
 			field(fs, line+9, 14,w=38,h=6,t='addr_invoice')
-			field(fs, line+2, 53,w=38,h=5,t='addr_delivery')
+			field(fs, line+2, 53,w=38,h=5,t='addr_office')
+			field(fs, line+9, 67,w=38,h=6,t='addr_delivery')
 			field(fs, line+15,75,t='instructions',w=30,h=2)
 			field(fs, line+17,0,w=8,t='accno')
 			field(fs, line+17,9,w=10,t='custref')
@@ -181,11 +182,11 @@ class DocParser(object):
 			field(fs, line+17,44,w=18,t='ourcontact')
 			field(fs, line+17,65,w=8,t='orderdate')
 
-			field(fs, line+20,0 ,w=14, t='prod_code',h=18)
-			field(fs, line+20,21,w=30,t='prod_desc',h=18)
-			field(fs, line+20,52,w=6, t='prod_qty',h=18)
-			field(fs, line+20,65,w=11,t='prod_price',h=18)
-			field(fs, line+20,74,w=8,t='prod_unit',h=18)
+			field(fs, line+20,0 ,w=14, t='prod_code',h=20)
+			field(fs, line+20,21,w=30,t='prod_desc',h=20)
+			field(fs, line+20,52,w=6, t='prod_qty',h=20)
+			field(fs, line+20,65,w=11,t='prod_price',h=20)
+			field(fs, line+20,74,w=8,t='prod_unit',h=20)
 			
 			field(fs, line+43,84,w=12,t='tot_net')
 			all_fields += fs
