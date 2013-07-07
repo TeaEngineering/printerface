@@ -96,9 +96,11 @@ def cleanJob(j):
 
 	# if colouring succeded, might be able to generate docs
 	if j.get('colouring'):
-		(j['files']) = formatter.format(j)
+		# protocol: PDF file names are dict values. keys are document
+		# groups {('all'): p}, ('all')
+		(j['groupfiles'], j['groupkey']) = formatter.format(j)
 
-		for f in [j['files']]:
+		for f in j['groupfiles'].itervalues():
 			from subprocess import call
 			proc = ['convert','-size','150x150','%s[0]' % f, '%s.png' % f]
 			print(proc)
