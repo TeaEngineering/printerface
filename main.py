@@ -82,7 +82,7 @@ def cleanJob(j):
 	for r in summary_regexps:
 		summary = r.sub(' ', summary)
 	summary = re.compile('\s+').sub(' ', summary)
-	summary = summary.strip()[0:120]
+	summary = summary.strip()[0:85]
 
 	writeFile(rawdir + j['name'] + '.txt', raw)
 	writeFile(plaindir + j['name'] + '.txt', plain)
@@ -217,7 +217,7 @@ def pdf(query_string=dict()):
 		f.write('</ul>\n')
 
 		f.write('</div>')
-		f.write('<object	data="/pdf/%s.pdf#toolbar=1&amp;navpanes=0&amp;scrollbar=1&amp;page=0&amp;zoom=30" ' % job['name'])
+		f.write('<object data="/pdf/%s.pdf#toolbar=1&amp;navpanes=0&amp;scrollbar=1&amp;zoom=30" ' % job['name'])
 		f.write(' type="application/pdf" width="100%" height="95%">')
 		f.write(' <p>It appears you don\'t have a PDF plugin for this browser. No biggie... you can <a href="/pdf/sample.pdf">click here to download the PDF file.</a></p>')
 		f.write('\n</object>\n</div>')
