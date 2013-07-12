@@ -1,6 +1,7 @@
 import ConfigParser
 import reportlab
 import os
+import sys
 
 config = ConfigParser.ConfigParser()
 config.read('defaults.cfg')
@@ -31,6 +32,10 @@ def headerDetails(c, ctx, doctype="DELIVERY NOTE", terms_key='terms'):
 
 	c.setFont("Helvetica", 10)
 	c.drawString(0, 0.5*cm, config.get('Printing', terms_key))
+
+	# marker of progress on CLI
+	sys.stdout.write('.')
+	sys.stdout.flush()
 
 def topBox(c, x, y, title="Title", content="The quick brown", w=2*cm, h=2.0*cm, pad=0.3*cm, align='l', ht=0.45*cm, fontsz=10.5,font='Helvetica', colfmt='l'):
 	c.saveState()
@@ -392,18 +397,6 @@ def statementPage(c, ctx, mark):
 
 	c.showPage()
 
-
-def writePage(drawfn, content, count=0):
-	from reportlab.pdfgen import canvas
-	
-	p = jobdir + "%s.pdf" % str(count)
-	c = canvas.Canvas(p, pagesize=A4)
- 	print('formatting %s to %s with %s' % (content, p, drawfn))
- 	drawfn(c, content)
- 	c.save()
-
-	return p
-
 class DocFormatter(object):
 	def __init__(self, pdfdir):
 		self.jobdir = pdfdir
@@ -450,11 +443,12 @@ class DocFormatter(object):
 	
 		p = self.jobdir + "%s.pdf" % str(count)
 		c = canvas.Canvas(p, pagesize=A4)
-	 	print('formatting %s to %s with %s' % (content, p, drawfn))
+	 	print('formatting %s with %s' % (p, ''))
 	 	drawfn(c, content)
  		c.save()
-
-		return p
+		print(' done')
+		# protocol: key tuples must all be same length, second tuple is key descriptions
+		return {('all'): p}, ('all')
 
 if __name__=="__main__":
 	# launch the server on the specified port
