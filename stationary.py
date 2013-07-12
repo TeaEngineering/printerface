@@ -288,11 +288,11 @@ def purchasePage(c, ctx, mark):
 	y = y - vpad
 	h = 12.4*cm
 	ht = 0.9*cm
-	(x, y0) = topBox(c, 0, y, w=2.4*cm, h=h, ht=ht, title="PRODUCT\nCODE", content=ctx['prod_code'], pad=0.2*cm, align='c', font='Courier')
+	(x, y0) = topBox(c, 0, y, w=2.4*cm, h=h, ht=ht, title="PRODUCT\nCODE", content=ctx['prod_code'], pad=0.2*cm, align='c', font='Courier',fontsz=9.5)
 	(x, y0) = topBox(c, x, y, w=6.5*cm, h=h, ht=ht, title="PRODUCT DESCRIPTION", content=ctx['prod_desc'], pad=0.2*cm, align='c', font='Courier',fontsz=9.5)
-	(x, y0) = topBox(c, x, y, w=1.4*cm, h=h, ht=ht, title="QTY", content=ctx['prod_qty'], pad=0.2*cm, align='c', colfmt='dr', font='Courier')
-	(x, y0) = topBox(c, x, y, w=1.9*cm, h=h, ht=ht, title="PRICE", content=price_col, pad=0.2*cm, align='c', font='Courier')
-	(x, y0) = topBox(c, x, y, w=1.2*cm, h=h, ht=ht, title="UNIT", content=ctx['prod_unit'], pad=0.2*cm, align='c', font='Courier')
+	(x, y0) = topBox(c, x, y, w=1.4*cm, h=h, ht=ht, title="QTY", content=ctx['prod_qty'], pad=0.2*cm, align='c', colfmt='dr', font='Courier',fontsz=9.5)
+	(x, y0) = topBox(c, x, y, w=1.9*cm, h=h, ht=ht, title="PRICE", content=price_col, pad=0.2*cm, align='c', font='Courier',fontsz=9.5)
+	(x, y0) = topBox(c, x, y, w=1.2*cm, h=h, ht=ht, title="UNIT", content=ctx['prod_unit'], pad=0.2*cm, align='c', font='Courier',fontsz=9.5)
 	w = pagewidth-vpad-x
 	(x0,y1) = topBox(c, x+vpad, y, w=w, ht=ht, title="COLLECTION DELIVERY\nDATE REQUIRED BY", content='', align='c')
 	(x0,y1) = topBox(c, x+vpad, y1-vpad, w=w, ht=ht, title="THIS SECTION TO BE COMPLETED\nAND FAXED BACK BY SUPPLIER", content='', align='c')
