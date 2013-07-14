@@ -17,6 +17,7 @@ from printing import getPrinters, printFile
 
 import sys, pickle, ConfigParser
 from StringIO import StringIO
+import collections
 
 config = ConfigParser.ConfigParser()
 config.read('defaults.cfg')
@@ -31,9 +32,13 @@ pdfdir = dir + 'pdf/'
 jobs = []
 mailqueue = []
 
+email_accounts = { }
+email_addresses = collections.defaultdict(dict)
+
 mainparser = DocParser()
 formatter = DocFormatter(pdfdir)
 template_lookup = TemplateLookup(directories=[dir],  output_encoding='utf-8', encoding_errors='replace', format_exceptions=True)
+recentQty = 300
 
 summary_regexps = [ re.compile(x) for x in config.get('Main', 'summary_trim').strip().split(',') ]
 	
@@ -43,7 +48,7 @@ def saveJob(queue, local, remote, control, data):
 	d = {'queue':queue, 'from':repr(local), 'to':repr(remote), 'control':control, 'data':data, 'ts': ts, 'name':jobname}
 	# print "    %s" % repr(d)
 	jobs.append(d)
-	if len(jobs) > 100: jobs.pop(0)
+	if len(jobs) > recentQty: jobs.pop(0)
 	
 	f = file(jobdir + jobname, "wb")
 	pickle.dump(d, f)
@@ -53,9 +58,29 @@ def saveJob(queue, local, remote, control, data):
 
 	cleanJob(d)
 
+def saveEmails():
+	with open(os.path.expanduser('~/printerface/email.pickle'), 'wb') as f:
+		p = pickle.Pickler(f)
+		p.dump(email_addresses)
+		p.dump(email_accounts)		
+		print('[control] Wrote email pickles')
+
 def recover():
+	
+	try:
+		with open(os.path.expanduser('~/printerface/email.pickle'), 'rb') as f:
+			p = pickle.Unpickler(f)
+			for (k,v) in p.load().iteritems():
+				email_addresses[k].update(v)
+			email_accounts.update(p.load())
+
+		print('recovered emails: %s' % email_addresses)
+		print('recovered accounts: %s' % email_accounts)
+	except IOError:
+		print('[control] email pickle load failed')
+
 	xs = sorted([ x for x in os.listdir(jobdir) if x != 'raw'])
-	if len(xs) > 100: xs = xs[-100:]
+	if len(xs) > recentQty: xs = xs[-recentQty:]
 
 	print '[control] recovering from %s' % jobdir
 	for x in xs:		
@@ -83,7 +108,7 @@ def cleanJob(j):
 	for r in summary_regexps:
 		summary = r.sub(' ', summary)
 	summary = re.compile('\s+').sub(' ', summary)
-	summary = summary.strip()[0:120]
+	summary = summary.strip()[0:85]
 
 	writeFile(rawdir + j['name'] + '.txt', raw)
 	writeFile(plaindir + j['name'] + '.txt', plain)
@@ -95,11 +120,30 @@ def cleanJob(j):
 	(j['colouring'],j['parsed']) = mainparser.parse(j)
 	if not j['colouring']: del j['colouring']
 
+	if j['parsed']:
+		for x in j['parsed']:
+			acc = None
+			addr = None
+			try:
+				acc = x['accno']				
+			except:
+				pass
+			try:
+				addr = x['addr_invoice'].split('\n')[0]
+			except:
+				pass
+			if acc and addr:
+				email_accounts[acc] = (addr),
+
 	# if colouring succeded, might be able to generate docs
 	if j.get('colouring'):
-		(j['files']) = formatter.format(j)
+		# protocol: PDF file names are dict values. keys are document
+		# groups {('all'): p}, ('all')
+		(j['groupfiles'], j['groupkey']) = formatter.format(j)
 
-		for f in [j['files']]:
+
+
+		for f in j['groupfiles'].itervalues():
 			from subprocess import call
 			proc = ['convert','-size','150x150','%s[0]' % f, '%s.png' % f]
 			print(proc)
@@ -120,6 +164,44 @@ def recent(query_string=''):
 def printers(query_string=''):
 	return ( template_lookup.get_template("/printers.html").render(printers=getPrinters()), 'text/html')
 
+def settings_email(query_string='', postreq=None):
+	warning=None
+	print('query_string=%s' % query_string)
+	try:
+		acc = query_string['account'][0]
+		email = query_string['email'][0]
+		try:
+			email_accounts[acc]
+			if not email.strip() in email_addresses[acc]:
+				email_addresses[acc][email.strip()] = 1
+				saveEmails()
+		except KeyError:			
+			warning='Unknown account %s' % acc
+	except KeyError:
+		pass
+
+	try:
+		acc = query_string['account'][0]
+		delete_email = query_string['delete'][0]
+		if email_addresses[acc].pop(delete_email, None):
+			saveEmails()
+	except KeyError:
+		pass
+
+	email_list = []
+	for key in sorted(email_accounts.iterkeys()):
+		email_list.append( (key, email_accounts[key], email_addresses[key].keys()) )
+	
+	return ( template_lookup.get_template("/settings_email.html").render(emails=email_list, warning=warning), 'text/html')
+
+def settings_template(query_string='', postreq=None):
+	
+	print('query_string=%s' % query_string)
+	#email_list = []
+	
+	return ( template_lookup.get_template("/settings_template.html").render(), 'text/html')
+
+
 def printfn(query_string=''):
 	job = getJob(query_string)
 	for f in [job['files']]:
@@ -129,7 +211,9 @@ def printfn(query_string=''):
 
 def pdf(query_string=dict()):
 	job = getJob(query_string)
-	return ( template_lookup.get_template("/pdf.html").render(printers=getPrinters(), job=job), 'text/html')
+	default_key = job['groupfiles'].iterkeys().next()[0]
+	key =  query_string.get('key', [default_key])[0]
+	return ( template_lookup.get_template("/pdf.html").render(printers=getPrinters(), job=job, key=key), 'text/html')
 
 def plain(query_string=dict()):
 	job = getJob(query_string)
@@ -203,7 +287,7 @@ if __name__=="__main__":
 	s = LpdServer(saveJob, ip='', port=515)
 	ToyHttpServer(port=8081, pathhandlers={
 		'/recent': recent, '/index':index, '/doc':document, '/printers':printers, '/pdf':pdf,
-		'/print' : printfn, '/plaintext':plain
+		'/print' : printfn, '/plaintext':plain, '/settings/email':settings_email, '/settings/template':settings_template
 		}, webroot=dir)
 	try:
 		while True:

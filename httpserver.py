@@ -458,7 +458,7 @@ class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
 				tb = traceback.format_exc()
 				print tb
 				self.send_error(500, "File not found")
-				return None	
+				return None
 
 		path = self.translate_path(self.path)
 		f = None
@@ -483,6 +483,8 @@ class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
 			# transmitted *less* than the content-length!
 			f = open(path, 'rb')
 		except IOError:
+			tb = traceback.format_exc()
+			print tb
 			self.send_error(404, "File not found")
 			return None
 		self.send_response(200)
@@ -618,10 +620,34 @@ class RequestHandler(SimpleHTTPRequestHandler):
 		"""Begins serving a POST request. The request data must be readable
 		on a file-like object called self.rfile"""
 		ctype, pdict = cgi.parse_header(self.headers.getheader('content-type'))
-		self.body = cgi.FieldStorage(fp=self.rfile,
+		postreq = cgi.FieldStorage(fp=self.rfile,
 			headers=self.headers, environ = {'REQUEST_METHOD':'POST'},
 			keep_blank_values = 1)
-		self.handle_data()
+		
+		handler = self.handlers.get(self.path)
+		if (handler):
+			try:
+				(f, ctype) = handler(query_string=self.query_string, postreq=postreq)
+				if type(f) is str:
+					c = StringIO()
+					c.write(f)
+					f = c
+				self.send_response(200)
+				self.send_header("Content-type", ctype)
+				f.seek(0, os.SEEK_END)
+				self.send_header("Content-Length", str(f.tell()))
+				# self.send_header("Last-Modified", self.date_time_string(fs.st_mtime))
+				self.end_headers()
+				f.seek(0)
+				return f
+			except:
+				tb = traceback.format_exc()
+				print tb
+				self.send_error(500, "File not found")
+				return None
+		else:
+			self.send_error(404, "File not found")
+			return None
 
 	def handle_request_line(self):
 		"""Called when the http request line and headers have been received"""

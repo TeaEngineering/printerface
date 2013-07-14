@@ -1,6 +1,7 @@
 #!/usr/bin/python
 
 import sys, os, itertools
+import collections
 from StringIO import StringIO
 
 dir = os.path.expanduser("~/printerface/")
@@ -30,7 +31,7 @@ class DocParser(object):
 
 	def extractInvoice(self, lines, (rows,cols)):
 		all_fields = []
-		page_data = []
+		page_data = collections.defaultdict(list)
 
 		pages = (rows-48)/48
 		for page in range(pages):
@@ -73,13 +74,14 @@ class DocParser(object):
 			field(fs, line+38, 36,w=40,t='summ_box',h=3)
 
 			all_fields += fs
-			page_data.append( self.populate(lines, fs) )
+			extracted = self.populate(lines, fs)
+			page_data[extracted['accno']].append(extracted)
 
 		return (all_fields, page_data)
 
 	def extractDelnote(self, lines, (rows,cols)):
 		all_fields = []
-		page_data = []
+		page_data = collections.defaultdict(list)
 
 		pages = (rows-48)/48
 		for page in range(pages):
@@ -111,7 +113,8 @@ class DocParser(object):
 			field(fs, line+38, 35,w=40,t='summ_box',h=3)
 
 			all_fields += fs
-			page_data.append( self.populate(lines, fs) )
+			extracted = self.populate(lines, fs)
+			page_data[extracted['accno']].append(extracted)
 
 		return (all_fields, page_data)
 
@@ -119,7 +122,7 @@ class DocParser(object):
 		# any lines after line containing 'PRINT STATEMENT SUMMARY' should be ignored
 		rows = min([rows] + [lnum for (lnum,text) in enumerate(lines) if 'PRINT STATEMENT SUMMARY' in text])
 		all_fields = []
-		page_data = []
+		page_data = collections.defaultdict(list)
 
 		pages = (rows-51)/51
 		for page in range(pages):
@@ -132,8 +135,8 @@ class DocParser(object):
 			field(fs, line+10,58,w=10,t='accno')
 			
 			field(fs, line+19,1 ,w=9, t='prod_date',h=18)
-			field(fs, line+19,12,w=22,t='prod_code',h=18)
-			field(fs, line+19,36,w=5, t='prod_trans',h=18)
+			field(fs, line+19,12,w=24,t='prod_code',h=18)
+			field(fs, line+19,37,w=4, t='prod_trans',h=18)
 			field(fs, line+19,43,w=12,t='prod_debt',h=18)
 			field(fs, line+19,57,w=12,t='prod_credit',h=18)
 			field(fs, line+19,71,w=12,t='prod_bal',h=18)
@@ -149,20 +152,22 @@ class DocParser(object):
 
 			field(fs, line+42, 16,w=40,t='summ_box',h=3)
 
-			field(fs, line+47,6,w=14,t='age_curr')
-			field(fs, line+47,20,w=14,t='age_1m')
-			field(fs, line+47,36,w=12,t='age_2m')
-			field(fs, line+47,50,w=12,t='age_3m')
-			field(fs, line+47,69,w=12,t='age_due')
+			field(fs, line+47,8,w=14,t='age_curr')
+			field(fs, line+47,22,w=14,t='age_1m')
+			field(fs, line+47,36,w=14,t='age_2m')
+			field(fs, line+47,50,w=14,t='age_3m')
+			field(fs, line+47,69,w=14,t='age_due')
 
 			all_fields += fs
-			page_data.append( self.populate(lines, fs) )
 
+			extracted = self.populate(lines, fs)
+			page_data[extracted['accno']].append(extracted)
+			
 		return (all_fields, page_data)
 
 	def extractPurchase(self, lines, (rows,cols)):
 		all_fields = []
-		page_data = []
+		page_data = collections.defaultdict(list)
 
 		pages = (rows-48)/48
 		for page in range(pages):
@@ -173,7 +178,8 @@ class DocParser(object):
 			field(fs, line+4, 95,w=10,t='page')
 			field(fs, line+6, 95,w=14,h=1,t='doc_num')
 			field(fs, line+9, 14,w=38,h=6,t='addr_invoice')
-			field(fs, line+2, 53,w=38,h=5,t='addr_delivery')
+			field(fs, line+2, 53,w=38,h=5,t='addr_office')
+			field(fs, line+9, 67,w=38,h=6,t='addr_delivery')
 			field(fs, line+15,75,t='instructions',w=30,h=2)
 			field(fs, line+17,0,w=8,t='accno')
 			field(fs, line+17,9,w=10,t='custref')
@@ -181,21 +187,22 @@ class DocParser(object):
 			field(fs, line+17,44,w=18,t='ourcontact')
 			field(fs, line+17,65,w=8,t='orderdate')
 
-			field(fs, line+20,0 ,w=14, t='prod_code',h=18)
-			field(fs, line+20,21,w=30,t='prod_desc',h=18)
-			field(fs, line+20,52,w=6, t='prod_qty',h=18)
-			field(fs, line+20,65,w=11,t='prod_price',h=18)
-			field(fs, line+20,74,w=8,t='prod_unit',h=18)
+			field(fs, line+20,0 ,w=14, t='prod_code',h=20)
+			field(fs, line+20,21,w=30,t='prod_desc',h=20)
+			field(fs, line+20,52,w=6, t='prod_qty',h=20)
+			field(fs, line+20,65,w=11,t='prod_price',h=20)
+			field(fs, line+20,74,w=8,t='prod_unit',h=20)
 			
-			field(fs, line+43,86,w=10,t='tot_net')
+			field(fs, line+43,84,w=12,t='tot_net')
 			all_fields += fs
-			page_data.append( self.populate(lines, fs) )
+			extracted = self.populate(lines, fs)
+			page_data[extracted['accno']].append(extracted)
 
 		return (all_fields, page_data)
 
 	def extractRemittance(self, lines, (rows,cols)):
 		all_fields = []
-		page_data = []
+		page_data = collections.defaultdict(list)
 
 		pages = (rows-48)/48
 		for page in range(pages):
@@ -218,7 +225,10 @@ class DocParser(object):
 			field(fs, line+38,60,w=19,t='amt_discount')
 			field(fs, line+40,60,w=19,t='amt_encl')
 			all_fields += fs
-			page_data.append( self.populate(lines, fs) )
+			
+			extracted = self.populate(lines, fs)
+			page_data[extracted['all']].append(extracted)
+
 		return (all_fields, page_data)
 
 	def populate(self, lines, fs):
