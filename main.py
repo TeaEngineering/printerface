@@ -286,8 +286,8 @@ if __name__=="__main__":
 
 	recover()
 
-	s = LpdServer(saveJob, ip='', port=515)
-	ToyHttpServer(port=8081, pathhandlers={
+	s = LpdServer(saveJob, ip='', port=int(config.get('Main', 'lpd_port')))
+	ToyHttpServer(port=int(config.get('Main', 'http_port')), pathhandlers={
 		'/recent': recent, '/index':index, '/doc':document, '/printers':printers, '/pdf':pdf,
 		'/print' : printfn, '/plaintext':plain, '/settings/email':settings_email, '/settings/template':settings_template
 		}, webroot=dir)
