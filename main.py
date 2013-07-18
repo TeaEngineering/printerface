@@ -121,19 +121,21 @@ def cleanJob(j):
 	if not j['colouring']: del j['colouring']
 
 	if j['parsed']:
-		for x in j['parsed']:
-			acc = None
-			addr = None
-			try:
-				acc = x['accno']				
-			except:
-				pass
-			try:
-				addr = x['addr_invoice'].split('\n')[0]
-			except:
-				pass
-			if acc and addr:
-				email_accounts[acc] = (addr),
+		for y in j['parsed'].itervalues():
+			for x in y:
+				acc = None
+				addr = None
+				try:
+					acc = x['accno']				
+				except:
+					pass
+				try:	
+					addr = x['addr_invoice'].split('\n')[0]
+				except:
+					pass
+				print("got email %s -> %s" % (acc, addr))
+				if acc and addr:
+					email_accounts[acc] = (addr),
 
 	# if colouring succeded, might be able to generate docs
 	if j.get('colouring'):
