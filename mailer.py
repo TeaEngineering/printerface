@@ -13,6 +13,10 @@ from email import Encoders
 import datetime 
 import ConfigParser, os, threading
 import Queue
+import traceback
+import pickle
+
+pickle_file = '~/printerface/mailer.pickle'
 
 config = ConfigParser.ConfigParser()
 config.read('defaults.cfg')
@@ -20,12 +24,24 @@ config.read(os.path.expanduser('~/printerface/email.cfg'))
 
 class JobMailer(object):
 
-	def __init__(self, queuesz=100):
+	def __init__(self, queuesz=10, resultLimit=80):
 		self.queue = Queue.Queue(queuesz)
 		self.thread = threading.Thread(target=self.run)
 		self.thread.daemon = True
 		self.thread.start()
 		self.results = []
+		self.resultLimit = resultLimit
+
+		try:
+			with open(os.path.expanduser(pickle_file), 'rb') as f:
+				p = pickle.Unpickler(f)
+				self.results = p.load()				
+		except:
+			raise
+			traceback.print_exc()
+
+		while len(self.results) > self.resultLimit:
+				self.results.pop()
 
 	def append(self, job):
 		job['added'] = datetime.datetime.now()
@@ -55,13 +71,23 @@ class JobMailer(object):
 					work['completed'] = datetime.datetime.now()
 					work['error'] = repr(e)
 
-				
+				print('mailq: finished ' + repr(work))
 				self.results.insert(0, work)
-				if len(self.results) > 15:
+				if len(self.results) > self.resultLimit:
 					self.results.pop()
+
+				self.pickleResults()
 
 			except Queue.Empty:
 				print('mailq: idling for jobs')
+
+	def pickleResults(self):
+		try:
+			with open(os.path.expanduser(pickle_file), 'wb') as f:
+				p = pickle.Pickler(f)
+				p.dump(self.results)			
+		except Exception as e:
+			traceback.print_exc()
 
 	def sendJobAttachment(self, text, file, filename, subject="sending with gmail", email_to=[]):
 

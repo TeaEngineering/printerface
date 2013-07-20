@@ -15,7 +15,12 @@
 
 	<form method="get" class="form-inline" action="">
 	<div class="controls">
-  		<input class="span2" type="text" name="account" placeholder="Account">
+  		<input class="span2" type="text" name="account" placeholder="Account" required>
+  		
+		<div class="input-prepend">
+		<span class="add-on"><i class="icon-user"></i></span>
+		<input class="span2" type="text" name="contact" placeholder="Contact Name" required>
+		</div>
 		
 		<div class="input-prepend">
       	<span class="add-on"><i class="icon-envelope"></i></span>
@@ -29,7 +34,7 @@
 
 	<h4>Existing Entries</h4>
 	<table class="table table-striped table-hover">
-		<tr><th>Account</th><th>Address check</th><th>Emails</th></tr>
+		<tr><th>Account</th><th>Account address line</th><th>Contacts</th></tr>
 	% for (acc,v,addresses) in emails:
 	  <tr>
 		<td>${acc}</td><td>${v[0]}</td>
@@ -38,11 +43,11 @@
 			None set!
 		% endif
 
-		% for em in addresses:
-		<form method="get" class="form-inline" action="" onsubmit="return confirm('Are you sure you want to remove ${em}?')">
+		% for (em,cn) in addresses:
+		<form method="get" class="form-inline" action="" onsubmit="return confirm('Are you sure you want to remove ${cn} ${em}?')">
 			<input class="" type="hidden" name="account" value="${acc}">
 			<input class="" type="hidden" name="delete" value="${em}">
-			${em} 
+			${cn} <em>${em}</em>
 			<button type="submit" class="btn btn-mini" title="delete">  <i class="icon-remove-sign"></i> </button>	
 		</form>
 

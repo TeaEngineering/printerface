@@ -18,6 +18,7 @@ from printing import getPrinters, printFile
 import sys, pickle, ConfigParser
 from StringIO import StringIO
 import collections
+import traceback
 
 config = ConfigParser.ConfigParser()
 config.read('defaults.cfg')
@@ -30,14 +31,15 @@ rawdir = dir + 'raw/'
 plaindir = dir + 'plain/'
 pdfdir = dir + 'pdf/'
 jobs = []
-mailqueue = []
+mailqueue = JobMailer(100)
 
 email_accounts = { }
 email_addresses = collections.defaultdict(dict)
+email_template = ''
 
 mainparser = DocParser()
 formatter = DocFormatter(pdfdir)
-template_lookup = TemplateLookup(directories=[dir],  output_encoding='utf-8', encoding_errors='replace', format_exceptions=True)
+template_lookup = TemplateLookup(directories=[dir], output_encoding='utf-8', encoding_errors='replace', format_exceptions=True)
 recentQty = 300
 
 summary_regexps = [ re.compile(x) for x in config.get('Main', 'summary_trim').strip().split(',') ]
@@ -54,25 +56,25 @@ def saveJob(queue, local, remote, control, data):
 	pickle.dump(d, f)
 	f.close()
 
-	mailqueue.append(d)
-
 	cleanJob(d)
 
 def saveEmails():
 	with open(os.path.expanduser('~/printerface/email.pickle'), 'wb') as f:
 		p = pickle.Pickler(f)
 		p.dump(email_addresses)
-		p.dump(email_accounts)		
+		p.dump(email_accounts)
+		p.dump(email_template)
 		print('[control] Wrote email pickles')
 
 def recover():
-	
+	global email_template
 	try:
 		with open(os.path.expanduser('~/printerface/email.pickle'), 'rb') as f:
 			p = pickle.Unpickler(f)
 			for (k,v) in p.load().iteritems():
 				email_addresses[k].update(v)
 			email_accounts.update(p.load())
+			email_template = p.load()
 
 		print('recovered emails: %s' % email_addresses)
 		print('recovered accounts: %s' % email_accounts)
@@ -108,7 +110,7 @@ def cleanJob(j):
 	for r in summary_regexps:
 		summary = r.sub(' ', summary)
 	summary = re.compile('\s+').sub(' ', summary)
-	summary = summary.strip()[0:85]
+	summary = summary.strip()[0:120]
 
 	writeFile(rawdir + j['name'] + '.txt', raw)
 	writeFile(plaindir + j['name'] + '.txt', plain)
@@ -166,16 +168,20 @@ def recent(query_string=''):
 def printers(query_string=''):
 	return ( template_lookup.get_template("/printers.html").render(printers=getPrinters()), 'text/html')
 
+def sent(query_string=''):
+	return ( template_lookup.get_template("/sent.html").render(mailqueue=mailqueue), 'text/html')
+
 def settings_email(query_string='', postreq=None):
 	warning=None
 	print('query_string=%s' % query_string)
 	try:
 		acc = query_string['account'][0]
 		email = query_string['email'][0]
+		contact = query_string['contact'][0]
 		try:
 			email_accounts[acc]
 			if not email.strip() in email_addresses[acc]:
-				email_addresses[acc][email.strip()] = 1
+				email_addresses[acc][email.strip()] = contact
 				saveEmails()
 		except KeyError:			
 			warning='Unknown account %s' % acc
@@ -192,17 +198,24 @@ def settings_email(query_string='', postreq=None):
 
 	email_list = []
 	for key in sorted(email_accounts.iterkeys()):
-		email_list.append( (key, email_accounts[key], email_addresses[key].keys()) )
+		email_list.append( (key, email_accounts[key], email_addresses[key].iteritems()) )
 	
 	return ( template_lookup.get_template("/settings_email.html").render(emails=email_list, warning=warning), 'text/html')
 
 def settings_template(query_string='', postreq=None):
-	
-	print('query_string=%s' % query_string)
-	#email_list = []
-	
-	return ( template_lookup.get_template("/settings_template.html").render(), 'text/html')
+	global email_template
 
+	print('query_string=%s' % query_string)
+	message = None
+	try:
+		template = query_string.get('template', None)
+		if template:
+			email_template = template[0]
+			saveEmails()
+			message = '<strong>Thanks!</strong> Template updated'
+	except:
+		message = '<strong>Ohno!</strong> Template failed'
+	return ( template_lookup.get_template("/settings_template.html").render(template=email_template, message=message), 'text/html')
 
 def printfn(query_string=''):
 	job = getJob(query_string)
@@ -214,8 +227,39 @@ def printfn(query_string=''):
 def pdf(query_string=dict()):
 	job = getJob(query_string)
 	default_key = job['groupfiles'].iterkeys().next()[0]
-	key =  query_string.get('key', [default_key])[0]
-	return ( template_lookup.get_template("/pdf.html").render(printers=getPrinters(), job=job, key=key), 'text/html')
+	key = query_string.get('key', [default_key])[0]
+	email_dest = email_addresses.get(key, {})
+	email_outcome, email_error = None, None
+	
+	# test if callback from email form
+	try:
+		addresses = query_string.get('em', [])
+		email_body = ''.join(query_string.get('emailbody', ['']))
+		email_subject = ''.join(query_string.get('subject', ['no subject']))
+		action = query_string.get('action', None)
+		
+		docf = None
+		for (groupnum, gname) in enumerate(job['groupkey']):
+			for (dockey,doc) in job['groupfiles'].iteritems():
+				if dockey[groupnum] == key:
+					docf = doc
+		
+		if len(addresses) > 0 and docf and len(email_subject) > 1:
+			email_outcome = "Queueing email to " + ','.join(addresses) + ' - check the result later!';
+			print(email_outcome)
+			try:
+				mailqueue.append(dict(
+					to=addresses, body=email_body, subject=email_subject,
+					attachment="~/repos/printerface/web/pdf/" + docf))
+			except:
+				traceback.print_exc(file=sys.stdout)
+				email_error = "<strong>Problem!</strong> unable to queue email!"
+		elif action:
+			email_error = "<strong>Oh snap!</strong> Some fields missing or incomplete!"
+	except:
+		raise
+
+	return ( template_lookup.get_template("/pdf.html").render(printers=getPrinters(), job=job, key=key, email_templ=email_template, email_dest=email_dest, email_outcome=email_outcome, email_error=email_error), 'text/html')
 
 def plain(query_string=dict()):
 	job = getJob(query_string)
@@ -289,6 +333,7 @@ if __name__=="__main__":
 	s = LpdServer(saveJob, ip='', port=int(config.get('Main', 'lpd_port')))
 	ToyHttpServer(port=int(config.get('Main', 'http_port')), pathhandlers={
 		'/recent': recent, '/index':index, '/doc':document, '/printers':printers, '/pdf':pdf,
+		'/sent':sent,
 		'/print' : printfn, '/plaintext':plain, '/settings/email':settings_email, '/settings/template':settings_template
 		}, webroot=dir)
 	try:
@@ -296,10 +341,6 @@ if __name__=="__main__":
 			asyncore.loop(timeout=1, count=10)
 			print '[control] poll %s' % str(datetime.now())
 			sys.stdout.flush()
-			if len(mailqueue) > 0:
-				print '[control] sending email'
-				s = mailqueue.pop()
-				JobMailer().sendJobEmail(s)
 
 	except KeyboardInterrupt:
 		print "Crtl+C pressed. Shutting down."

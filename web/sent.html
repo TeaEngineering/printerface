@@ -1,0 +1,20 @@
+
+<%inherit file="bootstrap.html"/>
+<%block name="title">- Sent Items</%block>
+
+	<h3>Sent Items</h3>
+
+	<table class="table table-striped">
+		<tr><th>To</th><th>Added</th><th>Finished</th><th>Problems?</th></tr>
+	% for p in mailqueue.results:
+	  % if p['error']:
+	  <tr class="error">
+	  % else:
+	  <tr class="success">
+	  % endif
+		<td>${'<br>'.join(p['to'])}</td><td>${p['added']}</td><td>${p['completed']}</td><td>${p['error']}</td>
+	  </tr>
+	% endfor
+	</table>
+
+	<p>Emails will get stuck if the login account used has the password changed!
