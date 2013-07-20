@@ -18,10 +18,10 @@
 	</pre>
 	
 	<h3>PDF Output</h3>
-	
+	% if job.get('groupfiles', None):
 	<p>${job['groupfiles']}
 	<p>${job['groupkey']}
-
+	% endif
 
 	% if job.get('files'):
 		<a href="/pdf?name=${job['name']}"> <img src="/pdf/${job['name']}.pdf.png" width="400px"><br> PDF File</a>
