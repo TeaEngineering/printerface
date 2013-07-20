@@ -1,42 +1,113 @@
+#
+# Asynchronous mail sender to Gmail, using a seperate thread.
+# Keeps the last 10 results around if you want to check results
 
 # Import smtplib for the actual sending function
 import smtplib
-
-# Import the email modules we'll need
 from email.mime.text import MIMEText
+from email.MIMEMultipart import MIMEMultipart
+from email.MIMEBase import MIMEBase
+from email import Encoders
 
-import ConfigParser, os
+# http://stackoverflow.com/questions/3362600/how-to-send-email-attachments-with-python
+import datetime 
+import ConfigParser, os, threading
+import Queue
 
 config = ConfigParser.ConfigParser()
+config.read('defaults.cfg')
 config.read(os.path.expanduser('~/printerface/email.cfg'))
 
 class JobMailer(object):
 
-	def sendJobEmail(self, s):
+	def __init__(self, queuesz=100):
+		self.queue = Queue.Queue(queuesz)
+		self.thread = threading.Thread(target=self.run)
+		self.thread.daemon = True
+		self.thread.start()
+		self.results = []
 
-		q = s['data']
-	
-		# Create a text/plain message
-		html = '<html><head></head><body><pre style="font-size:9px">%s</pre></body></html>' % q
-	
-		msg = MIMEText(html, 'html')
+	def append(self, job):
+		job['added'] = datetime.datetime.now()
+		job['completed']=None
+		job['status']=None
+		self.queue.put( job )
 
-		mee = config.get('Email', 'from')
-		you = config.get('Email', 'to')
+	def run(self):
+		print("mailq: run is called")
+		while True:
+			try:
+				work = self.queue.get(block=True, timeout=60)
+				print('mailq: Got work ' + repr(work))
 
-		msg['Subject'] = 'Printerface: %s' % s['control']['U']
-		msg['From'] = mee
-		msg['To'] = you
+				try:
+					filename = os.path.basename(work['attachment'])
+					with open(os.path.expanduser(work['attachment']), 'rb') as fileobj:
 
-		s = smtplib.SMTP('localhost')
-		s.sendmail(mee, you.split(';'), msg.as_string())
-		s.quit()
+						x = self.sendJobAttachment(work['body'], fileobj, filename, work['subject'], work['to'])
 
+					work['completed'] = datetime.datetime.now()
+					work['error'] = None
+
+				except Exception as e:
+					print 'mailq: failed to send email: ' + repr(e)
+					
+					work['completed'] = datetime.datetime.now()
+					work['error'] = repr(e)
+
+				
+				self.results.insert(0, work)
+				if len(self.results) > 15:
+					self.results.pop()
+
+			except Queue.Empty:
+				print('mailq: idling for jobs')
+
+	def sendJobAttachment(self, text, file, filename, subject="sending with gmail", email_to=[]):
+
+		if len(email_to) == 0:
+			raise Exception("No addresses in email_to")
+
+		gmail_user = config.get('Gmail', 'login_user')
+		gmail_pwd  = config.get('Gmail', 'login_password')
+		
+		msg = MIMEMultipart()
+		msg['Subject'] = subject
+		msg['From'] = config.get('Gmail', 'email_from')
+		msg['To'] = ', '.join(email_to)
+
+		msg.attach( MIMEText(text) )
+
+		part = MIMEBase('application', "octet-stream")
+		part.set_payload(file.read())
+		Encoders.encode_base64(part)
+
+		part.add_header('Content-Disposition', 'attachment; filename="%s"' % filename)
+
+		msg.attach(part)
+
+		s = smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=30)
+		s.ehlo()
+		s.login(gmail_user, gmail_pwd)
+		err_dict = s.sendmail( config.get('Gmail', 'email_from'), email_to , msg.as_string())
+		s.set_debuglevel(2)
+		s.close()
+		
 if __name__=="__main__":
-	f = file("/root/printerface/jobs/job-20130323-181244%f",'rb')
-	import pickle
-	s = pickle.load(f)
-	f.close()
 	
-	sendJobEmail(s)
+	import time
+	mailq = JobMailer(100)
+
+	for i in range(60):
+		time.sleep(1)
+
+		if i == 5:
+			mailq.append(dict(
+				to=['chris@shucksmith.co.uk'], body='body text here', subject='Statement for XX',
+				attachment="~/repos/printerface/web/pdf/job-20130404-145700%f-accounts.pdf"))
+
+		print(mailq.results)
+
+	print 'done'
+
 
