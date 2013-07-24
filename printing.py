@@ -18,6 +18,7 @@ def getPrinters():
 
 def printFile(file, printer):
 	cmd = ["lpr","-P", printer, file]
+	print("[print] printer=%s file=%s cmd=%s" %(printer, file, repr(cmd) ))
 	process = subprocess.Popen(cmd, stdout=subprocess.PIPE)
 	results = process.communicate()
 	results = (None,None)

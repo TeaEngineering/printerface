@@ -219,10 +219,17 @@ def settings_template(query_string='', postreq=None):
 
 def printfn(query_string=''):
 	job = getJob(query_string)
-	for f in [job['files']]:
-		printFile(f, ''.join(query_string['printer']) )
+	default_key = job['groupfiles'].iterkeys().next()[0]
+	key = query_string.get('key', [default_key])[0]
+	docf = getJobFile( job, key)
 
-	return doMessage(title='Printing', message='Document %s sent to printer %s<br>' % (query_string['name'], query_string['printer']))
+	if docf:
+		try:		
+			printFile(pdfdir + docf, ''.join(query_string['printer']) )
+			return doMessage(title='Printing', message='Document %s sent to printer %s<br>' % (docf, query_string['printer']))
+		except:
+			traceback.print_exc(file=sys.stdout)
+	return doMessage(title='Printing', message='Could not find document, problem printing! Source: %s sent to printer %s<br>' % (docf, query_string['printer']))
 
 def pdf(query_string=dict()):
 	job = getJob(query_string)
@@ -238,11 +245,7 @@ def pdf(query_string=dict()):
 		email_subject = ''.join(query_string.get('subject', ['no subject']))
 		action = query_string.get('action', None)
 		
-		docf = None
-		for (groupnum, gname) in enumerate(job['groupkey']):
-			for (dockey,doc) in job['groupfiles'].iteritems():
-				if dockey[groupnum] == key:
-					docf = doc
+		docf = getJobFile( job, key)
 		
 		if len(addresses) > 0 and docf and len(email_subject) > 1:
 			email_outcome = "Queueing email to " + ','.join(addresses) + ' - check the result later!';
@@ -271,6 +274,15 @@ def getJob(query_string, returnLast=False):
 		job = j
 		if j['name'] == query_string.get('name', [''])[0]: return j
 	if returnLast: return job
+
+def getJobFile(job, key):
+	docf = None
+	for (groupnum, gname) in enumerate(job['groupkey']):
+		for (dockey,doc) in job['groupfiles'].iteritems():
+			if dockey[groupnum] == key:
+				docf = doc
+
+	return docf
 
 def doMessage(message='?', title='Printerface'):
 	return ( template_lookup.get_template("/message.html").render(title=title, message=message), 'text/html')

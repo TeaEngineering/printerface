@@ -27,7 +27,7 @@
 			<a class="btn dropdown-toggle" data-toggle="dropdown" href="#"><i class="icon-print"></i> Print <span class="caret"></span></a>
 			<ul class="dropdown-menu">
 			% for p in printers:
-				<li><a tabindex="-1" href="/print?file=${docf}&printer=${p}">${p}</a></li>
+				<li><a tabindex="-1" href="/print?file=${docf}&printer=${p}&name=${job['name'] | u}&key=${key}">${p}</a></li>
 			% endfor
 			</ul>
 		</div>
