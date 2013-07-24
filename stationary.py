@@ -425,7 +425,6 @@ class DocFormatter(object):
 		for (acc,v) in ctx.iteritems():
 			p = "%s-%s.pdf" % (cname, acc)
 			c = canvas.Canvas(self.jobdir + p, pagesize=A4)
-			print ("content %s -> %s" % (acc,v))
 		 	print('  formatted invoice to %s' % (p))
 
 			for page in v:
@@ -453,7 +452,6 @@ class DocFormatter(object):
 		rendered_pdfs = {}
 
 		for (acc,v) in ctx.iteritems():
-			print ("content %s -> %s" % (acc,v))
 			p = "%s-%s.pdf" % (cname, acc)
 			c = canvas.Canvas(self.jobdir + p, pagesize=A4)
 		 	print('  formatted to %s' % (p))
@@ -468,7 +466,6 @@ class DocFormatter(object):
 		c = canvas.Canvas(self.jobdir + p, pagesize=A4)
 		
 		for (acc,v) in ctx.iteritems():
-			print ("content %s -> %s" % (acc,v))
 		 	print('  formatted statement to %s' % (p))
 		 	
 		 	for page in v:
@@ -486,7 +483,6 @@ class DocFormatter(object):
 		c = canvas.Canvas(self.jobdir + p, pagesize=A4)
 		
 		for (acc,v) in ctx.iteritems():
-			print ("content %s -> %s" % (acc,v))
 		 	print('  formatted delnote to %s' % (p))
 
 			for mark in ['CUSTOMER COPY', 'ACCOUNTS COPY']:
@@ -498,21 +494,34 @@ class DocFormatter(object):
 		return rendered_pdfs, ('type',)
 	
 	def writeRemittance(self, ctx, cname):
+
 		rendered_pdfs = {}
+
+		for (acc,v) in ctx.iteritems():
+			p = "%s-%s.pdf" % (cname, acc)
+			c = canvas.Canvas(self.jobdir + p, pagesize=A4)
+		 	print('  formatted to %s' % (p))
+		 	
+		 	for page in v:
+				remittancePage(c, page, 'CUSTOMER COPY')
+
+	 		c.save()
+			rendered_pdfs[ (acc,) ] = p
+		
 		p = "%s-%s.pdf" % (cname, 'accounts')
 		c = canvas.Canvas(self.jobdir + p, pagesize=A4)
 		
 		for (acc,v) in ctx.iteritems():
-			print ("content %s -> %s" % (acc,v))
-		 	print('  formatted remittance to %s' % (p))
+		 	print('  formatted statement to %s' % (p))
+		 	
+		 	for page in v:
+				remittancePage(c, page, 'ACCOUNTS COPY')
 
-			for mark in ['CUSTOMER COPY', 'ACCOUNTS COPY']:
-				for page in v:
-					remittancePage(c, page, mark)
-		 			 	
 	 	c.save()
 		rendered_pdfs[ ('accounts',) ] = p
-		return rendered_pdfs, ('type',)
+
+		# protocol: key tuples must all be same length, second tuple is key descriptions
+		return rendered_pdfs, ('Group',)
 			
 	def writePurchase(self, ctx, cname):
 		
@@ -521,7 +530,6 @@ class DocFormatter(object):
 		c = canvas.Canvas(self.jobdir + p, pagesize=A4)
 		
 		for (acc,v) in ctx.iteritems():
-			print ("content %s -> %s" % (acc,v))
 		 	print('  formatted puchase to %s' % (p))
 
 			for mark in ['SUPPLIER COPY', 'ACCOUNTS COPY','MASTER COPY', 'TRANSPORTER COPY', 'BOOKING IN COPY','PRE LOCATION COPY']:
