@@ -37,7 +37,6 @@ class JobMailer(object):
 				p = pickle.Unpickler(f)
 				self.results = p.load()				
 		except:
-			raise
 			traceback.print_exc()
 
 		while len(self.results) > self.resultLimit:

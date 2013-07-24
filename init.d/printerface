@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 #
 # printerface   This shell script takes care of starting and stopping
 #               printerface on RedHat or other chkconfig-based system.
@@ -28,15 +28,16 @@
 #
 
 # Location of printerface binary
-printerface="/root/repos/printerface/main.py"
-lock="/var/lock/subsys/printerface"
-pidfile=/var/run/printerface
-work=/root/printerface/
-
+printerface=~/repos/printerface/main.py
+lock=~/printerface/lock
+pidfile=~/printerface/run
+work=~/printerface/
 . /etc/rc.d/init.d/functions
 
 # Source networking configuration.
 . /etc/sysconfig/network
+
+export PATH=~/opt/bin:~/opt/sbin:/usr/local/sbin:/sbin:/bin:/usr/sbin:/usr/bin
 
 # Check that networking is up.
 if [ ${NETWORKING} = "no" ]
@@ -68,15 +69,15 @@ case "$1" in
 	fi
 
 	rm -f $pidfile
-	mkdir -p /var/log/printerface/
+	mkdir -p ~/printerface/log
 	cd $work
 
-	logfile=/var/log/printerface/`date +'%Y%m%d.%H%M%S'`
+	logfile=~/printerface/log/`date +'%Y%m%d.%H%M%S'`
 	
 	errors=0
 	successes=0
 	export TZ=:/etc/localtime
-	daemonize -a -c $work -e $logfile.err -o $logfile.out -p $pidfile $printerface
+	daemonize -a -E PATH=$PATH -c $work -e $logfile.err -o $logfile.out -p $pidfile $printerface
 
 	if [ $? = 0 ]; then
 	  successes=1

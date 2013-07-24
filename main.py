@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python
 
 from __future__ import with_statement
 
@@ -130,7 +130,10 @@ def cleanJob(j):
 				try:
 					acc = x['accno']				
 				except:
-					pass
+					try:
+						acc = x['doc_num']
+					except:
+						pass
 				try:	
 					addr = x['addr_invoice'].split('\n')[0]
 				except:

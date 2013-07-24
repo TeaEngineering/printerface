@@ -5,8 +5,10 @@ import subprocess
 printers = []
 
 def getPrinters():
+	global printers
 	if not sys.platform == "linux2":
 		return ['default']
+	if len(printers) > 0: return printers
 	
 	process = subprocess.Popen(["lpstat", "-a"], stdout=subprocess.PIPE)
 	result = process.communicate()[0].strip()
