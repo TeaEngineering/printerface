@@ -5,7 +5,7 @@
       <h1>Printerface</h1>
       <p>Printerface collects text documents sent to the LPD print queue at 192.168.4.1 and stores them. Some types of document are understood and re-formatted to PDF files. You can print, email or download the results.
       </p>
-      <p><a href="/recent" class="btn btn-primary btn-large">Recent Documents &raquo;</a></p>
+      <p><a href="/recent" class="btn btn-primary btn-large">All Recent Documents &raquo;</a></p>
     </div>
     <div class="row">
       <div class="span4">
@@ -15,12 +15,24 @@
       </div>
       <div class="span4">
         <h2>Document Type</h2>
-        <p>Dnec id elit non mi porta gravida at eget metus. Fusce dapibus, tellus ac cursus commodo, tortor mauris dimentum nibh, ut fermentum massa justo sit amet risus. Etiam porta sem malesuada magna mollis euismod. Donec sed odio . </p>
-        <p><a class="btn" href="/recent">View details &raquo;</a></p>
+        <p><ul>
+          <li>purchase</li>
+          <li>statement</li>
+          <li>invoice</li>
+          <li>delnote</li>
+          <li>crednote</li>
+          </ul>
+        </p>
+        
      </div>
       <div class="span4">
-        <h2>Monthly</h2>
-        <p>Donec sed odio dui. Cras justo odio, dapibus ac facilisis in, egestas eget quam. Vestibulum id ligula porta is euismod semper. Fusce dapibus, tellus ac cursus commodo, tortor mauris condimentum nibh, ut fermentum massa justo  amet risus.</p>
-        <p><a class="btn" href="/recent">View details &raquo;</a></p>
+        <h2>Email</h2>
+        <p>
+          <div class="progress progress-success"> <div class="bar" style="width: 6%;"> </div> </div>
+          <strong>27</strong> of <strong>480</strong> accounts have email addresses.
+        </p>
+        <p><strong>1</strong> recent failure(s) sending email
+        </p>
+        <p><a class="btn" href="/settings/email">Email Addresses &raquo;</a> <a class="btn" href="/sent">Sent Items &raquo;</a></p>
       </div>
     </div>

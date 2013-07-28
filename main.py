@@ -24,6 +24,7 @@ config = ConfigParser.ConfigParser()
 config.read('defaults.cfg')
 config.read(os.path.expanduser('~/printerface/email.cfg'))
 
+email_pickle = os.path.expanduser('~/printerface/email.pickle')
 
 dir = os.path.expanduser("~/repos/printerface/web/")
 jobdir = dir + 'pickle/'
@@ -59,7 +60,7 @@ def saveJob(queue, local, remote, control, data):
 	cleanJob(d)
 
 def saveEmails():
-	with open(os.path.expanduser('~/printerface/email.pickle'), 'wb') as f:
+	with open(email_pickle, 'wb') as f:
 		p = pickle.Pickler(f)
 		p.dump(email_addresses)
 		p.dump(email_accounts)
@@ -69,7 +70,7 @@ def saveEmails():
 def recover():
 	global email_template
 	try:
-		with open(os.path.expanduser('~/printerface/email.pickle'), 'rb') as f:
+		with open(email_pickle, 'rb') as f:
 			p = pickle.Unpickler(f)
 			for (k,v) in p.load().iteritems():
 				email_addresses[k].update(v)
@@ -99,21 +100,22 @@ def writeFile(fn, string):
 	f.write(string)
 	f.close()
 
+control_char_re = re.compile('[^\w\s%s_\'=/]' % re.escape('.*+()-\\;:,#?%$^&!<>|`"'))
+
 def cleanJob(j):
 	print(' recovering %s' % j['name'])
-	fn = rawdir + j['name'] + '.txt'
-	control_char_re = re.compile('[^\w\s%s_\'=/]' % re.escape('.*+()-\\;:,#?%$^&!<>|`"'))
-	raw = j['data']
-	plain = control_char_re.sub(' ', j['data'])
-	j['plain'] = plain
+	fn = rawdir + j['name'] + '.txt'	
+	
+	j['plain'] = control_char_re.sub(' ', j['data'])
+	
 	summary = re.compile('[^\w\s]').sub('', j['data'])
 	for r in summary_regexps:
 		summary = r.sub(' ', summary)
 	summary = re.compile('\s+').sub(' ', summary)
 	summary = summary.strip()[0:120]
 
-	writeFile(rawdir + j['name'] + '.txt', raw)
-	writeFile(plaindir + j['name'] + '.txt', plain)
+	writeFile(rawdir + j['name'] + '.txt', j['data'])
+	writeFile(plaindir + j['name'] + '.txt', j['plain'])
 
 	j['summary'] = summary
 	j['doctype'] = j.get('control', {}).get('J').strip()
@@ -268,9 +270,9 @@ def pdf(query_string=dict()):
 	return ( template_lookup.get_template("/pdf.html").render(printers=getPrinters(), job=job, key=key, email_templ=email_template, email_dest=email_dest, email_outcome=email_outcome, email_error=email_error), 'text/html')
 
 def plain(query_string=dict()):
-	job = getJob(query_string)
+	job = getJob(query_string, returnLast=True)
 
-	return ( template_lookup.get_template("/plain.html").render(printers=getPrinters(), job=job), 'text/html')
+	return ( template_lookup.get_template("/plain.html").render(printers=getPrinters(), job=job, pagebreak=True), 'text/html')
 
 def getJob(query_string, returnLast=False):
 	for j in jobs: 
@@ -297,7 +299,7 @@ def document(query_string=dict()):
 		return doMessage(message=('Unknown job %s' % query_string) )
 
 	import pprint
-	pformatted = pprint.pformat(job.get('parsed'), indent=4)
+	pformatted = pprint.pformat(job.get('parsed'), indent=2, width=60)
 
 	colouring = job.get('colouring', [])
 

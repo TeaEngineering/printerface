@@ -6,21 +6,17 @@
 	name: ${job.get('name')}<br>
 	type: ${job.get('templ')}<br>
 	data
-	<pre style="font-size:11px;line-height: 11px;">
-	${pformatted}
-	</pre>
+	<pre style="font-size:11px;line-height: 11px;">${pformatted}</pre>
 
 	<h3>Annotated Document</h3>
 	
 	plain text dimensions: lines ${rows}, width ${cols}<br>
-	<pre style="font-size:11px;line-height: 11px;">
-	${coloured_plaintext}
-	</pre>
+	<pre style="font-size:11px;line-height: 11px;">${coloured_plaintext}</pre>
 	
 	<h3>PDF Output</h3>
 	% if job.get('groupfiles', None):
-	<p>${job['groupfiles']}
-	<p>${job['groupkey']}
+	<p>Groupfiles: ${job['groupfiles']}</p>
+	<p>Groupkey: ${job['groupkey']}</p>
 	% endif
 
 	% if job.get('files'):

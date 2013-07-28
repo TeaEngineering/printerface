@@ -1,11 +1,21 @@
 
 <%inherit file="bootstrap.html"/>
-<%block name="title">- ${job.get('name')}</%block>
+<%block name="title">- ${job.get('name')} Plain</%block>
 	<h3 class="hidden-print">Plain Text</h3>
 
 	<a class="btn hidden-print" type="button" onClick="window.print()"><i class="icon-print"></i> Print</a>
 	
+	% if not pagebreak:
 	<pre style="font-size:10px;line-height: 10px;">
 ${job['plain'] }
 	</pre>
+
+	% else:
+	% for part in job['plain'].split("\f"):
+	% if len(part.strip()) > 0:
+	<pre style="font-size:10px;line-height: 10px;">${part.rstrip()}</pre>
+
+	% endif
+	% endfor
+	% endif
 

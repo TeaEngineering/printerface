@@ -52,7 +52,9 @@
 	<p>It appears you don\'t have a PDF plugin for this browser.</p>
 	</object>
 	
-	<p>&nbsp;
+	<p>
+		<a class="btn" href="/doc?name=${job['name'] | u}"><i class="icon-fire"></i> Debug Info</a>
+	</p>
 	
 	<form class="form-horizontal" method="get" action="">
 		<input type="hidden" name="name" value="${job['name'] | u}"/>
