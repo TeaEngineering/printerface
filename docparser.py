@@ -22,7 +22,10 @@ class DocParser(object):
 			lines = job['plain'].splitlines()
 			dims = (len(lines), max([len(line) for line in lines]))
 			if hasattr(self, mname):
-				return getattr(self, mname)(lines, dims)
+				fields, page_data = getattr(self, mname)(lines, dims)
+				data = dict(page_data.iteritems())
+
+				return (fields, data)
 			print('Warning: No parsing function %s' % mname)
 		return (None,None)
 
