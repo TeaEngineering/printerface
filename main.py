@@ -95,11 +95,6 @@ def recover():
 	for j in jobs:
 		cleanJob(j)
 
-def writeFile(fn, string):
-	f = file(fn, "wb")
-	f.write(string)
-	f.close()
-
 control_char_re = re.compile('[^\w\s%s_\'=/]' % re.escape('.*+()-\\;:,#?%$^&!<>|`"'))
 
 def cleanJob(j):
@@ -113,9 +108,6 @@ def cleanJob(j):
 		summary = r.sub(' ', summary)
 	summary = re.compile('\s+').sub(' ', summary)
 	summary = summary.strip()[0:120]
-
-	writeFile(rawdir + j['name'] + '.txt', j['data'])
-	writeFile(plaindir + j['name'] + '.txt', j['plain'])
 
 	j['summary'] = summary
 	j['doctype'] = j.get('control', {}).get('J').strip()
@@ -149,8 +141,6 @@ def cleanJob(j):
 		# protocol: PDF file names are dict values. keys are document
 		# groups {('all'): p}, ('all')
 		(j['groupfiles'], j['groupkey']) = formatter.format(j)
-
-
 
 		for f in j['groupfiles'].itervalues():
 			from subprocess import call
