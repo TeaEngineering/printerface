@@ -13,7 +13,7 @@ ${job['plain'] }
 	% else:
 	% for part in job['plain'].split("\f"):
 	% if len(part.strip()) > 0:
-	<pre style="font-size:10px;line-height: 10px;">${part.rstrip()}</pre>
+	<pre style="font-size:10px;line-height: 10px;">${part.rstrip() | h}</pre>
 
 	% endif
 	% endfor
