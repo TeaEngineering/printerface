@@ -12,29 +12,39 @@
         <col width="55%" />
     </colgroup>
 
-		<tr><th>Job</th><th>Time</th><th>Stationary</th><th>Preview</th></tr>
+	<tr><th>Job</th><th>Time</th><th>Stationary</th><th>Preview</th></tr>
 	<% xstr = lambda s: s or '' %>
 	% for j in jobs:
 	  <tr>
+		<td>
 		% if j['templ']:
-		<td><a href="/pdf?name=${j['name']}">${xstr(j['control'].get('H'))} ${j['doctype']}</a></td>
+		<a href="/pdf?name=${j['name']}">
 		% else:
-		<td><a href="/plaintext?name=${j['name']}">${xstr(j['control'].get('H'))} ${j['doctype']}</a></td>
+		<a href="/plaintext?name=${j['name']}">
 		% endif
-			<td>${str(j['ts'])[0:19]}</td>
+		${xstr(j['control'].get('H'))|h} ${j['doctype']|h}</a></td>
+		<td>${str(j['ts'])[0:19]|h}</td>
 		% if j['templ']:
 		<td>${xstr(j['templ'])} (${len(j.get('parsed', {}).keys())})</td>
 		% else:
 			<td></td>
 		% endif
 		
-		<td style="overflow: hidden; text-overflow: ellipsis">${j['summary']}</td>
+		<td style="overflow: hidden; text-overflow: ellipsis">${j['summary']|h}</td>
 	  </tr>
 	% endfor
 	</table>
 
 	<ul class="pager">
-	  <li class="previous"> <a href="#">&larr; Older</a> </li> 
-	  <li class="next"> <a href="#">Newer &rarr;</a> </li> 
+	% if page < pages-1:
+	  <li class="previous"> <a href="?page=${page+1}">&larr; Older</a> </li> 
+	% else:
+	  <li class="previous disabled"> <span>&larr; Older</span> </li>
+	% endif
+	% if page > 0:
+	  <li class="next"> <a href="?page=${page-1}">Newer &rarr;</a> </li>
+	% else:
+	  <li class="next disabled"> <span>Newer &rarr;</span> </li>
+	% endif
 	</ul>
 	

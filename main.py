@@ -21,7 +21,7 @@ import collections
 import traceback
 
 config = ConfigParser.ConfigParser()
-config.read('defaults.cfg')
+config.readfp(open(os.path.expanduser('~/repos/printerface/defaults.cfg')))
 config.read(os.path.expanduser('~/printerface/email.cfg'))
 
 email_pickle = os.path.expanduser('~/printerface/email.pickle')
@@ -41,7 +41,8 @@ email_template = ''
 mainparser = DocParser()
 formatter = DocFormatter(pdfdir)
 template_lookup = TemplateLookup(directories=[dir], output_encoding='utf-8', encoding_errors='replace', format_exceptions=True)
-recentQty = 300
+loadQty = int(config.get('History', 'loadqty'))
+pageQty = int(config.get('History', 'pageqty'))
 
 summary_regexps = [ re.compile(x) for x in config.get('Main', 'summary_trim').strip().split(',') ]
 	
@@ -50,8 +51,8 @@ def saveJob(queue, local, remote, control, data):
 	jobname = 'job-%s' % ts.strftime('%Y%m%d-%H%M%S')
 	d = {'queue':queue, 'from':repr(local), 'to':repr(remote), 'control':control, 'data':data, 'ts': ts, 'name':jobname}
 	# print "    %s" % repr(d)
-	jobs.append(d)
-	if len(jobs) > recentQty: jobs.pop(0)
+	jobs.insert(0, d)
+	if len(jobs) > loadQty: jobs.pop()
 	
 	f = file(jobdir + jobname, "wb")
 	pickle.dump(d, f)
@@ -83,10 +84,10 @@ def recover():
 		print('[control] email pickle load failed')
 
 	xs = sorted([ x for x in os.listdir(jobdir) if x != 'raw'])
-	if len(xs) > recentQty: xs = xs[-recentQty:]
+	if len(xs) > loadQty: xs = xs[-loadQty:]
 
 	print '[control] recovering from %s' % jobdir
-	for x in xs:		
+	for x in reversed(xs):
 		f = file(jobdir + x, "rb")
 		s = pickle.load(f)
 		s['name'] = x;
@@ -157,8 +158,15 @@ def identify(j):
 def index(query_string=''):
 	return ( template_lookup.get_template("/index-templ.html").render() ,'text/html')
 
+def getrows_byslice(seq, rowlen):
+    for start in xrange(0, len(seq), rowlen):
+        yield seq[start:start+rowlen]
+
 def recent(query_string=''):
-	return ( template_lookup.get_template("/recent-templ.html").render(jobs=reversed(jobs)), 'text/html')
+	pagejobs = list(getrows_byslice(jobs, pageQty))
+	page = max(min(int(query_string.get('page', ['0'])[0]), len(pagejobs)-1),0)
+	print('recent pages=%d, page=%d' % (len(pagejobs), page))
+	return ( template_lookup.get_template("/recent-templ.html").render(jobs=pagejobs[page], page=page, pages=len(pagejobs)), 'text/html')
 	
 def printers(query_string=''):
 	return ( template_lookup.get_template("/printers.html").render(printers=getPrinters()), 'text/html')
