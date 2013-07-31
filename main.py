@@ -273,7 +273,7 @@ def getJob(query_string, returnLast=False):
 	for j in jobs: 
 		job = j
 		if j['name'] == query_string.get('name', [''])[0]: return j
-	if returnLast: return job
+	if returnLast: return jobs[0]
 
 def getJobFile(job, key):
 	docf = None
