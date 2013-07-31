@@ -28,8 +28,6 @@ email_pickle = os.path.expanduser('~/printerface/email.pickle')
 
 dir = os.path.expanduser("~/repos/printerface/web/")
 jobdir = dir + 'pickle/'
-rawdir = dir + 'raw/'
-plaindir = dir + 'plain/'
 pdfdir = dir + 'pdf/'
 jobs = []
 mailqueue = JobMailer(100)
@@ -100,7 +98,6 @@ control_char_re = re.compile('[^\w\s%s_\'=/]' % re.escape('.*+()-\\;:,#?%$^&!<>|
 
 def cleanJob(j):
 	print(' recovering %s' % j['name'])
-	fn = rawdir + j['name'] + '.txt'	
 	
 	j['plain'] = control_char_re.sub(' ', j['data'])
 	
@@ -337,7 +334,7 @@ def document(query_string=dict()):
 
 if __name__=="__main__":
 	# launch the server on the specified port
-	for x in [jobdir, rawdir, plaindir, pdfdir]:
+	for x in [jobdir, pdfdir]:
 		try:
 			os.makedirs(x)
 		except:
