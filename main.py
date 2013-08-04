@@ -153,7 +153,9 @@ def identify(j):
 	return types.get(j['doctype'])
 
 def index(query_string=''):
-	return ( template_lookup.get_template("/index-templ.html").render() ,'text/html')
+	email_fails = sum([1 for x in mailqueue.results if x['error']])
+	account = sum([ 1 for k in email_accounts.iterkeys() if len(email_addresses[k]) > 0 ]), len(email_accounts.keys())
+	return ( template_lookup.get_template("/index-templ.html").render(email_fails=email_fails, account=account) ,'text/html')
 
 def getrows_byslice(seq, rowlen):
     for start in xrange(0, len(seq), rowlen):

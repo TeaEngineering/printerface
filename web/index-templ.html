@@ -28,10 +28,10 @@
       <div class="span4">
         <h2>Email</h2>
         <p>
-          <div class="progress progress-success"> <div class="bar" style="width: 6%;"> </div> </div>
-          <strong>27</strong> of <strong>480</strong> accounts have email addresses.
+          <div class="progress progress-success"> <div class="bar" style="width: ${ '%0.1f' % ((account[0]*100.0)/account[1]) }%;"> </div> </div>
+          <strong>${account[0]}</strong> of <strong>${account[1]}</strong> accounts have email addresses.
         </p>
-        <p><strong>1</strong> recent failure(s) sending email
+        <p><strong>${email_fails}</strong> recent failure(s) sending email
         </p>
         <p><a class="btn" href="/settings/email">Email Addresses &raquo;</a> <a class="btn" href="/sent">Sent Items &raquo;</a></p>
       </div>
