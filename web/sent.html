@@ -12,7 +12,7 @@
 	  % else:
 	  <tr class="success">
 	  % endif
-		<td>${'<br>'.join(p['to'])}</td><td>${p['subject']}</td><td>${p['added']}</td><td>${p['completed']}</td><td>${p['error']}</td>
+		<td>${'<br>'.join(p['to'])}</td><td>${p['subject'].decode('utf-8')}</td><td>${p['added']}</td><td>${p['completed']}</td><td>${p['error']}</td>
 	  </tr>
 	% endfor
 	</table>
