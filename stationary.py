@@ -19,13 +19,13 @@ top = 27.6*cm
 def headerDetails(c, ctx, doctype="DELIVERY NOTE", terms_key='terms'):
 	c.saveState()
 	textobject = c.beginText()
-	textobject.setTextOrigin(0*cm, top-1.6*cm)
+	textobject.setTextOrigin(0*cm, top-1.5*cm)
 	textobject.setFont("Helvetica", 8)
 	textobject.textLines(config.get('Printing', 'address').replace("\\n", '\n'))
 	c.drawText(textobject)
 
 	textobject = c.beginText()
-	textobject.setTextOrigin(5.5*cm, top-1.6*cm)
+	textobject.setTextOrigin(5.5*cm, top-1.5*cm)
 	textobject.setFont("Helvetica", 8)
 	textobject.textLines(config.get('Printing', 'vatreg'))
 	textobject.textLines(config.get('Printing', 'fax1'))
@@ -346,14 +346,14 @@ def statementPage(c, ctx, mark):
 	c.drawText(textobject)
 
 	h = 0.85*cm
-	y = 25*cm
+	y = 24.6*cm
         (x,y0) = topBox(c, 0*cm, y, h=3.8*cm, w=8.2*cm, title='TO', content=ctx['addr_invoice'])
 	w = divide - vpad - (x + vpad)
 	(x0,y) = topBox(c, x+vpad, y, h=1.25*cm, w=w, title='ACCOUNT NO.', content=ctx['accno'])
 	(x0,y) = topBox(c, x+vpad, y, h=1.25*cm, w=w, title='DATE', content=ctx['date'])
 	(x0,y) = topBox(c, x+vpad, y, h=y-y0, w=w, title='PAGE No.', content=ctx['page'])
 	
-	x = divide+vpad; y = 25*cm; w=(pagewidth-x)/2
+	x = divide+vpad; y = 24.6*cm; w=(pagewidth-x)/2
 	(x0,y0) = topBox(c, x, y, h=1.25*cm, w=w, title='ACCOUNT NO.', content=ctx['accno'])
 	(x0,y)  = topBox(c, x0,y, h=1.25*cm, w=w, title='DATE', content=ctx['date'])
 	(x0,y0) = topBox(c, x, y, h=1.25*cm, w=w, title='PAGE No.', content=ctx['page'])
@@ -364,7 +364,7 @@ def statementPage(c, ctx, mark):
 	
 	# 8 column section, individual widths
 	y = y - vpad
-	h = 15.5*cm; hs=0.9*cm
+	h = 15.5*cm; hs=0.8*cm
 	(x, y0) = stTopBox(c, 0, y, w=1.3*cm, h=h, title="DATE", content=ctx['prod_date']);
 	(x, y0) = stTopBox(c, x, y, w=4.1*cm, h=h, title="OUR REF.                DETAILS", content=ctx['prod_code'])
 	(x, y0) = stTopBox(c, x, y, w=1.0*cm, h=h, title="TRANS", content=ctx['prod_trans'])
@@ -387,7 +387,7 @@ def statementPage(c, ctx, mark):
 	c.setFont("Helvetica", 8)
 	c.drawString(0, y0-vpad, ctx['summ_box'].strip())
 	
-	w=(divide-vpad)/4; x=0; y=4.0*cm; h=1.3*cm;
+	w=(divide-vpad)/4; x=0; y=3.95*cm; h=1.3*cm;
 	(x, y0) = stTopBox(c, x, y, w=w, h=h, title="CURRENT", content=ctx['age_curr'], colfmt='dr')
 	(x, y0) = stTopBox(c, x, y, w=w, h=h, title="ONE MONTH", content=ctx['age_1m'], colfmt='dr')
 	(x, y0) = stTopBox(c, x, y, w=w, h=h, title="TWO MONTHS", content=ctx['age_2m'], colfmt='dr')
