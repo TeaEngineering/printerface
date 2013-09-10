@@ -19,18 +19,25 @@ top = 27.6*cm
 def headerDetails(c, ctx, doctype="DELIVERY NOTE", terms_key='terms'):
 	c.saveState()
 	textobject = c.beginText()
-	textobject.setTextOrigin(2.75*cm, top)
+	textobject.setTextOrigin(0*cm, top-1.6*cm)
 	textobject.setFont("Helvetica", 8)
 	textobject.textLines(config.get('Printing', 'address').replace("\\n", '\n'))
+	c.drawText(textobject)
+
+	textobject = c.beginText()
+	textobject.setTextOrigin(5.5*cm, top-1.6*cm)
+	textobject.setFont("Helvetica", 8)
 	textobject.textLines(config.get('Printing', 'vatreg'))
 	textobject.textLines(config.get('Printing', 'fax1'))
 	textobject.textLines(config.get('Printing', 'fax2'))
-	textobject.textLines(config.get('Printing', 'email') + "      " + config.get('Printing', 'website'))
+	textobject.textLines(config.get('Printing', 'email'))
+	textobject.textLines(config.get('Printing', 'website'))
 	c.drawText(textobject)
+	
 	c.setFont("Helvetica", 18)
 	c.drawRightString(pagewidth, top, doctype)
 	c.restoreState()
-	c.drawImage(ctx['logo'], 0,top-2.3*cm, width=2.5*cm,height=3*cm, preserveAspectRatio=True, anchor='sw')
+	c.drawImage(os.path.expanduser(config.get('Printing', 'logo')) , 2.5, top-1.1*cm, width=7.0*cm,height=2.2*cm, preserveAspectRatio=True, anchor='sw')
 
 	c.setFont("Helvetica", 10)
 	c.drawString(0, 0.5*cm, config.get('Printing', terms_key))
@@ -406,9 +413,6 @@ class DocFormatter(object):
 	def format(self, ctx):
 		print('formatting %s' % ctx['name'])
 		mname = 'write' + ctx['templ'].title()
-		for x in ctx['parsed'].values():
-			for y in x:
-				y['logo'] = self.jobdir + 'logo.gif'
 		if hasattr(self, mname):
 			
 			x = getattr(self, mname)( ctx['parsed'], ctx['name'])
