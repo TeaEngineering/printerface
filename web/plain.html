@@ -11,10 +11,11 @@ ${job['plain'] }
 	</pre>
 
 	% else:
-	% for part in job['plain'].split("\f"):
-	% if len(part.strip()) > 0:
-	<pre style="font-size:10px;line-height: 10px;">${part.rstrip() | h}</pre>
-
+	% for part in filter(None, job['plain'].split("\f")):
+	% if loop.last:
+	<pre style="font-size:10px;line-height: 10px; page-break-after:auto;">${part.rstrip() | h}</pre>
+	% else:
+	<pre style="font-size:10px;line-height: 10px; page-break-after:always;">${part.rstrip() | h}</pre>
 	% endif
 	% endfor
 	% endif
