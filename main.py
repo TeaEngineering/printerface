@@ -57,6 +57,19 @@ def saveJob(queue, local, remote, control, data):
 	f.close()
 
 	cleanJob(d)
+	autoPrint(d)
+
+def autoPrint(j):
+	if j['doctype'] in config.get('Robot', 'auto_types').split(','):
+		ptr = config.get('Robot', 'auto_printer')
+
+		default_key = j['groupfiles'].iterkeys().next()[0]
+		#key = query_string.get('key', [default_key])[0]
+		docf = getJobFile( j, default_key)
+		if docf:
+			printFile(pdfdir + docf, ptr )
+			print( 'auto printing: Document %s sent to printer %s' % (docf, ptr))
+
 
 def saveEmails():
 	with open(email_pickle, 'wb') as f:
