@@ -5,9 +5,6 @@
 
 	<a class="btn hidden-print" type="button" onClick="window.print()"><i class="icon-print"></i> Print</a>
 	&nbsp; page break 
-	<div class="btn-group">
-	<button class="btn">condense</button><button class="btn active">always</button>
-	</div>
 	
 	% if not pagebreak:
 	<pre style="font-size:10px;line-height: 10px;">
@@ -21,7 +18,6 @@ ${job['plain'] }
 	% else:
 	<pre style="font-size:10px;line-height: 10px; page-break-after:always;">${part.rstrip() | h}</pre>
 	% endif
-			  
 	% endfor
 	% endif
 
