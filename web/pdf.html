@@ -9,7 +9,8 @@
 	<% docf = None %>
 
 	${gname}: 
-			% for (dockey,doc) in job['groupfiles'].iteritems():
+			% for dockey in sorted(job['groupfiles']):
+				<% doc = job['groupfiles'][dockey] %>
 				% if dockey[groupnum] == key:
 				${dockey[groupnum]}
 				<% docf = doc %>
