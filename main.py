@@ -282,7 +282,7 @@ def pdf(query_string=dict()):
 def plain(query_string=dict()):
 	job = getJob(query_string, returnLast=True)
 
-	return ( template_lookup.get_template("/plain.html").render(printers=getPrinters(), job=job, pagebreak=True), 'text/html')
+	return ( template_lookup.get_template("/plain.html").render(printers=getPrinters(), job=job, pb='always', pagebreak=True), 'text/html')
 
 def getJob(query_string, returnLast=False):
 	for j in jobs: 

@@ -530,18 +530,20 @@ class DocFormatter(object):
 	def writePurchase(self, ctx, cname):
 		
 		rendered_pdfs = {}
-		p = "%s-%s.pdf" % (cname, 'accounts')
-		c = canvas.Canvas(self.jobdir + p, pagesize=A4)
 		
 		for (acc,v) in ctx.iteritems():
-		 	print('  formatted puchase to %s' % (p))
+			for (bundle, marks) in [ ( '', ['SUPPLIER COPY']), ('-transport', ['TRANSPORTER COPY']), ('-admin', ['MASTER COPY', 'BOOKING IN COPY', 'PRE LOCATION COPY']) ]:
+				p = "%s-%s%s.pdf" % (cname, acc, bundle)
+				c = canvas.Canvas(self.jobdir + p, pagesize=A4)
+		 		print('  formatted to %s' % (p))
+		 		
+		 		for mark in marks:
+		 			for page in v:
+						purchasePage(c, page, mark)
 
-			for mark in ['SUPPLIER COPY', 'ACCOUNTS COPY','MASTER COPY', 'TRANSPORTER COPY', 'BOOKING IN COPY','PRE LOCATION COPY']:
-				for page in v:
-					purchasePage(c, page, mark)
-			
-	 	c.save()
-		rendered_pdfs[ ('accounts',) ] = p
+		 		c.save()
+				rendered_pdfs[ ("%s%s" % (acc, bundle),) ] = p
+
 		return rendered_pdfs, ('type', )
 
 if __name__=="__main__":
