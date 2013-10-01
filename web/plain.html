@@ -12,7 +12,7 @@ ${job['plain'] }
 	</pre>
 
 	% else:
-	% for part in filter(None, job['plain'].split("\f")):
+	% for part in filter(None, job['plain'].strip().split("\f")):
 	% if loop.last:
 	<pre style="font-size:10px;line-height: 10px; page-break-after:auto;">${part.rstrip() | h}</pre>
 	% else:
