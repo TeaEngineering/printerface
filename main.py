@@ -162,7 +162,15 @@ def cleanJob(j):
 	# all done
 
 def identify(j):
-	types = {'Sttments': 'statement', 'Delvnote':'delnote', 'Cr-note':'crednote', 'Invoice':'invoice', 'P order':'purchase', 'Rem Advs':'remittance'}
+	types = {
+			'Sttments': 'statement',
+			'Delvnote':'delnote',
+			'Cr-note':'crednote',
+			'Invoice':'invoice',
+			'P order':'purchase',
+			'Rem Advs':'remittance',
+			'Pick lst': 'picklist'
+			}
 	return types.get(j['doctype'])
 
 def index(query_string=''):

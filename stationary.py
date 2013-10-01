@@ -406,6 +406,25 @@ def statementPage(c, ctx, mark):
 
 	c.showPage()
 
+def genericPage(c, ctx, title):
+	# move the origin up and to the left
+	c.setFillColorRGB(0,0,0)
+	c.translate(0.8*cm,0.8*cm)
+
+	c.setFont("Helvetica", 18)
+	c.drawRightString(pagewidth, top, title)
+	c.drawImage(os.path.expanduser(config.get('Printing', 'logo')) , 2.5, top-1.1*cm, width=4.0*cm,height=2.0*cm, preserveAspectRatio=True, anchor='sw')
+
+	y = 25.6*cm
+	textobject = c.beginText()
+	textobject.setTextOrigin(0, y)
+	textobject.setFont("Courier", 7)
+	textobject.textLines(ctx['data'], trim=0)
+	c.drawText(textobject)
+
+	c.showPage()
+
+
 class DocFormatter(object):
 	def __init__(self, pdfdir):
 		self.jobdir = pdfdir
@@ -447,6 +466,19 @@ class DocFormatter(object):
 	 	c.save()
 		rendered_pdfs[ ('accounts',) ] = p
 
+		return rendered_pdfs, ('Group',)
+
+	def writePicklist(self, ctx, cname):
+		rendered_pdfs = {}
+		p = "%s-%s.pdf" % (cname, 'accounts')
+		c = canvas.Canvas(self.jobdir + p, pagesize=A4)
+
+		for (acc,v) in ctx.iteritems():
+			for page in v:
+				genericPage(c, page, 'Picking list')
+
+		c.save()
+		rendered_pdfs[ ('pick',) ] = p
 		return rendered_pdfs, ('Group',)
 
 	def writeCrednote(self, ctx, cname):

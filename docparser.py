@@ -22,17 +22,17 @@ class DocParser(object):
 			lines = job['plain'].splitlines()
 			dims = (len(lines), max([len(line) for line in lines]))
 			if hasattr(self, mname):
-				fields, page_data = getattr(self, mname)(lines, dims)
+				fields, page_data = getattr(self, mname)(job, lines, dims)
 				data = dict(page_data.iteritems())
 
 				return (fields, data)
 			print('Warning: No parsing function %s' % mname)
 		return (None,None)
 
-	def extractCrednote(self, lines, dims):
-		return self.extractInvoice(lines, dims)
+	def extractCrednote(self, job, lines, dims):
+		return self.extractInvoice(job, lines, dims)
 
-	def extractInvoice(self, lines, (rows,cols)):
+	def extractInvoice(self, job, lines, (rows,cols)):
 		all_fields = []
 		page_data = collections.defaultdict(list)
 
@@ -82,7 +82,7 @@ class DocParser(object):
 
 		return (all_fields, page_data)
 
-	def extractDelnote(self, lines, (rows,cols)):
+	def extractDelnote(self, job, lines, (rows,cols)):
 		all_fields = []
 		page_data = collections.defaultdict(list)
 
@@ -121,7 +121,7 @@ class DocParser(object):
 
 		return (all_fields, page_data)
 
-	def extractStatement(self, lines, (rows,cols)):
+	def extractStatement(self, job, lines, (rows,cols)):
 		# any lines after line containing 'PRINT STATEMENT SUMMARY' should be ignored
 		rows = min([rows] + [lnum for (lnum,text) in enumerate(lines) if 'PRINT STATEMENT SUMMARY' in text])
 		all_fields = []
@@ -168,7 +168,7 @@ class DocParser(object):
 			
 		return (all_fields, page_data)
 
-	def extractPurchase(self, lines, (rows,cols)):
+	def extractPurchase(self, job, lines, (rows,cols)):
 		all_fields = []
 		page_data = collections.defaultdict(list)
 
@@ -203,7 +203,7 @@ class DocParser(object):
 
 		return (all_fields, page_data)
 
-	def extractRemittance(self, lines, (rows,cols)):
+	def extractRemittance(self, job, lines, (rows,cols)):
 		all_fields = []
 		page_data = collections.defaultdict(list)
 
@@ -234,7 +234,25 @@ class DocParser(object):
 
 		return (all_fields, page_data)
 
-	def populate(self, lines, fs):
+	def extractPicklist(self, job, lines, (rows,cols)):
+		all_fields = []
+		page_data = collections.defaultdict(list)
+
+		# variable length per page, split into pages by pagebreak
+		line = 0
+		for part in filter(None, job['plain'].split("\f")):
+			if len(part.strip()) > 0:
+				h = len(part.splitlines())
+				fs = []
+				field(fs, line,0,w=cols,t='data',h=h)
+				all_fields += fs
+				line = line + h
+				extracted = self.populate(lines, fs, stripText=False)
+				page_data['all'].append(extracted)
+
+		return (all_fields, page_data)
+
+	def populate(self, lines, fs, stripText=True):
 		(rows, cols) = (len(lines), max([len(line) for line in lines]))
 
 		# if any fields extend beyond the document, extends the number of columns
@@ -259,7 +277,10 @@ class DocParser(object):
 					node['text'] += char
 		data = {}
 		for c in fs:
-			data[c['t']] = '\n'.join( [ s.strip() for s in c['text'].split('\n')] )
+			if stripText:
+				data[c['t']] = '\n'.join( [ s.strip() for s in c['text'].split('\n')] )
+			else:
+				data[c['t']] = c['text']
 
 		return data
 
