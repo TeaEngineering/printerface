@@ -430,13 +430,13 @@ class DocFormatter(object):
 		self.jobdir = pdfdir
 
 	def format(self, ctx):
-		print('formatting %s' % ctx['name'])
 		mname = 'write' + ctx['templ'].title()
+		sys.stdout.write('   formatting %s with %s ' % (ctx['name'], mname))
+
 		if hasattr(self, mname):
-			
 			x = getattr(self, mname)( ctx['parsed'], ctx['name'])
-			import pprint
-			pprint.pprint(x)
+			sys.stdout.write('\n')
+			print('      %s' % x[0])
 			return x
 
 		print('Warning: No formatting function %s' % mname)
@@ -448,7 +448,6 @@ class DocFormatter(object):
 		for (acc,v) in ctx.iteritems():
 			p = "%s-%s.pdf" % (cname, acc)
 			c = canvas.Canvas(self.jobdir + p, pagesize=A4)
-		 	print('  formatted invoice to %s' % (p))
 
 			for page in v:
 				accountNotePage(c, page, 'CUSTOMER COPY')
@@ -490,8 +489,7 @@ class DocFormatter(object):
 		for (acc,v) in ctx.iteritems():
 			p = "%s-%s.pdf" % (cname, acc)
 			c = canvas.Canvas(self.jobdir + p, pagesize=A4)
-		 	print('  formatted to %s' % (p))
-		 	
+
 		 	for page in v:
 				statementPage(c, page, 'CUSTOMER COPY')
 
@@ -502,8 +500,6 @@ class DocFormatter(object):
 		c = canvas.Canvas(self.jobdir + p, pagesize=A4)
 		
 		for (acc,v) in ctx.iteritems():
-		 	print('  formatted statement to %s' % (p))
-		 	
 		 	for page in v:
 				statementPage(c, page, 'ACCOUNTS COPY')
 
@@ -519,8 +515,6 @@ class DocFormatter(object):
 		c = canvas.Canvas(self.jobdir + p, pagesize=A4)
 		
 		for (acc,v) in ctx.iteritems():
-		 	print('  formatted delnote to %s' % (p))
-
 			for mark in ['CUSTOMER COPY', 'ACCOUNTS COPY']:
 				for page in v:
 					deliveryNotePage(c, page, mark)
@@ -536,8 +530,6 @@ class DocFormatter(object):
 		for (acc,v) in ctx.iteritems():
 			p = "%s-%s.pdf" % (cname, acc)
 			c = canvas.Canvas(self.jobdir + p, pagesize=A4)
-		 	print('  formatted to %s' % (p))
-		 	
 		 	for page in v:
 				remittancePage(c, page, 'CUSTOMER COPY')
 
@@ -548,7 +540,6 @@ class DocFormatter(object):
 		c = canvas.Canvas(self.jobdir + p, pagesize=A4)
 		
 		for (acc,v) in ctx.iteritems():
-		 	print('  formatted statement to %s' % (p))
 		 	
 		 	for page in v:
 				remittancePage(c, page, 'ACCOUNTS COPY')
@@ -567,7 +558,6 @@ class DocFormatter(object):
 			for (bundle, marks) in [ ( '', ['SUPPLIER COPY']), ('-transport', ['TRANSPORTER COPY']), ('-admin', ['MASTER COPY', 'BOOKING IN COPY', 'PRE LOCATION COPY']) ]:
 				p = "%s-%s%s.pdf" % (cname, acc, bundle)
 				c = canvas.Canvas(self.jobdir + p, pagesize=A4)
-		 		print('  formatted to %s' % (p))
 		 		
 		 		for mark in marks:
 		 			for page in v:

@@ -97,7 +97,7 @@ def recover():
 	xs = sorted([ x for x in os.listdir(jobdir) if x != 'raw'])
 	if len(xs) > loadQty: xs = xs[-loadQty:]
 
-	print '[control] recovering from %s' % jobdir
+	print '[control] recovering jobs from %s' % jobdir
 	for x in reversed(xs):
 		f = file(jobdir + x, "rb")
 		s = pickle.load(f)
@@ -143,8 +143,8 @@ def cleanJob(j):
 					addr = x['addr_invoice'].split('\n')[0]
 				except:
 					pass
-				print("got email %s -> %s" % (acc, addr))
 				if acc and addr:
+					print("   got email %s -> %s" % (acc, addr))
 					email_accounts[acc] = (addr),
 
 	# if colouring succeded, might be able to generate docs
@@ -153,11 +153,11 @@ def cleanJob(j):
 		# groups {('all'): p}, ('all')
 		(j['groupfiles'], j['groupkey']) = formatter.format(j)
 
-		for f in j['groupfiles'].itervalues():
-			from subprocess import call
-			proc = ['convert','-size','150x150','%s[0]' % f, '%s.png' % f]
-			print(proc)
-			call(proc)
+		#for f in j['groupfiles'].itervalues():
+		#	from subprocess import call
+		#	proc = ['convert','-size','150x150','%s[0]' % f, '%s.png' % f]
+		#	print(proc)
+		#	call(proc)
 	
 	# all done
 
