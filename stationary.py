@@ -418,7 +418,7 @@ def genericPage(c, ctx, title):
 	y = 25.6*cm
 	textobject = c.beginText()
 	textobject.setTextOrigin(0, y)
-	textobject.setFont("Courier", 7)
+	textobject.setFont("Courier-Bold", 7)
 	textobject.textLines(ctx['data'], trim=0)
 	c.drawText(textobject)
 
