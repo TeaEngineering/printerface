@@ -60,9 +60,8 @@ def saveJob(queue, local, remote, control, data):
 	autoPrint(d)
 
 def autoPrint(j):
-	if j['doctype'] in config.get('Robot', 'auto_types').split(','):
-		ptr = config.get('Robot', 'auto_printer')
-
+	if j['autoprint']:
+		ptr = j['autoprint']
 		default_key = j['groupfiles'].iterkeys().next()[0]
 		#key = query_string.get('key', [default_key])[0]
 		docf = getJobFile( j, default_key)
@@ -160,6 +159,9 @@ def cleanJob(j):
 		#	call(proc)
 	
 	# all done
+	j['autoprint'] = None
+	if j['doctype'] in config.get('Robot', 'auto_types').split(','):
+		j['autoprint'] = config.get('Robot', 'auto_printer')
 
 def identify(j):
 	types = {
