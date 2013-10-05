@@ -96,7 +96,7 @@ def recover():
 	xs = sorted([ x for x in os.listdir(jobdir) if x != 'raw'])
 	if len(xs) > loadQty: xs = xs[-loadQty:]
 
-	print '[control] recovering jobs from %s' % jobdir
+	print('[control] recovering jobs from %s' % jobdir)
 	for x in reversed(xs):
 		f = file(jobdir + x, "rb")
 		s = pickle.load(f)
@@ -376,9 +376,13 @@ if __name__=="__main__":
 	try:
 		while True:
 			asyncore.loop(timeout=1, count=10)
-			print '[control] poll %s' % str(datetime.now())
+			print('[control] poll %s' % str(datetime.now()))
 			sys.stdout.flush()
 
 	except KeyboardInterrupt:
-		print "Crtl+C pressed. Shutting down."
+		print("Crtl+C pressed. Shutting down.")
+	except:
+		print("Terminating: Unexpected error: %s", sys.exc_info()[0])
+		sys.stdout.flush()
+		raise
 
