@@ -40,7 +40,7 @@ def headerDetails(c, ctx, doctype="DELIVERY NOTE", terms_key='terms'):
 	c.drawImage(os.path.expanduser(config.get('Printing', 'logo')) , 2.5, top-1.1*cm, width=7.0*cm,height=2.2*cm, preserveAspectRatio=True, anchor='sw')
 
 	c.setFont("Helvetica", 10)
-	c.drawString(0, 0.5*cm, config.get('Printing', terms_key))
+	c.drawString(0, 0.40*cm, config.get('Printing', terms_key))
 
 	# marker of progress on CLI
 	sys.stdout.write('.')
@@ -401,7 +401,7 @@ def statementPage(c, ctx, mark):
 
 	c.saveState()
 	c.setDash(array=[5,5])
-	c.line(divide,0*cm,divide,28*cm)
+	c.line(divide,0.9*cm,divide,28*cm)
 	c.restoreState()
 
 	c.showPage()
