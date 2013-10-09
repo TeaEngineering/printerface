@@ -230,7 +230,7 @@ class DocParser(object):
 			all_fields += fs
 			
 			extracted = self.populate(lines, fs)
-			page_data.setdefault(extracted['accno'], []).append(extracted)
+			page_data.setdefault(extracted['doc_num'], []).append(extracted)
 
 		return (all_fields, page_data)
 
