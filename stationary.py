@@ -458,8 +458,12 @@ class DocFormatter(object):
 		p = "%s-%s.pdf" % (cname, 'accounts')
 		c = canvas.Canvas(self.jobdir + p, pagesize=A4)
 		
+		pages_by_docnum = dict()
 		for (acc,v) in ctx.iteritems():
 			for page in v:
+				pages_by_docnum.setdefault(page['doc_num'], []).append(page)
+		for k in sorted(pages_by_docnum.keys()):
+			for page in pages_by_docnum[k]:
 				accountNotePage(c, page, 'ACCOUNTS COPY')
 		 			 	
 	 	c.save()
