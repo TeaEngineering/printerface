@@ -23,7 +23,7 @@ class DocParser(object):
 			dims = (len(lines), max([len(line) for line in lines]))
 			if hasattr(self, mname):
 				fields, page_data = getattr(self, mname)(job, lines, dims)
-				data = dict(page_data.iteritems())
+				data = page_data
 
 				return (fields, data)
 			print('Warning: No parsing function %s' % mname)
@@ -34,7 +34,7 @@ class DocParser(object):
 
 	def extractInvoice(self, job, lines, (rows,cols)):
 		all_fields = []
-		page_data = collections.defaultdict(list)
+		page_data = collections.OrderedDict()
 
 		pages = (rows-48)/48
 		for page in range(pages):
@@ -78,13 +78,13 @@ class DocParser(object):
 
 			all_fields += fs
 			extracted = self.populate(lines, fs)
-			page_data[extracted['accno']].append(extracted)
+			page_data.setdefault(extracted['accno'], []).append(extracted)
 
 		return (all_fields, page_data)
 
 	def extractDelnote(self, job, lines, (rows,cols)):
 		all_fields = []
-		page_data = collections.defaultdict(list)
+		page_data = collections.OrderedDict()
 
 		pages = (rows-48)/48
 		for page in range(pages):
@@ -117,7 +117,7 @@ class DocParser(object):
 
 			all_fields += fs
 			extracted = self.populate(lines, fs)
-			page_data[extracted['accno']].append(extracted)
+			page_data.setdefault(extracted['accno'], []).append(extracted)
 
 		return (all_fields, page_data)
 
@@ -125,7 +125,7 @@ class DocParser(object):
 		# any lines after line containing 'PRINT STATEMENT SUMMARY' should be ignored
 		rows = min([rows] + [lnum for (lnum,text) in enumerate(lines) if 'PRINT STATEMENT SUMMARY' in text])
 		all_fields = []
-		page_data = collections.defaultdict(list)
+		page_data = collections.OrderedDict()
 
 		pages = (rows-51)/51
 		for page in range(pages):
@@ -164,13 +164,13 @@ class DocParser(object):
 			all_fields += fs
 
 			extracted = self.populate(lines, fs)
-			page_data[extracted['accno']].append(extracted)
+			page_data.setdefault(extracted['accno'], []).append(extracted)
 			
 		return (all_fields, page_data)
 
 	def extractPurchase(self, job, lines, (rows,cols)):
 		all_fields = []
-		page_data = collections.defaultdict(list)
+		page_data = collections.OrderedDict()
 
 		pages = (rows-48)/48
 		for page in range(pages):
@@ -199,13 +199,13 @@ class DocParser(object):
 			field(fs, line+43,84,w=12,t='tot_net')
 			all_fields += fs
 			extracted = self.populate(lines, fs)
-			page_data[extracted['accno']].append(extracted)
+			page_data.setdefault(extracted['accno'], []).append(extracted)
 
 		return (all_fields, page_data)
 
 	def extractRemittance(self, job, lines, (rows,cols)):
 		all_fields = []
-		page_data = collections.defaultdict(list)
+		page_data = collections.OrderedDict()
 
 		pages = (rows-48)/48
 		for page in range(pages):
@@ -230,7 +230,7 @@ class DocParser(object):
 			all_fields += fs
 			
 			extracted = self.populate(lines, fs)
-			page_data[extracted['doc_num']].append(extracted)
+			page_data.setdefault(extracted['accno'], []).append(extracted)
 
 		return (all_fields, page_data)
 
