@@ -462,7 +462,7 @@ class DocFormatter(object):
 		for (acc,v) in ctx.iteritems():
 			for page in v:
 				pages_by_docnum.setdefault(page['doc_num'], []).append(page)
-		for k in sorted(pages_by_docnum.keys()):
+		for k in reversed(sorted(pages_by_docnum.keys())):
 			for page in pages_by_docnum[k]:
 				accountNotePage(c, page, 'ACCOUNTS COPY')
 		 			 	
@@ -473,7 +473,7 @@ class DocFormatter(object):
 
 	def writePicklist(self, ctx, cname):
 		rendered_pdfs = {}
-		p = "%s-%s.pdf" % (cname, 'accounts')
+		p = "%s-%s.pdf" % (cname, 'pick')
 		c = canvas.Canvas(self.jobdir + p, pagesize=A4)
 
 		for (acc,v) in ctx.iteritems():
