@@ -81,7 +81,7 @@
 					<label class="control-label" for="inputTo">To</label>
 					<div class="controls">
 						% for (em,cn) in email_dest.iteritems():
-						<label><input type="checkbox" name="em" value="${em}" checked> ${cn} <em>${em}</em></label>
+						<label><input type="checkbox" name="em" value="${em}" checked> ${cn.decode('utf-8')} <em>${em}</em></label>
 						% endfor
 					</div>
 				</div>

@@ -44,10 +44,10 @@
 		% endif
 
 		% for (em,cn) in addresses:
-		<form method="get" class="form-inline" action="" onsubmit="return confirm('Are you sure you want to remove ${cn} ${em}?')">
+		<form method="get" class="form-inline" action="" onsubmit="return confirm('Are you sure you want to remove ${cn.decode('utf-8')} ${em}?')">
 			<input class="" type="hidden" name="account" value="${acc}">
 			<input class="" type="hidden" name="delete" value="${em}">
-			${cn} <em>${em}</em>
+			${cn.decode('utf-8')} <em>${em}</em>
 			<button type="submit" class="btn btn-mini" title="delete">  <i class="icon-remove-sign"></i> </button>	
 		</form>
 
