@@ -289,6 +289,17 @@ def pdf(query_string=dict()):
 
 	return ( template_lookup.get_template("/pdf.html").render(printers=getPrinters(), job=job, key=key, email_templ=email_template, email_dest=email_dest, email_outcome=email_outcome, email_error=email_error), 'text/html')
 
+def search(query_string=dict()):
+	plain = query_string.get('query', [''])[0]
+	res = []
+	for j in jobs: 
+		if plain in j['plain']: res.append(j)
+
+	pagejobs = list(getrows_byslice(res, pageQty))
+	page = max(min(int(query_string.get('page', ['0'])[0]), len(pagejobs)-1),0)
+	print('search pages=%d page=%d q=%s' % (len(pagejobs), page, plain))
+	return ( template_lookup.get_template("/results.html").render(jobs=pagejobs[page], page=page, pages=len(pagejobs), query=plain), 'text/html')
+
 def plain(query_string=dict()):
 	job = getJob(query_string, returnLast=True)
 
@@ -371,6 +382,7 @@ if __name__=="__main__":
 	ToyHttpServer(port=int(config.get('Main', 'http_port')), pathhandlers={
 		'/recent': recent, '/index':index, '/doc':document, '/printers':printers, '/pdf':pdf,
 		'/sent':sent,
+		'/search': search,
 		'/print' : printfn, '/plaintext':plain, '/settings/email':settings_email, '/settings/template':settings_template
 		}, webroot=dir)
 	try:
