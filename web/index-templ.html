@@ -28,7 +28,7 @@
       <div class="span4">
         <h2>Email</h2>
         <p>
-          <div class="progress progress-success"> <div class="bar" style="width: ${ '%0.1f' % ((account[0]*100.0)/account[1]) }%;"> </div> </div>
+          <div class="progress progress-success"> <div class="bar" style="width: ${ '%0.1f' % ((account[0]*100.0)/max(1,account[1])) }%;"> </div> </div>
           <strong>${account[0]}</strong> of <strong>${account[1]}</strong> accounts have email addresses.
         </p>
         <p><strong>${email_fails}</strong> recent failure(s) sending email
