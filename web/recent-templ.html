@@ -4,6 +4,13 @@
 
 	<h3>Recent Jobs</h3>
 
+% if len(jobs) == 0:
+	<h4>No Jobs found!</h4>
+% elif page > len(jobs): 
+	<h4>Bad job page index ${page}</h4>
+% else:
+	<% jobpage = jobs[page] %>
+
 	<table class="table table-striped table-condensed" style="width: 100%; white-space: nowrap; table-layout: fixed;">
     <colgroup>
         <col width="20%" />
@@ -14,7 +21,7 @@
 
 	<tr><th>Job</th><th>Time</th><th>Stationary</th><th>Preview</th></tr>
 	<% xstr = lambda s: s or '' %>
-	% for j in jobs:
+	% for j in jobpage:
 	  <tr>
 		<td>
 		% if j['templ']:
@@ -34,6 +41,8 @@
 	  </tr>
 	% endfor
 	</table>
+
+% endif
 
 	<ul class="pager">
 	% if page < pages-1:

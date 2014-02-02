@@ -187,8 +187,8 @@ def getrows_byslice(seq, rowlen):
 def recent(query_string=''):
 	pagejobs = list(getrows_byslice(jobs, pageQty))
 	page = max(min(int(query_string.get('page', ['0'])[0]), len(pagejobs)-1),0)
-	print('recent pages=%d, page=%d' % (len(pagejobs), page))
-	return ( template_lookup.get_template("/recent-templ.html").render(jobs=pagejobs[page], page=page, pages=len(pagejobs)), 'text/html')
+	print('recent page=%d of %d' % (page, len(pagejobs)))
+	return ( template_lookup.get_template("/recent-templ.html").render(jobs=pagejobs, page=page, pages=len(pagejobs)), 'text/html')
 	
 def printers(query_string=''):
 	return ( template_lookup.get_template("/printers.html").render(printers=getPrinters()), 'text/html')
@@ -309,7 +309,8 @@ def getJob(query_string, returnLast=False):
 	for j in jobs: 
 		job = j
 		if j['name'] == query_string.get('name', [''])[0]: return j
-	if returnLast: return jobs[0]
+	if len(jobs) > 0 and returnLast: return jobs[0]
+	return {'name': 'None', 'plain':'none'}
 
 def getJobFile(job, key):
 	docf = None
