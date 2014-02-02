@@ -98,6 +98,7 @@ def recover():
 
 	print('[control] recovering jobs from %s' % jobdir)
 	for x in reversed(xs):
+		if not os.path.isfile(jobdir + x): continue
 		f = file(jobdir + x, "rb")
 		s = pickle.load(f)
 		s['name'] = x;
