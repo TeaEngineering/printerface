@@ -299,7 +299,7 @@ def search(query_string=dict()):
 	pagejobs = list(getrows_byslice(res, pageQty))
 	page = max(min(int(query_string.get('page', ['0'])[0]), len(pagejobs)-1),0)
 	print('search pages=%d page=%d q=%s' % (len(pagejobs), page, plain))
-	return ( template_lookup.get_template("/results.html").render(jobs=pagejobs[page], page=page, pages=len(pagejobs), query=plain), 'text/html')
+	return ( template_lookup.get_template("/results.html").render(jobs=pagejobs, page=page, pages=len(pagejobs), query=plain), 'text/html')
 
 def plain(query_string=dict()):
 	job = getJob(query_string, returnLast=True)
