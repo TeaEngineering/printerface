@@ -357,15 +357,21 @@ def document(query_string=dict()):
 	def htmlcol(rgb):
 		return ''.join([('%02x' % int(c*256)) for c in rgb])
 
+	last_fmt = None
 	for (row,line) in enumerate(lines):
 		f.write('\n%-4d ' % row)
 		pad = ' '*(max(0,len(high[row])-len(line)))
 		for col,char in enumerate(line + pad):
-			if high[row][col]:
-				f.write('<span title="%s" style="background-color: #%s">' % (high[row][col]['t'],htmlcol(high[row][col]['rgb'])))
-				f.write(char)
-				f.write('</span>')
-			else: f.write(char)
+			if high[row][col] != last_fmt:
+				if last_fmt: 
+					f.write('</span>')
+				if high[row][col]: 
+					f.write('<span title="%s" style="background-color: #%s">' % (high[row][col]['t'],htmlcol(high[row][col]['rgb'])))
+			f.write(char)
+			last_fmt = high[row][col]
+		if last_fmt:
+			last_fmt = None
+			f.write('</span>')
 	
 	return ( template_lookup.get_template("/detail.html").render( job=job,
 			rows=rows, cols=cols, coloured_plaintext=f.getvalue(), pformatted=pformatted), 'text/html')
