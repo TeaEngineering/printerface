@@ -331,8 +331,8 @@ def document(query_string=dict()):
 	if not job:
 		return doMessage(message=('Unknown job %s' % query_string) )
 
-	import pprint
-	pformatted = pprint.pformat(job.get('parsed'), indent=2, width=60)
+	import json
+	pformatted = json.dumps(job.get('parsed'), indent=4)
 
 	colouring = job.get('colouring', [])
 
