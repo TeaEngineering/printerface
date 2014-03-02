@@ -349,7 +349,7 @@ def document(query_string=dict()):
 			for col in range(c['c'], c['c']+c['w']):
 				high[row][col] = c
 
-	chunks10 = 12
+	chunks10 = (cols+9)/10
 	f = StringIO()
 	f.write('     ' +  ''.join(["%-10d" % (d*10) for d in range(chunks10)]))
 	f.write('\n     ' + ('0123456789' * chunks10))
