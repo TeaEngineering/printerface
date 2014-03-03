@@ -32,7 +32,8 @@ pdfdir = dir + 'pdf/'
 jobs = []
 mailqueue = JobMailer(100)
 
-email_accounts = { }
+# seed some 'system' accounts
+email_accounts = { 'accounts': 'Accounts', 'plain': 'printerface', 'transport': 'Transport'}
 email_addresses = collections.defaultdict(dict)
 email_template = ''
 
