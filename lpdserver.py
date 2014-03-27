@@ -1,7 +1,7 @@
 # Line Printer Daemon implementation, using asynchat
 # Chris Shucksmith 2013
 
-import asynchat, asyncore, socket, exceptions
+import asynchat, asyncore, socket, exceptions, os
 
 (AwaitingCommand, NewJob, NewJobControl, NewJobData, EndOfFile ) = range(0,5)
 
@@ -127,12 +127,16 @@ def jobPrinter(queue, local, remote, control, data):
 	print('    %s' % control)
 	print('    %s' % repr(data))
 
+def defaultPort():
+	# on windows use 515. This is a restricted service port on linux so use 1515
+	return 515 if os.name == 'nt' else 1515
+
 if __name__=="__main__":
 	# launch the server on the specified port
 	# rather than run as root, use iptables nat to redirect to a common service port:
 	# iptables -t nat -A PREROUTING -p tcp --dport 80 -j REDIRECT --to-port 8080
 	# iptables -t nat -I OUTPUT -p tcp -d 127.0.0.1 --dport 80 -j REDIRECT --to-ports 8080
-	s = LpdServer(jobPrinter, ip='192.168.1.75', port=515)
+	s = LpdServer(jobPrinter, ip='localhost', port=defaultPort())
 	try:
 		asyncore.loop(timeout=2)
 	except KeyboardInterrupt:
