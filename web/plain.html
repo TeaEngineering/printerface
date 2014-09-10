@@ -4,13 +4,10 @@
 	<h3 class="hidden-print">Plain Text</h3>
 
 	<a class="btn hidden-print" type="button" onClick="window.print()"><i class="icon-print"></i> Print</a>
+	% if job['groupfiles']:
+		<a class="btn hidden-print" type="button" href="/pdf?name=${job['name']}"><i class="icon-share"></i> Document Pages</a>		
+	% endif
 		
-	% if not pagebreak:
-	<pre style="font-size:10px;line-height: 13px;">
-${job['plain'] }
-	</pre>
-
-	% else:
 	% for part in filter(None, job['plain'].strip().split("\f")):
 	% if loop.last:
 	<pre style="font-size:10px;line-height: 13px; page-break-after:auto;">${part.rstrip() | h}</pre>
@@ -18,8 +15,57 @@ ${job['plain'] }
 	<pre style="font-size:10px;line-height: 13px; page-break-after:always;">${part.rstrip() | h}</pre>
 	% endif
 	% endfor
-	% endif
-
+	
 	<p class="hidden-print">
-		<a class="btn hidden-print" href="/doc?name=${job['name'] | u}"><i class="icon-fire"></i> Debug Info</a> 
+		<a class="btn hidden-print" href="/debug?name=${job['name'] | u}"><i class="icon-fire"></i> Debug Info</a> 
+	% if job['groupfiles']:
+		<a class="btn hidden-print" type="button" href="/pdf?name=${job['name']}"><i class="icon-share"></i> Document Pages</a>		
+	% endif
 	</p>
+
+	<form class="form-horizontal" method="get" action="">
+		<input type="hidden" name="name" value="${job['name'] | u}"/>
+		<input type="hidden" name="action" value="send"/>
+		
+		<div id="pdfTool" class="modal hide fade" tabIndex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true">
+			
+			<div class="modal-header">
+				<button type="button" class="close" data-dismiss="modal" aria-hidden="true">x</button>
+				<h3 id="myModalLabel">PDF Tool</h3>
+			</div>		
+			<div class="modal-body">
+
+				<div class="control-group">
+					<label class="control-label" for="inputTo">To</label>
+					<div class="controls">
+						
+						<label><input type="checkbox" name="em" value="blah blah" checked> Name <em>Email</em></label>
+						
+					</div>
+				</div>
+				<div class="control-group">
+					<label class="control-label" for="inputFrom">Subject</label>
+					<div class="controls"><input type="text" id="inputFrom" name="subject" placeholder="Subject" required></div>
+				</div>			
+				<div class="control-group">
+					<label class="control-label" for="inputAttached">Attachment</label>
+					<div class="controls">docf</div>
+				</div>
+
+				<div class="row-fluid">
+					<div class="span1">&nbsp;</div>
+					<textarea rows="12" class="span10" id="inputBody" name="emailbody">
+email_templ
+</textarea>
+				<!-- <div class="span1">&nbsp;</div> -->
+				</div>
+
+			</div>
+			
+			
+			<div class="modal-footer">
+				<button class="btn" data-dismiss="modal" aria-hidden="true">Close</button>
+				<button class="btn btn-primary">Send Email</button>
+			</div>		
+		</div>
+	</form>

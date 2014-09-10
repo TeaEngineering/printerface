@@ -10,7 +10,7 @@ config.read('defaults.cfg')
 config.read(os.path.expanduser('~/printerface/email.cfg'))
 
 from reportlab.lib.units import cm
-from reportlab.lib.pagesizes import A4
+from reportlab.lib.pagesizes import A4, landscape
 
 pagewidth = A4[0] - 2*0.8*cm
 vpad = 0.4*cm
@@ -406,60 +406,72 @@ def statementPage(c, ctx, mark):
 
 	c.showPage()
 
-def genericPage(c, ctx, title):
+def genericPage(c, data, title=None, fontsz=7, landsc=False, overlay=None):
 	# move the origin up and to the left
+	pagesize = landscape(A4) if landsc else A4
+	c.setPageSize( pagesize )
 	c.setFillColorRGB(0,0,0)
 	c.translate(0.8*cm,0.8*cm)
+	y = pagesize[1] - 1.6*cm
 
-	c.setFont("Helvetica", 18)
-	c.drawRightString(pagewidth, top, title)
-	c.drawImage(os.path.expanduser(config.get('Printing', 'logo')) , 2.5, top-1.1*cm, width=4.0*cm,height=2.0*cm, preserveAspectRatio=True, anchor='sw')
-
-	y = 25.6*cm
+	if title:
+		c.setFont("Helvetica", 18)
+		c.drawRightString(pagewidth, top, title)
+		c.drawImage(os.path.expanduser(config.get('Printing', 'logo')) , 2.5, top-1.1*cm, width=4.0*cm,height=2.0*cm, preserveAspectRatio=True, anchor='sw')
+		y = y - 2.0*cm
+	
 	textobject = c.beginText()
 	textobject.setTextOrigin(0, y)
-	textobject.setFont("Courier-Bold", 7)
-	textobject.textLines(ctx['data'], trim=0)
+	textobject.setFont("Courier-Bold", fontsz)
+	for line in data.split('\n'):
+		textobject.textLine(line.rstrip())	
 	c.drawText(textobject)
 
+	if overlay:
+		c.setFont("Helvetica", 18)
+		c.drawRightString(pagesize[0]/2.0, pagesize[1]/2.0, overlay)		
 	c.showPage()
-
 
 class DocFormatter(object):
 	def __init__(self, pdfdir):
 		self.jobdir = pdfdir
+		try:
+			os.makedirs(jobdir)
+		except:
+			pass
 
 	def format(self, ctx):
 		mname = 'write' + ctx['templ'].title()
 		sys.stdout.write('   formatting %s with %s ' % (ctx['name'], mname))
 
-		if hasattr(self, mname):
-			x = getattr(self, mname)( ctx['parsed'], ctx['name'])
-			sys.stdout.write('\n')
-			print('      %s' % x[0])
-			return x
+		x = getattr(self, mname)( ctx )
+		sys.stdout.write('\n')
+		print('      %s' % x[0])
+		return x
 
-		print('Warning: No formatting function %s' % mname)
-		return []
+	def plainFormat(self, ctx):
+		return self.writeRaw( ctx )
 
-	def writeInvoice(self, ctx, cname):
+	def writeInvoice(self, ctx ):
 		rendered_pdfs = {}
-				
-		for (acc,v) in ctx.iteritems():
-			p = "%s-%s.pdf" % (cname, acc)
-			c = canvas.Canvas(self.jobdir + p, pagesize=A4)
+
+		for (acc,v) in ctx['parsed'].iteritems():
+			p = os.path.join(self.jobdir, ctx['ts'].strftime('%Y'), acc, "%s-%s.pdf" % (ctx['name'], acc))
+			self.create_dirs(p)
+			c = canvas.Canvas(p, pagesize=A4)
 
 			for page in v:
 				accountNotePage(c, page, 'CUSTOMER COPY')
 			
 			c.save()
-			rendered_pdfs[ (acc,) ] = p 			 	
+			rendered_pdfs[ (acc,) ] = os.path.relpath(p, self.jobdir)
 	 	
-		p = "%s-%s.pdf" % (cname, 'accounts')
-		c = canvas.Canvas(self.jobdir + p, pagesize=A4)
-		
+		p = os.path.join(self.jobdir, ctx['ts'].strftime('%Y'), 'accounts', "%s-%s.pdf" % (ctx['name'], 'accounts'))
+		self.create_dirs(p)
+		c = canvas.Canvas(p, pagesize=A4)
+
 		pages_by_docnum = dict()
-		for (acc,v) in ctx.iteritems():
+		for (acc,v) in ctx['parsed'].iteritems():
 			for page in v:
 				pages_by_docnum.setdefault(page['doc_num'], []).append(page)
 		for k in reversed(sorted(pages_by_docnum.keys())):
@@ -467,175 +479,421 @@ class DocFormatter(object):
 				accountNotePage(c, page, 'ACCOUNTS COPY')
 		 			 	
 	 	c.save()
-		rendered_pdfs[ ('accounts',) ] = p
+		rendered_pdfs[ ('accounts',) ] = os.path.relpath(p, self.jobdir)
 
 		return rendered_pdfs, ('Group',)
 
-	def writePicklist(self, ctx, cname):
+	def writePicklist(self, ctx):
 		rendered_pdfs = {}
-		p = "%s-%s.pdf" % (cname, 'pick')
-		c = canvas.Canvas(self.jobdir + p, pagesize=A4)
+		p = os.path.join(self.jobdir, 'raw', ctx['ts'].strftime('%Y%m'), "%s-%s.pdf" % (ctx['name'], 'pick'))
+		self.create_dirs(p)
+		c = canvas.Canvas(p, pagesize=A4)
 
-		for (acc,v) in ctx.iteritems():
+		for (acc,v) in ctx['parsed'].iteritems():
 			for page in v:
-				genericPage(c, page, 'Picking list')
+				genericPage(c, page['data'], 'Picking list')
 
 		c.save()
-		rendered_pdfs[ ('pick',) ] = p
+		rendered_pdfs[ ('pick',) ] = os.path.relpath(p, self.jobdir)
 		return rendered_pdfs, ('Group',)
 
-	def writeCrednote(self, ctx, cname):
-		return self.writeInvoice(ctx, cname)
+	def create_dirs(self, path):
+		head, tail = os.path.split(path)
+		try:
+			os.makedirs(head)
+		except OSError:
+			pass
 
-	def writeStatement(self, ctx, cname):
+	def writeRaw(self, ctx):
+		rendered_pdfs = {}
+		p = os.path.join(self.jobdir, 'raw', ctx['ts'].strftime('%Y%m'), "%s-%s.pdf" % (ctx['name'], 'plain'))
+		self.create_dirs(p)
+		c = canvas.Canvas(p, pagesize=A4)
+		landsc, fontsz, row, cols = ctx['autofmt']
+		
+		pages = filter(None, ctx['plain'].strip().split("\f"))
+		for page in pages:
+			genericPage(c, page, title=None, fontsz=fontsz, landsc=landsc)
+
+		c.save()
+		rendered_pdfs[ ('plain',) ] = os.path.relpath(p, self.jobdir)
+		return rendered_pdfs, ('Type',)
+
+	def writeCalibrate(self, ctx):
+		rendered_pdfs = {}
+		p = os.path.join(self.jobdir, "%s-%s.pdf" % (ctx['name'], 'test'))
+		self.create_dirs(p)
+		c = canvas.Canvas(p, pagesize=A4)
+		
+		for landsc in (True, False):
+			for fs in range(6,14):
+				v = [ctx['data']] 
+				for page in v:
+					genericPage(c, page, title=None, fontsz=fs, landsc=landsc, overlay='landscape=%d fontsz=%d' % (landsc, fs) )
+
+		c.save()
+		rendered_pdfs[ ('test',) ] = os.path.relpath(p, self.jobdir)
+		return rendered_pdfs, ('Group',)
+
+	def writeCrednote(self, ctx):
+		return self.writeInvoice(ctx)
+
+	def writeStatement(self, ctx):
 		rendered_pdfs = {}
 
-		for (acc,v) in ctx.iteritems():
-			p = "%s-%s.pdf" % (cname, acc)
-			c = canvas.Canvas(self.jobdir + p, pagesize=A4)
-
+		for (acc,v) in ctx['parsed'].iteritems():
+			p = os.path.join(self.jobdir, ctx['ts'].strftime('%Y'), acc, "%s-%s.pdf" % (ctx['name'], acc))
+			self.create_dirs(p)
+			c = canvas.Canvas(p, pagesize=A4)
+			
 		 	for page in v:
 				statementPage(c, page, 'CUSTOMER COPY')
 
 	 		c.save()
-			rendered_pdfs[ (acc,) ] = p
+			rendered_pdfs[ (acc,) ] = os.path.relpath(p, self.jobdir)
+
+		p = os.path.join(self.jobdir, ctx['ts'].strftime('%Y'), 'accounts', "%s-%s.pdf" % (ctx['name'], 'accounts'))
+		self.create_dirs(p)
+		c = canvas.Canvas(p, pagesize=A4)
 		
-		p = "%s-%s.pdf" % (cname, 'accounts')
-		c = canvas.Canvas(self.jobdir + p, pagesize=A4)
-		
-		for (acc,v) in ctx.iteritems():
+		for (acc,v) in ctx['parsed'].iteritems():
 		 	for page in v:
 				statementPage(c, page, 'ACCOUNTS COPY')
 
 	 	c.save()
-		rendered_pdfs[ ('accounts',) ] = p
+		rendered_pdfs[ ('accounts',) ] = os.path.relpath(p, self.jobdir)
 
 		# protocol: key tuples must all be same length, second tuple is key descriptions
 		return rendered_pdfs, ('Group',)
 
-	def writeDelnote(self, ctx, cname):
+	def writeDelnote(self, ctx):
 		rendered_pdfs = {}
-		p = "%s-%s.pdf" % (cname, 'accounts')
-		c = canvas.Canvas(self.jobdir + p, pagesize=A4)
-		
-		for (acc,v) in ctx.iteritems():
+		p = os.path.join(self.jobdir, ctx['ts'].strftime('%Y'), 'accounts', "%s-%s.pdf" % (ctx['name'], 'accounts'))
+		self.create_dirs(p)
+		c = canvas.Canvas(p, pagesize=A4)
+
+		for (acc,v) in ctx['parsed'].iteritems():
 			for mark in ['CUSTOMER COPY', 'ACCOUNTS COPY']:
 				for page in v:
 					deliveryNotePage(c, page, mark)
 		 			 	
 	 	c.save()
-		rendered_pdfs[ ('accounts',) ] = p
+		rendered_pdfs[ ('accounts',) ] = os.path.relpath(p, self.jobdir)
 		return rendered_pdfs, ('type',)
 	
-	def writeRemittance(self, ctx, cname):
+	def writeRemittance(self, ctx):
 
 		rendered_pdfs = {}
 
-		for (acc,v) in ctx.iteritems():
-			p = "%s-%s.pdf" % (cname, acc)
-			c = canvas.Canvas(self.jobdir + p, pagesize=A4)
+		for (acc,v) in ctx['parsed'].iteritems():
+
+			p = os.path.join(self.jobdir, ctx['ts'].strftime('%Y'), acc, "%s-%s.pdf" % (ctx['name'], acc))
+			self.create_dirs(p)
+			c = canvas.Canvas(p, pagesize=A4)
+
 		 	for page in v:
 				remittancePage(c, page, 'CUSTOMER COPY')
 
 	 		c.save()
-			rendered_pdfs[ (acc,) ] = p
+			rendered_pdfs[ (acc,) ] = os.path.relpath(p, self.jobdir)
 		
-		p = "%s-%s.pdf" % (cname, 'accounts')
-		c = canvas.Canvas(self.jobdir + p, pagesize=A4)
+		p = os.path.join(self.jobdir, ctx['ts'].strftime('%Y'), 'accounts', "%s-%s.pdf" % (ctx['name'], 'accounts'))
+		self.create_dirs(p)
+		c = canvas.Canvas(p, pagesize=A4)
 		
-		for (acc,v) in ctx.iteritems():
+		for (acc,v) in ctx['parsed'].iteritems():
 		 	
 		 	for page in v:
 				remittancePage(c, page, 'ACCOUNTS COPY')
 
 	 	c.save()
-		rendered_pdfs[ ('accounts',) ] = p
+		rendered_pdfs[ ('accounts',) ] =  os.path.relpath(p, self.jobdir)
 
 		# protocol: key tuples must all be same length, second tuple is key descriptions
 		return rendered_pdfs, ('Group',)
 			
-	def writePurchase(self, ctx, cname):
+	def writePurchase(self, ctx):
 		
 		rendered_pdfs = {}
 		
-		for (acc,v) in ctx.iteritems():
+		for (acc,v) in ctx['parsed'].iteritems():
 			for (bundle, marks) in [ ( '', ['SUPPLIER COPY']), ('-transport', ['TRANSPORTER COPY']), ('-admin', ['MASTER COPY', 'BOOKING IN COPY', 'PRE LOCATION COPY']) ]:
-				p = "%s-%s%s.pdf" % (cname, acc, bundle)
-				c = canvas.Canvas(self.jobdir + p, pagesize=A4)
-		 		
-		 		for mark in marks:
+		
+				p = os.path.join(self.jobdir, ctx['ts'].strftime('%Y'), acc, "%s-%s%s.pdf" % (ctx['name'], acc, bundle))
+				self.create_dirs(p)
+				c = canvas.Canvas(p, pagesize=A4)
+
+				for mark in marks:
 		 			for page in v:
 						purchasePage(c, page, mark)
 
 		 		c.save()
-				rendered_pdfs[ ("%s%s" % (acc, bundle),) ] = p
+				rendered_pdfs[ ("%s%s" % (acc, bundle),) ] = os.path.relpath(p, self.jobdir)
 
 		return rendered_pdfs, ('type', )
 
-if __name__=="__main__":
-	# launch the server on the specified port
-	pdir = os.path.expanduser("~/printerface/")
-	jobdir = pdir + 'pdf/'
+	# from calibrate-test.pdf
+	# orient sz   rows  cols
+	# land   6    78    224
+	# land   7    66    192
+	# land   8    58    167
+	# land   9    52    148
+	# land   10   46    133
+	# land   11   42    120
+	# land   12   38    111
+	# land   13   35    102
+	# port   6    112   156
+	# port   7    95    133
+	# port   8    83    115
+	# port   9    74    112
+	# port   10   66    92
+	# port   11   60    84
+	# port   12   55    76
+	# port   13   51    71
+	def getBestPageFormat(self, plaintext):
+		pages = filter(None, plaintext.strip().split("\f"))
+		
+		worst_rows, worst_cols = 0, 0
+		for pi, page in enumerate(pages):
+			lines = page.splitlines()
+			(rows, cols) = (len(lines), max([len(line) for line in lines]))
+			# print (' page %d rows %d cols %d' % (pi, rows, cols))
+			worst_cols = max(worst_cols, cols)
+			worst_rows = max(worst_rows, rows)
+		
+		# A4: (landscape, sz, rows, cols) lookup table. Orded by font size, return the first
+		# onto which the document fits
+		a4_cand = [
+			(False, 13,  51 , 71),
+			(True, 13,   35,  102),
+			(False, 12,  55 , 76),
+			(True, 12,   38,  111),
+			(False, 11,  60 , 84),
+			(True, 11,   42,  120),
+			(False, 10,  66 , 92),
+			(True, 10,   46,  133),
+			(False, 9 ,  74 , 112),
+			(True, 9 ,   52,  148),
+			(False, 8 ,  83 , 115),
+			(True, 8 ,   58,  167),
+			(False, 7 ,  95 , 133),
+			(True, 7 ,   66,  192),
+			(False, 6 ,  112, 156),
+			(True, 6 ,   78,  224),		
+		]
 
-	try:
-		os.makedirs(jobdir)
-	except:
-		pass
+		soln = filter( lambda x: x[2] > worst_rows and x[3] > worst_cols, a4_cand)
+		if len(soln):
+			sol = soln[0]
+			# print(' solution for pages=%d worst r=%d c=%d is %s' % (len(pages), worst_rows, worst_cols, sol))
+			return sol
+		return None
 
-	formatter = DocFormatter(jobdir)
+import unittest
+from datetime import datetime
+class TestStationary(unittest.TestCase):
+	
+	def setUp(self):
+		pdir = os.path.expanduser("~/printerface/")
+		jobdir = pdir + 'pdf/'
+		self.formatter = DocFormatter(jobdir)
 
-	chuff = dict(date='04/10/12', doc_num='731/289073', 
-		addr_invoice='SAMPLE ACCOUNT\nCHRIS SHUCKSMITH',
-		addr_delivery='CHRIS SHUCKSMITH\nFLAT 999 MIDNIGHT TERRACE\n32 GREAT NOWHERE ST. LONDON SE1 W1J\n IF OUT PSE LEAVE WITH THE\nCAT',
-		accno='MULTI-21', custref='OSCAR FOX', ourref='289073',
-		ord_date='04/10/12', req_date='05/10/12',
-		salesperson='SAMPLE ACCOUNT', instructions='TO BE DELIVERED LDN0510',
-	)
+		self.chuff = dict(date='04/10/12',
+			doc_num='731/289073', 
+			addr_invoice='SAMPLE ACCOUNT\nCHRIS SHUCKSMITH',
+			addr_delivery='CHRIS SHUCKSMITH\nFLAT 999 MIDNIGHT TERRACE\n32 GREAT NOWHERE ST. LONDON SE1 W1J\n IF OUT PSE LEAVE WITH THE\nCAT',
+			accno='MULTI-21',
+			custref='OSCAR FOX',
+			ourref='289073',
+			ord_date='04/10/12',
+			req_date='05/10/12',
+			salesperson='SAMPLE ACCOUNT',
+			instructions='TO BE DELIVERED LDN0510',
+			doctype='DOCTYPE XX',
+			tot_net='12345.00', 
+		)
 
-	ctx = []
-	for page,sz in enumerate([18,3]):
-		order = dict(
+	def test_delnote(self):
+		ctx = {}
+		ctx['templ'] = 'delnote'
+		ctx['name'] = 'blahdel'
+		ctx['doctype'] = 'doctype'
+		ctx['ts'] = datetime(2014, 3, 4, 20, 53, 0, 0)
+		s = []
+		for page,sz in enumerate([18,3]):
+			order = dict(
 				page=str(page+1),
 				prod_code="SMP109\n"*sz,
 				prod_desc="CH CHEESY BOISES Bord Sec     07\n"*sz,
 				prod_qty="3\n"*sz,
-				prod_unit="BOTT\n"*sz
-			)
-
-		ctx.append( dict(order.items() + chuff.items()))
-
-	p = formatter.writePage(formatter.writeDelnote, ctx, count=0)
-
- 	try:
-		os.startfile(p)
-	except:
-		pass
-
-	# CREDIT NOTE / STATEMENT / INVOICE paperwork
-	extra = dict( doctype='CREDIT NOTE', 
-		summ_code='5\n'*4, summ_netamt='12345.67\n'*4,summ_rate='0.00\n'*4, summ_vat='0.00\n'*4,
-		tot_net='12345.00', tot_vat='0.00', tot_due='12345.00', summ_box='xyz')
-
-	ctx = []
-	for page,sz in enumerate([18,3]):
-		order = dict(
-				page=str(page+1),
-				prod_code="SMP109\n"*sz,
-				prod_desc="CH CHEESY BOISES Bord Sec     07\n"*sz,
-				prod_qty="3\n"*sz,
-				prod_unit="BOTT\n\n"*sz/2,
-				prod_price="200.00\n"*18,
+				prod_price="4\n"*sz,
 				prod_blank="\n"*18,
 				prod_net="1499.40\n"*18,
-				prod_vcode="5\n"*18
+				prod_unit="BOTT\n"*sz,
+				prod_vcode="5\n"*18,
+				# for p/o
+				ourcontact="ABC",
+				orderdate="78979879",
+				# for remittance
+				rem_desc='rem_desc',
+				rem_ourref='rem_ourref',
+				rem_yourref='rem_yourref',
+				rem_net='rem_net',
+				rem_vat='rem_vat',
+				rem_gross='rem_gross',
+				amt_discount='amt_discount',
+				amt_encl='amt_encl',
 			)
 
-		ctx.append( dict(order.items() + chuff.items() + extra.items()))
+			s.append( dict(order.items() + self.chuff.items()))
+		ctx['parsed'] = { 'SMP109': s} 
 
+		p = self.formatter.format(ctx)
+		self.assertEquals( ({('accounts',): '2014/accounts/blahdel-accounts.pdf'}, ('type',) ),  p)
 
-	p = formatter.writePage(formatter.writeInvoice, ctx, count=1)
+		ctx['templ'] = 'purchase'
+		ctx['name'] = 'blahpurch'
+		p = self.formatter.format(ctx)
+		self.assertEquals( ({	('SMP109',):           '2014/SMP109/blahpurch-SMP109.pdf',
+								('SMP109-admin',):     '2014/SMP109/blahpurch-SMP109-admin.pdf',
+								('SMP109-transport',): '2014/SMP109/blahpurch-SMP109-transport.pdf'}, ('type',) ),  p)
 
-	try:
-		os.startfile(p)
-	except:
-		pass
+		ctx['templ'] = 'remittance'
+		ctx['name'] = 'blahremit'
+		p = self.formatter.format(ctx)
+		self.assertEquals( ({('SMP109',): '2014/SMP109/blahremit-SMP109.pdf', 
+							('accounts',): '2014/accounts/blahremit-accounts.pdf'}, ('Group',) ),  p)
+
+	def test_statement(self):
+		ctx = {}
+		ctx['templ'] = 'statement'
+		ctx['name'] = 'blahstate'
+		ctx['doctype'] = 'doctype'
+		ctx['ts'] = datetime(2014, 3, 4, 20, 53, 0, 0)
+		s = []
+		for page,sz in enumerate([18,3]):
+			order = dict(
+				page=str(page+1),
+				prod_code="SMP109\n"*sz,
+				prod_ref="REF\n"*sz,
+				prod_desc="CH CHEESY BOISES Bord Sec     07\n"*sz,
+				prod_qty="3\n"*sz,
+				prod_price="4\n"*sz,
+				prod_blank="\n"*18,
+				prod_credit="1499.40\n"*18,
+				prod_bal="1499.40\n"*18,
+				prod_debt="1499.40\n"*18,
+				prod_unit="BOTT\n"*sz,
+				prod_total="5\n"*18,
+				prod_date="20140101",
+				prod_trans="T",
+				date_recv="20140101",
+				tot_debt="34.34",
+				tot_credit="34.34",
+				tot_bal="12.00",
+				tot_topay="16.00",
+				summ_box="blah",
+				age_curr="12.00",
+				age_1m="13.00",
+				age_2m="14.00",
+				age_3m="15.00",
+				age_due="16.00"
+			)
+
+			s.append( dict(order.items() + self.chuff.items()))
+		ctx['parsed'] = { 'SMP109': s} 
+
+		p = self.formatter.format(ctx)
+		self.assertEquals( ({('SMP109',): '2014/SMP109/blahstate-SMP109.pdf', ('accounts',): '2014/accounts/blahstate-accounts.pdf'}, ('Group',) ),  p)
+
+	def test_cnote(self):
+	 	# CREDIT NOTE / INVOICE paperwork
+		extra = dict( doctype='CREDIT NOTE', 
+			summ_code='5\n'*4, 
+			summ_netamt='12345.67\n'*4,
+			summ_rate='0.00\n'*4,
+			summ_vat='0.00\n'*4,
+			tot_net='12345.00',
+			tot_vat='0.00',
+			tot_due='12345.00',
+			summ_box='xyz'
+		)
+		ctx = {}
+		ctx['templ'] = 'invoice'
+		ctx['name'] = 'blahcn'
+		ctx['doctype'] = 'doctype'
+		ctx['ts'] = datetime(2014, 1, 4, 20, 53, 0, 0)
+		s = []
+		for page,sz in enumerate([18,3]):
+			order = dict(
+				page=str(page+1),
+				prod_code="SMP109\n"*sz,
+				prod_desc="CH CHEESY BOISES Bord Sec     07\n"*sz,
+				prod_qty="3\n"*sz,
+				prod_unit="BOTT\n"*sz,
+				prod_price="200.00\n"*sz,
+				prod_blank="\n"*sz,
+				prod_net="1499.40\n"*sz,
+				prod_vcode="5\n"*sz
+			)
+			s.append( dict(order.items() + self.chuff.items() + extra.items()))
+		ctx['parsed'] = { 'SMP109': s} 
+		p = self.formatter.format(ctx)
+		self.assertEquals( ({('SMP109',): '2014/SMP109/blahcn-SMP109.pdf', ('accounts',): '2014/accounts/blahcn-accounts.pdf'}, ('Group',) ),  p)
+
+	def test_picklist(self):
+		ctx = {}
+		ctx['templ'] = 'picklist'
+		ctx['name'] = 'pick-a'
+		ctx['doctype'] = 'doctype'
+		ctx['ts'] = datetime(2014, 3, 4, 20, 53, 0, 0)
+		ctx['parsed'] = {'a': [{'data': 'blah '*26 }, {'data': 'fluff '*22 }]}
+		p = self.formatter.format(ctx)
+		self.assertEquals( ({('pick',): 'raw/201403/pick-a-pick.pdf'}, ('Group',) ),  p)
+
+	def test_calibrate(self):
+		# test document to calibrate width/height fontsize matrix
+		cols = 240
+		rows = 120
+		
+		import StringIO
+		chunks10 = (cols+9)/10
+		f = StringIO.StringIO()
+		f.write('' +  ''.join(["%-10d" % (d*10) for d in range(chunks10)]))
+		f.write('\n' + ('0123456789' * chunks10))
+		for row in range(2,rows):
+			f.write('\n%-4d' % row)
+
+		ctx = {}
+		ctx['templ'] = 'calibrate'
+		ctx['name'] = 'calibrate'
+		ctx['doctype'] = 'doctype'
+		ctx['data'] = f.getvalue()
+		p = self.formatter.format(ctx)
+
+	def test_rawformat(self):
+		self.assertEquals( (False, 13,51,71),  self.formatter.getBestPageFormat('ABCDEF') )
+		self.assertEquals( (True,  13,35,102), self.formatter.getBestPageFormat('test'*20) )
+		self.assertEquals( (False, 8, 83,115), self.formatter.getBestPageFormat('ABCDEF\n'*80) )
+
+		ctx = {}
+		ctx['templ'] = 'raw'
+		ctx['name'] = 'rawtest'
+		ctx['doctype'] = 'doctype'
+		ctx['ts'] = datetime(2014, 2, 4, 20, 53, 0, 0)
+		ctx['plain'] = 'test12 ' * 20
+		ctx['autofmt'] = self.formatter.getBestPageFormat(ctx['plain'])
+		p = self.formatter.format(ctx)
+		self.assertEquals( ({('plain',): 'raw/201402/rawtest-plain.pdf'}, ('Type',) ),  p)
+	
+	def test_plainformat(self):
+		ctx = {}
+		ctx['name'] = 'rawtest2'
+		ctx['plain'] = 'test 1234 ' * 20
+		ctx['ts'] = datetime(2014, 3, 4, 20, 53, 0, 0)
+		ctx['autofmt'] = self.formatter.getBestPageFormat(ctx['plain'])
+		p = self.formatter.plainFormat(ctx)
+		self.assertEquals( ({('plain',): 'raw/201403/rawtest2-plain.pdf'}, ('Type',) ),  p)
+
+if __name__=="__main__":
+	unittest.main()

@@ -1,0 +1,43 @@
+
+<%inherit file="bootstrap.html"/>
+<%block name="title">- ${job.get('name')}</%block>
+	
+	<h3>Debug Info</h3>
+	<h4>Document</h4>
+	name: ${job.get('name')}<br>
+	type: ${job.get('templ')}<br>
+	parser doctype: ${job['doctype']|h}<br>	
+	autoprint: ${job.get('autoprint')}<br>
+	% if job['autofmt']:
+		Auto format: landscape=${job['autofmt'][0]} fontsz=${job['autofmt'][1]} rows=${job['autofmt'][2]} cols=${job['autofmt'][3]}
+	% endif
+	
+	<h4>Parser-annotated Document</h4>
+	plain text dimensions: lines ${rows}, width ${cols}<br>
+	<pre style="font-size:11px;line-height: 11px;">${coloured_plaintext}</pre>
+	
+	<h4>Parser output</h4>
+	<pre style="font-size:10px;line-height: 10px;">${pformatted}</pre>
+	
+	<h4>PDF stationary output</h4>
+	% if job.get('groupfiles', None):
+	<p>keys: ${job['groupkey']}
+	<table>
+	% for k,v in job['groupfiles'].iteritems():
+	  <tr>
+		<td>${k}</td><td><a href="/pdf/${v}">${v}</a></td>
+	  </tr>
+	% endfor
+	</table>
+	</p>
+	
+	% endif
+
+	<p class="hidden-print">
+		<a class="btn hidden-print" href="/debug?name=${job['name'] | u}"><i class="icon-fire"></i> Debug Info</a> 
+		<a class="btn hidden-print" href="/plaintext?name=${job['name'] | u}"><i class="icon-font"></i> Plain text</a> 		
+	% if job['groupfiles']:
+		<a class="btn hidden-print" type="button" href="/pdf?name=${job['name']}"><i class="icon-share"></i> Document Pages</a>		
+	% endif
+	</p>
+	

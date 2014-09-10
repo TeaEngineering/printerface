@@ -26,9 +26,10 @@ config.read(os.path.expanduser('~/printerface/email.cfg'))
 
 email_pickle = os.path.expanduser('~/printerface/email.pickle')
 
-dir = os.path.expanduser("~/repos/printerface/web/")
-jobdir = dir + 'pickle/'
-pdfdir = dir + 'pdf/'
+data_dir = os.path.expanduser("~/printerface/data/")
+jobdir = os.path.join(data_dir, 'pickle')
+pdfdir = os.path.join(data_dir, 'pdf/')
+web_dir = os.path.expanduser("~/repos/printerface/web/")
 jobs = []
 mailqueue = JobMailer(100)
 
@@ -39,7 +40,7 @@ email_template = ''
 
 mainparser = DocParser()
 formatter = DocFormatter(pdfdir)
-template_lookup = TemplateLookup(directories=[dir], output_encoding='utf-8', encoding_errors='replace', format_exceptions=True)
+template_lookup = TemplateLookup(directories=[web_dir], output_encoding='utf-8', encoding_errors='replace', format_exceptions=True)
 loadQty = int(config.get('History', 'loadqty'))
 pageQty = int(config.get('History', 'pageqty'))
 
@@ -48,12 +49,13 @@ summary_regexps = [ re.compile(x) for x in config.get('Main', 'summary_trim').st
 def saveJob(queue, local, remote, control, data):
 	ts = datetime.utcnow()
 	jobname = 'job-%s' % ts.strftime('%Y%m%d-%H%M%S')
+	subdir = ts.strftime('%Y%m')
 	d = {'queue':queue, 'from':repr(local), 'to':repr(remote), 'control':control, 'data':data, 'ts': ts, 'name':jobname}
 	# print "    %s" % repr(d)
 	jobs.insert(0, d)
 	if len(jobs) > loadQty: jobs.pop()
 	
-	f = file(jobdir + jobname, "wb")
+	f = file(os.path.join(jobdir, subdir, jobname), "wb")
 	pickle.dump(d, f)
 	f.close()
 
@@ -94,17 +96,21 @@ def recover():
 	except IOError:
 		print('[control] email pickle load failed')
 
-	xs = sorted([ x for x in os.listdir(jobdir) if x != 'raw'])
-	if len(xs) > loadQty: xs = xs[-loadQty:]
+	# jobdir structured /YYYYMM/job-blah-blah.pickle. We want to avoid stating
+	# more dated directories than necessary, so load the 
+	# xs = sorted([ x for x in os.listdir(jobdir) if x != 'raw'])
+	for yyyymmdir in reversed(sorted(os.listdir(jobdir))):
+		print('[control] recovering jobs from %s' % yyyymmdir)
+		for x in reversed(sorted( os.listdir(os.path.join(jobdir, yyyymmdir)) )):
+			p = os.path.join(jobdir, yyyymmdir, x)
+			if not os.path.isfile(p): continue
+			with file(p, "rb") as f:
+				s = pickle.load(f)
+				s['name'] = x;
+				jobs.append(s)				
+			if len(jobs) > loadQty: break
+		if len(jobs) > loadQty: break
 
-	print('[control] recovering jobs from %s' % jobdir)
-	for x in reversed(xs):
-		if not os.path.isfile(jobdir + x): continue
-		f = file(jobdir + x, "rb")
-		s = pickle.load(f)
-		s['name'] = x;
-		jobs.append(s)
-		f.close()
 	for j in jobs:
 		cleanJob(j)
 
@@ -124,6 +130,8 @@ def cleanJob(j):
 	j['summary'] = summary
 	j['doctype'] = j.get('control', {}).get('J').strip()
 	j['templ'] = identify(j)
+
+	j['autofmt'] = formatter.getBestPageFormat(j['plain'])
 
 	(j['colouring'],j['parsed']) = mainparser.parse(j)
 	if not j['colouring']: del j['colouring']
@@ -159,6 +167,8 @@ def cleanJob(j):
 		#	proc = ['convert','-size','150x150','%s[0]' % f, '%s.png' % f]
 		#	print(proc)
 		#	call(proc)
+	else:
+		(j['groupfiles'], j['groupkey']) = formatter.plainFormat(j)
 	
 	# all done
 	j['autoprint'] = None
@@ -280,7 +290,7 @@ def pdf(query_string=dict()):
 			try:
 				mailqueue.append(dict(
 					to=addresses, body=email_body, subject=email_subject,
-					attachment="~/repos/printerface/web/pdf/" + docf))
+					attachment=pdfdir + docf))
 			except:
 				traceback.print_exc(file=sys.stdout)
 				email_error = "<strong>Problem!</strong> unable to queue email!"
@@ -305,7 +315,7 @@ def search(query_string=dict()):
 def plain(query_string=dict()):
 	job = getJob(query_string, returnLast=True)
 
-	return ( template_lookup.get_template("/plain.html").render(printers=getPrinters(), job=job, pb='always', pagebreak=True), 'text/html')
+	return ( template_lookup.get_template("/plain.html").render(printers=getPrinters(), job=job, pb='always'), 'text/html')
 
 def getJob(query_string, returnLast=False):
 	for j in jobs: 
@@ -326,7 +336,7 @@ def getJobFile(job, key):
 def doMessage(message='?', title='Printerface'):
 	return ( template_lookup.get_template("/message.html").render(title=title, message=message), 'text/html')
 
-def document(query_string=dict()):
+def debug(query_string=dict()):
 	job = getJob(query_string, returnLast=True)
 
 	if not job:
@@ -374,7 +384,7 @@ def document(query_string=dict()):
 			last_fmt = None
 			f.write('</span>')
 	
-	return ( template_lookup.get_template("/detail.html").render( job=job,
+	return ( template_lookup.get_template("/debug.html").render( job=job,
 			rows=rows, cols=cols, coloured_plaintext=f.getvalue(), pformatted=pformatted), 'text/html')
 
 if __name__=="__main__":
@@ -389,11 +399,18 @@ if __name__=="__main__":
 
 	s = LpdServer(saveJob, ip='', port=int(config.get('Main', 'lpd_port')))
 	ToyHttpServer(port=int(config.get('Main', 'http_port')), pathhandlers={
-		'/recent': recent, '/index':index, '/doc':document, '/printers':printers, '/pdf':pdf,
+		'/recent': recent,
+		'/index':index,
+		'/debug':debug,
+		'/printers':printers,
+		'/pdf':pdf,
 		'/sent':sent,
 		'/search': search,
-		'/print' : printfn, '/plaintext':plain, '/settings/email':settings_email, '/settings/template':settings_template
-		}, webroot=dir)
+		'/print' : printfn,
+		'/plaintext':plain,
+		'/settings/email':settings_email,
+		'/settings/template':settings_template
+		}, webroot=web_dir)
 	try:
 		while True:
 			asyncore.loop(timeout=1, count=10)
