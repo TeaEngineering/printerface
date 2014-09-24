@@ -1,7 +1,7 @@
 printerface
 ===========
 
-LPD document to PDF/email gateway
+LPD document to PDF/email gateway. Setup a text-only line printer and point it at the lpd server port. Documents are stored, searchable and rendered to PDF. Results can be browsed over HTTP, emailed and printed.
 
 * `lpdserver.py` implements a UNIX LPD daemon for recieving print jobs
 * `httpserver.py` simple http server using asynchat
@@ -10,12 +10,18 @@ LPD document to PDF/email gateway
 * `stationary.py` format JSON to nice PDF files
 * `printing.py` Linux printing with CUPS via. command line
 
-Requires
-$ wget --no-check-certificate https://pypi.python.org/packages/source/s/setuptools/setuptools-1.4.2.tar.gz
-$ tar -xvf setuptools-1.4.2.tar.gz
-$ cd setuptools-1.4.2
-$ python2.7 setup.py install
+Requirements
 
-$ easy_install mako
-$ easy_install reportlab==2.7
+    $ wget --no-check-certificate https://pypi.python.org/packages/source/s/setuptools/setuptools-1.4.2.tar.gz
+    $ tar -xvf setuptools-1.4.2.tar.gz
+    $ cd setuptools-1.4.2
+    $ python2.7 setup.py install
 
+    $ easy_install mako
+    $ easy_install reportlab==2.7
+
+Unit tests
+
+    $ python -m unittest discover --pattern=*.py
+
+Uses python asyncore/smtp, bootstrap web framework
