@@ -687,7 +687,7 @@ class DocFormatter(object):
 			sol = soln[0]
 			# print(' solution for pages=%d worst r=%d c=%d is %s' % (len(pages), worst_rows, worst_cols, sol))
 			return sol
-		return None
+		return a4_cand[-1]
 
 import unittest
 from datetime import datetime
