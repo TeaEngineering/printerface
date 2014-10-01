@@ -2,6 +2,7 @@
 # Chris Shucksmith 2013
 
 import asynchat, asyncore, socket, exceptions, os
+import sys
 
 (AwaitingCommand, NewJob, NewJobControl, NewJobData, EndOfFile ) = range(0,5)
 

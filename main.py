@@ -51,16 +51,21 @@ def saveJob(queue, local, remote, control, data):
 	jobname = 'job-%s' % ts.strftime('%Y%m%d-%H%M%S')
 	subdir = ts.strftime('%Y%m')
 	d = {'queue':queue, 'from':repr(local), 'to':repr(remote), 'control':control, 'data':data, 'ts': ts, 'name':jobname}
-	# print "    %s" % repr(d)
-	jobs.insert(0, d)
-	if len(jobs) > loadQty: jobs.pop()
-	
+
+	try:
+		os.makedirs(os.path.join(jobdir, subdir))
+	except:
+		pass
+
 	f = file(os.path.join(jobdir, subdir, jobname), "wb")
 	pickle.dump(d, f)
 	f.close()
 
 	cleanJob(d)
 	autoPrint(d)
+
+	jobs.insert(0, d)
+	if len(jobs) > loadQty: jobs.pop()
 
 def autoPrint(j):
 	if j['autoprint']:
