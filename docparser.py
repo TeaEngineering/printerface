@@ -102,18 +102,18 @@ class DocParser(object):
 			field(fs, line+16,20,w=7,t='ourref')
 			field(fs, line+16,28,w=8,t='ord_date')
 			field(fs, line+16,66,w=8,t='req_date')
-			field(fs, line+16,39,w=26,t='salesperson')
+			field(fs, line+16,40,w=26,t='salesperson')
 			
 			field(fs, line+19,0,w=15,t='prod_code',h=18)
 			field(fs, line+19,18,w=30,t='prod_desc',h=18)
-			field(fs, line+19,55,w=6, t='prod_qty',h=18)
+			field(fs, line+19,53,w=6, t='prod_qty',h=18)
 			field(fs, line+19,64,w=9,t='prod_price',h=18)
 			field(fs, line+19,75,w=5,t='prod_unit',h=18)
 			field(fs, line+19,83,w=5,t='prod_blank',h=18)
 			field(fs, line+19,90,w=11,t='prod_net',h=18)
 			field(fs, line+19,103,w=2,t='prod_vcode',h=18)
 
-			field(fs, line+38, 35,w=40,t='summ_box',h=3)
+			field(fs, line+38, 35,w=44,t='summ_box',h=3)
 
 			all_fields += fs
 			extracted = self.populate(lines, fs)
