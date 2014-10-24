@@ -24,13 +24,13 @@ config.read(os.path.expanduser('~/printerface/email.cfg'))
 
 class JobMailer(object):
 
-	def __init__(self, queuesz=10, resultLimit=80):
+	def __init__(self, queuesz=10):
 		self.queue = Queue.Queue(queuesz)
 		self.thread = threading.Thread(target=self.run)
 		self.thread.daemon = True
 		self.thread.start()
 		self.results = []
-		self.resultLimit = resultLimit
+		self.resultLimit = config.get('Gmail', 'result_count')
 
 		try:
 			with open(os.path.expanduser(pickle_file), 'rb') as f:
