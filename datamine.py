@@ -5,14 +5,13 @@ from datetime import datetime
 from docparser import DocParser
 from printing import getPrinters, printFile
 
-import sys, pickle, ConfigParser, os, re
+import sys
+import pickle
+import os
+import re
 from StringIO import StringIO
 import collections
 import traceback
-
-config = ConfigParser.ConfigParser()
-config.readfp(open(os.path.expanduser('~/repos/printerface/defaults.cfg')))
-config.read(os.path.expanduser('~/printerface/email.cfg'))
 
 data_dir = os.path.expanduser("~/printerface/data/")
 jobdir = os.path.join(data_dir, 'pickle')

@@ -1,11 +1,12 @@
 #!/usr/bin/python
 
-import sys, os, itertools
+import sys
+import os
+import itertools
 import collections
 from StringIO import StringIO
 
-dir = os.path.expanduser("~/printerface/")
-jobdir = dir + 'pickle/'
+jobdir = os.path.expanduser("~/printerface/pickle/")
 
 import colorsys
 N=20

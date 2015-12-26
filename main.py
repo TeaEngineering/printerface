@@ -21,7 +21,7 @@ import collections
 import traceback
 
 config = ConfigParser.ConfigParser()
-config.readfp(open(os.path.expanduser('~/repos/printerface/defaults.cfg')))
+config.readfp(open(os.path.expanduser('defaults.cfg')))
 config.read(os.path.expanduser('~/printerface/email.cfg'))
 
 email_pickle = os.path.expanduser('~/printerface/email.pickle')
