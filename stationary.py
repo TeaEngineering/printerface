@@ -18,26 +18,28 @@ top = 27.6*cm
 
 def headerDetails(c, ctx, doctype="DELIVERY NOTE", terms_key='terms'):
 	c.saveState()
-	textobject = c.beginText()
-	textobject.setTextOrigin(0*cm, top-1.5*cm)
+	c.setFillColorRGB(0,0,0)
+
+	textobject = c.beginText(0*cm, top-1.5*cm)
 	textobject.setFont("Helvetica", 8)
-	textobject.textLines(config.get('Printing', 'address').replace("\\n", '\n'))
+	textobject.textLines(config.get('Printing', 'address').split("\\n"))
 	c.drawText(textobject)
 
-	textobject = c.beginText()
-	textobject.setTextOrigin(5.5*cm, top-1.5*cm)
+	textobject = c.beginText(5.5*cm, top-1.5*cm)
 	textobject.setFont("Helvetica", 8)
-	textobject.textLines(config.get('Printing', 'vatreg'))
-	textobject.textLines(config.get('Printing', 'fax1'))
-	textobject.textLines(config.get('Printing', 'fax2'))
-	textobject.textLines(config.get('Printing', 'email'))
-	textobject.textLines(config.get('Printing', 'website'))
+	textobject.textLine(config.get('Printing', 'vatreg'))
+	textobject.textLine(config.get('Printing', 'fax1'))
+	textobject.textLine(config.get('Printing', 'fax2'))
+	textobject.textLine(config.get('Printing', 'email'))
+	textobject.textLine(config.get('Printing', 'website'))
 	c.drawText(textobject)
 	
 	c.setFont("Helvetica", 18)
 	c.drawRightString(pagewidth, top, doctype)
 	c.restoreState()
-	c.drawImage(os.path.expanduser(config.get('Printing', 'logo')) , 2.5, top-1.1*cm, width=7.0*cm,height=2.2*cm, preserveAspectRatio=True, anchor='sw')
+	c.drawImage(os.path.expanduser(config.get('Printing', 'logo')) , 0.0*cm, top-1.1*cm, width=7.0*cm,height=1.8*cm, preserveAspectRatio=True, anchor='sw')
+	if config.get('Printing', 'logo2'):
+		c.drawImage(os.path.expanduser(config.get('Printing', 'logo2')), 5.0*cm, top-0.9*cm, width=5.0*cm,height=1.4*cm, preserveAspectRatio=True, anchor='sw')
 
 	c.setFont("Helvetica", 10)
 	c.drawString(0, 0.40*cm, config.get('Printing', terms_key))
@@ -417,7 +419,9 @@ def genericPage(c, data, title=None, fontsz=7, landsc=False, overlay=None):
 	if title:
 		c.setFont("Helvetica", 18)
 		c.drawRightString(pagewidth, top, title)
-		c.drawImage(os.path.expanduser(config.get('Printing', 'logo')) , 2.5, top-1.1*cm, width=4.0*cm,height=2.0*cm, preserveAspectRatio=True, anchor='sw')
+		c.drawImage(os.path.expanduser(config.get('Printing', 'logo')) , 0.0*cm, top-1.1*cm, width=7.0*cm,height=1.8*cm, preserveAspectRatio=True, anchor='sw')
+		if config.get('Printing', 'logo2'):
+			c.drawImage(os.path.expanduser(config.get('Printing', 'logo2')), 5.0*cm, top-0.9*cm, width=5.0*cm,height=1.4*cm, preserveAspectRatio=True, anchor='sw')
 		y = y - 2.0*cm
 	
 	textobject = c.beginText()
@@ -701,7 +705,7 @@ class TestStationary(unittest.TestCase):
 		self.chuff = dict(date='04/10/12',
 			doc_num='731/289073', 
 			addr_invoice='SAMPLE ACCOUNT\nCHRIS SHUCKSMITH',
-			addr_delivery='CHRIS SHUCKSMITH\nFLAT 999 MIDNIGHT TERRACE\n32 GREAT NOWHERE ST. LONDON SE1 W1J\n IF OUT PSE LEAVE WITH THE\nCAT',
+			addr_delivery='CHRIS SHUCKSMITH\nFLAT 999 MIDNIGHT TERRACE\n32 GREAT NOWHERE ST. LONDON SE1 W1J\nIF OUT PSE LEAVE WITH THE\nCAT',
 			accno='MULTI-21',
 			custref='OSCAR FOX',
 			ourref='289073',
@@ -723,8 +727,8 @@ class TestStationary(unittest.TestCase):
 		for page,sz in enumerate([18,3]):
 			order = dict(
 				page=str(page+1),
-				prod_code="SMP109\n"*sz,
-				prod_desc="CH CHEESY BOISES Bord Sec     07\n"*sz,
+				prod_code="B1815102\n"*sz,
+				prod_desc="CH CHEESY BOISES Bordea Sec 07\n"*sz,
 				prod_qty="3\n"*sz,
 				prod_price="4\n"*sz,
 				prod_blank="\n"*18,
@@ -776,16 +780,16 @@ class TestStationary(unittest.TestCase):
 				page=str(page+1),
 				prod_code="SMP109\n"*sz,
 				prod_ref="REF\n"*sz,
-				prod_desc="CH CHEESY BOISES Bord Sec     07\n"*sz,
+				prod_desc="CH CHEESY BOISES Bord Sec   07\n"*sz,
 				prod_qty="3\n"*sz,
 				prod_price="4\n"*sz,
-				prod_blank="\n"*18,
-				prod_credit="1499.40\n"*18,
-				prod_bal="1499.40\n"*18,
-				prod_debt="1499.40\n"*18,
+				prod_blank="\n"*sz,
+				prod_credit="1499.40\n"*sz,
+				prod_bal="1499.40\n"*sz,
+				prod_debt="1499.40\n"*sz,
 				prod_unit="BOTT\n"*sz,
-				prod_total="5\n"*18,
-				prod_date="20140101",
+				prod_total="5\n"*sz,
+				prod_date="30/10/15\n"*sz,
 				prod_trans="T",
 				date_recv="20140101",
 				tot_debt="34.34",
@@ -828,7 +832,7 @@ class TestStationary(unittest.TestCase):
 			order = dict(
 				page=str(page+1),
 				prod_code="SMP109\n"*sz,
-				prod_desc="CH CHEESY BOISES Bord Sec     07\n"*sz,
+				prod_desc="CH CHEESY BOISES Bord Sec   07\n"*sz,
 				prod_qty="3\n"*sz,
 				prod_unit="BOTT\n"*sz,
 				prod_price="200.00\n"*sz,
