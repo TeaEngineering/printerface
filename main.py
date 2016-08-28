@@ -197,7 +197,7 @@ def identify(j):
 def index(query_string=''):
 	email_fails = sum([1 for x in mailqueue.results if x['error']])
 	account = sum([ 1 for k in email_accounts.iterkeys() if len(email_addresses[k]) > 0 ]), len(email_accounts.keys())
-	return ( template_lookup.get_template("/index-templ.html").render(email_fails=email_fails, account=account) ,'text/html')
+	return template_lookup.get_template("/index.html").render(email_fails=email_fails, account=account), 'text/html'
 
 def getrows_byslice(seq, rowlen):
     for start in xrange(0, len(seq), rowlen):
@@ -227,7 +227,7 @@ def recent(query_string=dict()):
 			], 'next': '' if page >= len(pagejobs)-1 else nextQry }
 		return json.dumps(output, indent=3), 'text/json'
 	else:
-		return template_lookup.get_template("/recent-templ.html").render(jobs=pagejobs, page=page, pages=len(pagejobs), query=query, templ=templ, doctype=doctype), 'text/html'
+		return template_lookup.get_template("/recent.html").render(jobs=pagejobs, page=page, pages=len(pagejobs), query=query, templ=templ, doctype=doctype), 'text/html'
 
 
 def job(query_string=dict()):
