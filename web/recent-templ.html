@@ -1,6 +1,9 @@
 
 <%inherit file="bootstrap.html"/>
 <%block name="title">- Recent</%block>
+<%block name="query_block">
+    <input type="text" name="query" class="search-query span2" placeholder="Search" value="${query}"/>
+</%block>
 
 	<h3>Recent Jobs</h3>
 
@@ -19,7 +22,7 @@
         <col width="55%" />
     </colgroup>
 
-	<tr><th>Job</th><th>Time</th><th>Stationary</th><th>Preview</th></tr>
+	<tr><th>Host + Doctype</th><th>Time</th><th>Stationary</th><th>Preview</th></tr>
 	<% xstr = lambda s: s or '' %>
 	% for j in jobpage:
 	  <tr>
@@ -46,12 +49,12 @@
 
 	<ul class="pager">
 	% if page < pages-1:
-	  <li class="previous"> <a href="?page=${page+1}">&larr; Older</a> </li> 
+	  <li class="previous"> <a href="?query=${query}&templ=${templ}&doctype=${doctype}&page=${page+1}">&larr; Older</a> </li>
 	% else:
 	  <li class="previous disabled"> <span>&larr; Older</span> </li>
 	% endif
 	% if page > 0:
-	  <li class="next"> <a href="?page=${page-1}">Newer &rarr;</a> </li>
+	  <li class="next"> <a href="?query=${query}&templ=${templ}&doctype=${doctype}&page=${page-1}">Newer &rarr;</a> </li>
 	% else:
 	  <li class="next disabled"> <span>Newer &rarr;</span> </li>
 	% endif
