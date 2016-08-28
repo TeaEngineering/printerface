@@ -19,6 +19,7 @@ import sys, pickle, ConfigParser
 from StringIO import StringIO
 import collections
 import traceback
+import json
 
 config = ConfigParser.ConfigParser()
 config.readfp(open(os.path.expanduser('defaults.cfg')))
@@ -43,6 +44,7 @@ formatter = DocFormatter(pdfdir)
 template_lookup = TemplateLookup(directories=[web_dir], output_encoding='utf-8', encoding_errors='replace', format_exceptions=True)
 loadQty = int(config.get('History', 'loadqty'))
 pageQty = int(config.get('History', 'pageqty'))
+base_uri = config.get('Main', 'baseuri')
 
 summary_regexps = [ re.compile(x) for x in config.get('Main', 'summary_trim').strip().split(',') ]
 	
@@ -205,6 +207,7 @@ def recent(query_string=dict()):
 	query = query_string.get('query', [''])[0]
 	templ = query_string.get('templ', [''])[0]
 	doctype = query_string.get('doctype', [''])[0]
+	fmt = query_string.get('fmt', ['html'])[0]
 	res = []
 	for j in jobs:
 		if not query or query in j['plain']:
@@ -215,9 +218,33 @@ def recent(query_string=dict()):
 	pagejobs = list(getrows_byslice(res, pageQty))
 	page = max(min(int(query_string.get('page', ['0'])[0]), len(pagejobs)-1),0)
 	print('recent pages=%d page=%d q=%s' % (len(pagejobs), page, query))
-	return ( template_lookup.get_template("/recent-templ.html").render(jobs=pagejobs, page=page, pages=len(pagejobs), query=query, templ=templ, doctype=doctype), 'text/html')
+	if fmt == 'json':
+		nextQry = base_uri + '/recent?query={query}&templ={templ}&doctype={doctype}&page={page}'.format(query=query, templ=templ, doctype=doctype, page=page+1)
+		output = { 'results': [
+				{ 'name': p['name'], 'host': p['control'].get('H'), 'doctype': p['doctype'], 'ts': j['ts'].isoformat(), 'details':
+					('' if not p['templ'] else '{base}/job?name={name}'.format(base=base_uri, name=p['name'])) }
+				for p in pagejobs[page]
+			], 'next': '' if page >= len(pagejobs)-1 else nextQry }
+		return json.dumps(output, indent=3), 'text/json'
+	else:
+		return template_lookup.get_template("/recent-templ.html").render(jobs=pagejobs, page=page, pages=len(pagejobs), query=query, templ=templ, doctype=doctype), 'text/html'
 
-	
+
+def job(query_string=dict()):
+	job = getJob(query_string, returnLast=True)
+	if not job:
+		return doMessage(message=('Unknown job %s' % query_string) )
+
+	output = { 'parsed': job['parsed'],
+			'name': job['name'],
+			'templ': job.get('templ'),
+			'doctype': job.get('doctype'),
+			'autofmt': job.get('autofmt'),
+			'stationary':
+				dict([ (' '.join(k), '{base}/pdf/{pdf}'.format(base=base_uri, pdf=v)) for k,v in job.get('groupfiles', {}).iteritems() ])
+		}
+	return json.dumps(output, indent=3), 'text/json'
+
 def printers(query_string=''):
 	return ( template_lookup.get_template("/printers.html").render(printers=getPrinters()), 'text/html')
 
@@ -347,7 +374,6 @@ def debug(query_string=dict()):
 	if not job:
 		return doMessage(message=('Unknown job %s' % query_string) )
 
-	import json
 	pformatted = json.dumps(job.get('parsed'), indent=4)
 
 	colouring = job.get('colouring', [])
@@ -407,6 +433,7 @@ if __name__=="__main__":
 		'/recent': recent,
 		'/index':index,
 		'/debug':debug,
+		'/job': job,
 		'/printers':printers,
 		'/pdf':pdf,
 		'/sent':sent,
