@@ -1,0 +1,46 @@
+
+<%inherit file="bootstrap.html"/>
+
+    <div class="hero-unit" style="margin-top: 30px;">
+      <h1>Printerface</h1>
+      <p>Printerface collects text documents sent to the LPD print queue at 192.168.4.1 and stores them. Some types of document are understood and re-formatted to PDF files. You can print, email or download the results.
+      </p>
+      <p><a href="/recent" class="btn btn-primary btn-large">All Recent Documents &raquo;</a></p>
+    </div>
+    <div class="row">
+      <div class="span4">
+        <h2>Filter by Doctype</h2>
+        <p><ul>
+          <li><a href="/recent?doctype=D.BUY1">D.BUY1</a></li>
+          <li><a href="/recent?doctype=X.LOAD06">X.LOAD06</a></li>
+          <li><a href="/recent?doctype=X.LOAD09">X.LOAD09</a></li>
+          <li><a href="/recent?doctype=Undeliv">Undeliv</a></li>
+          <li><a href="/recent?doctype=D.SIZE">D.SIZE W5D</a></li>
+        </ul>
+        <a class="btn" href="/recent">View all &raquo;</a></p>
+      </div>
+      <div class="span4">
+        <h2>Filter by Stationery</h2>
+        <p><ul>
+          <li><a href="/recent?templ=purchase">purchase</a></li>
+          <li><a href="/recent?templ=statement">statement</a></li>
+          <li><a href="/recent?templ=invoice">invoice</a></li>
+          <li><a href="/recent?templ=delnote">delnote</a></li>
+          <li><a href="/recent?templ=crednote">crednote</a></li>
+          <li><a href="/recent?templ=picklist">picklist</a></li>
+          <li><a href="/recent?templ=remittance">remittance</a></li>
+          </ul>
+        </p>
+        
+     </div>
+      <div class="span4">
+        <h2>Email</h2>
+        <p>
+          <div class="progress progress-success"> <div class="bar" style="width: ${ '%0.1f' % ((account[0]*100.0)/max(1,account[1])) }%;"> </div> </div>
+          <strong>${account[0]}</strong> of <strong>${account[1]}</strong> accounts have email addresses.
+        </p>
+        <p><strong>${email_fails}</strong> recent failure(s) sending email
+        </p>
+        <p><a class="btn" href="/settings/email">Email Addresses &raquo;</a> <a class="btn" href="/sent">Sent Items &raquo;</a></p>
+      </div>
+    </div>

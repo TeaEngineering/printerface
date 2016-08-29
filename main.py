@@ -194,10 +194,10 @@ def identify(j):
 			}
 	return types.get(j['doctype'])
 
-def index(query_string=''):
+def home(query_string=''):
 	email_fails = sum([1 for x in mailqueue.results if x['error']])
 	account = sum([ 1 for k in email_accounts.iterkeys() if len(email_addresses[k]) > 0 ]), len(email_accounts.keys())
-	return template_lookup.get_template("/index.html").render(email_fails=email_fails, account=account), 'text/html'
+	return template_lookup.get_template("/home.html").render(email_fails=email_fails, account=account), 'text/html'
 
 def getrows_byslice(seq, rowlen):
     for start in xrange(0, len(seq), rowlen):
@@ -431,7 +431,7 @@ if __name__=="__main__":
 	s = LpdServer(saveJob, ip='', port=int(config.get('Main', 'lpd_port')))
 	ToyHttpServer(port=int(config.get('Main', 'http_port')), pathhandlers={
 		'/recent': recent,
-		'/index':index,
+		'/home':home,
 		'/debug':debug,
 		'/job': job,
 		'/printers':printers,
