@@ -14,6 +14,19 @@
 % else:
 	<% jobpage = jobs[page] %>
 
+	<ul class="pager">
+	% if page < pages-1:
+	  <li class="previous"> <a href="?query=${query}&templ=${templ}&doctype=${doctype}&page=${page+1}">&larr; Older</a> </li>
+	% else:
+	  <li class="previous disabled"> <span>&larr; Older</span> </li>
+	% endif
+	% if page > 0:
+	  <li class="next"> <a href="?query=${query}&templ=${templ}&doctype=${doctype}&page=${page-1}">Newer &rarr;</a> </li>
+	% else:
+	  <li class="next disabled"> <span>Newer &rarr;</span> </li>
+	% endif
+	</ul>
+
 	<table class="table table-striped table-condensed" style="width: 100%; white-space: nowrap; table-layout: fixed;">
     <colgroup>
         <col width="20%" />
