@@ -219,7 +219,7 @@ def recent(query_string=dict()):
 	page = max(min(int(query_string.get('page', ['0'])[0]), len(pagejobs)-1),0)
 	print('recent pages=%d page=%d q=%s' % (len(pagejobs), page, query))
 	if fmt == 'json':
-		nextQry = base_uri + '/recent?query={query}&templ={templ}&doctype={doctype}&page={page}'.format(query=query, templ=templ, doctype=doctype, page=page+1)
+		nextQry = base_uri + '/recent?query={query}&templ={templ}&doctype={doctype}&page={page}&fmt={fmt}'.format(query=query, templ=templ, doctype=doctype, page=page+1, fmt=fmt)
 		output = { 'results': [
 				{ 'name': p['name'], 'host': p['control'].get('H'), 'doctype': p['doctype'], 'ts': j['ts'].isoformat(), 'details':
 					('' if not p['templ'] else '{base}/job?name={name}'.format(base=base_uri, name=p['name'])) }
