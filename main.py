@@ -349,6 +349,10 @@ def plain(query_string=dict()):
 
 	return ( template_lookup.get_template("/plain.html").render(printers=getPrinters(), job=job, pb='always'), 'text/html')
 
+def raw(query_string=dict()):
+	job = getJob(query_string, returnLast=True)
+	return job['plain'], 'text/plain'
+
 def getJob(query_string, returnLast=False):
 	for j in jobs: 
 		job = j
@@ -433,6 +437,7 @@ if __name__=="__main__":
 		'/recent': recent,
 		'/home':home,
 		'/debug':debug,
+		'/raw':raw,
 		'/job': job,
 		'/printers':printers,
 		'/pdf':pdf,
