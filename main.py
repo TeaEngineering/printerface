@@ -69,16 +69,14 @@ def saveJob(queue, local, remote, control, data):
 	jobs.insert(0, d)
 	if len(jobs) > loadQty: jobs.pop()
 
-def autoPrint(j):
-	if j['autoprint']:
-		ptr = j['autoprint']
-		default_key = j['groupfiles'].iterkeys().next()[0]
-		#key = query_string.get('key', [default_key])[0]
-		docf = getJobFile( j, default_key)
-		if docf:
-			printFile(pdfdir + docf, ptr )
-			print( 'auto printing: Document %s sent to printer %s' % (docf, ptr))
-
+def autoPrint(job):
+	if job['autoprint']:
+		printer = job['autoprint']
+		for (groupnum, gname) in enumerate(job['groupkey']):
+			for (dockey, doc) in job['groupfiles'].iteritems():
+				if doc:
+					printFile(pdfdir + doc, printer )
+					print( 'auto printing: Document %s sent to printer %s' % (doc, printer))
 
 def saveEmails():
 	with open(email_pickle, 'wb') as f:
