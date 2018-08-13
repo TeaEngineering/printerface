@@ -102,17 +102,20 @@ def recover():
 		print('[control] email pickle load failed')
 
 	# jobdir structured /YYYYMM/job-blah-blah.pickle. We want to avoid stating
-	# more dated directories than necessary, so load the 
+	# more dated directories than necessary, so load the
 	# xs = sorted([ x for x in os.listdir(jobdir) if x != 'raw'])
 	for yyyymmdir in reversed(sorted(os.listdir(jobdir))):
 		print('[control] recovering jobs from %s' % yyyymmdir)
 		for x in reversed(sorted( os.listdir(os.path.join(jobdir, yyyymmdir)) )):
 			p = os.path.join(jobdir, yyyymmdir, x)
 			if not os.path.isfile(p): continue
-			with file(p, "rb") as f:
-				s = pickle.load(f)
-				s['name'] = x;
-				jobs.append(s)				
+			try:
+				with file(p, "rb") as f:
+					s = pickle.load(f)
+					s['name'] = x;
+					jobs.append(s)
+			except Exception as e:
+				print("Cannot load {} caught {}".format(p, e))
 			if len(jobs) > loadQty: break
 		if len(jobs) > loadQty: break
 
