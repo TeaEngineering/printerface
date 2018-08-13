@@ -20,6 +20,7 @@ from StringIO import StringIO
 import collections
 import traceback
 import json
+import time
 
 config = ConfigParser.ConfigParser()
 config.readfp(open(os.path.expanduser('defaults.cfg')))
@@ -68,6 +69,8 @@ def saveJob(queue, local, remote, control, data):
 
 	jobs.insert(0, d)
 	if len(jobs) > loadQty: jobs.pop()
+
+	time.sleep(1) # hack for unique filenames - oh dear
 
 def autoPrint(job):
 	if job['autoprint']:
