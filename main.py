@@ -31,7 +31,10 @@ email_pickle = os.path.expanduser('~/printerface/email.pickle')
 data_dir = os.path.expanduser("~/printerface/data/")
 jobdir = os.path.join(data_dir, 'pickle')
 pdfdir = os.path.join(data_dir, 'pdf/')
-web_dir = os.path.expanduser("~/repos/printerface/web/")
+
+base_dir = os.path.dirname(os.path.abspath(__file__))
+print('base_dir = ' + base_dir)
+web_dir = os.path.join(base_dir, 'web')
 jobs = []
 mailqueue = JobMailer(100)
 
@@ -48,7 +51,7 @@ pageQty = int(config.get('History', 'pageqty'))
 base_uri = config.get('Main', 'baseuri')
 
 summary_regexps = [ re.compile(x) for x in config.get('Main', 'summary_trim').strip().split(',') ]
-	
+
 def saveJob(queue, local, remote, control, data):
 	ts = datetime.utcnow()
 	jobname = 'job-%s' % ts.strftime('%Y%m%d-%H%M%S')
@@ -129,9 +132,9 @@ control_char_re = re.compile('[^\w\s%s_\'=/]' % re.escape('.*+()-\\;:,#?%$^&!<>|
 
 def cleanJob(j):
 	print(' recovering %s' % j['name'])
-	
+
 	j['plain'] = control_char_re.sub(' ', j['data'])
-	
+
 	summary = re.compile('[^\w\s]').sub('', j['data'])
 	for r in summary_regexps:
 		summary = r.sub(' ', summary)
@@ -153,13 +156,13 @@ def cleanJob(j):
 				acc = None
 				addr = None
 				try:
-					acc = x['accno']				
+					acc = x['accno']
 				except:
 					try:
 						acc = x['doc_num']
 					except:
 						pass
-				try:	
+				try:
 					addr = x['addr_invoice'].split('\n')[0]
 				except:
 					pass
@@ -180,7 +183,7 @@ def cleanJob(j):
 		#	call(proc)
 	else:
 		(j['groupfiles'], j['groupkey']) = formatter.plainFormat(j)
-	
+
 	# all done
 	j['autoprint'] = None
 	if j['doctype'] in config.get('Robot', 'auto_types').split(','):
@@ -267,7 +270,7 @@ def settings_email(query_string='', postreq=None):
 			if not email.strip() in email_addresses[acc]:
 				email_addresses[acc][email.strip()] = contact
 				saveEmails()
-		except KeyError:			
+		except KeyError:
 			warning='Unknown account %s' % acc
 	except KeyError:
 		pass
@@ -283,7 +286,7 @@ def settings_email(query_string='', postreq=None):
 	email_list = []
 	for key in sorted(email_accounts.iterkeys()):
 		email_list.append( (key, email_accounts[key], email_addresses[key].iteritems()) )
-	
+
 	return ( template_lookup.get_template("/settings_email.html").render(emails=email_list, warning=warning), 'text/html')
 
 def settings_template(query_string='', postreq=None):
@@ -308,7 +311,7 @@ def printfn(query_string=''):
 	docf = getJobFile( job, key)
 
 	if docf:
-		try:		
+		try:
 			printFile(pdfdir + docf, ''.join(query_string['printer']) )
 			return doMessage(title='Printing', message='Document %s sent to printer %s<br>' % (docf, query_string['printer']))
 		except:
@@ -321,16 +324,16 @@ def pdf(query_string=dict()):
 	key = query_string.get('key', [default_key])[0]
 	email_dest = email_addresses.get(key, {})
 	email_outcome, email_error = None, None
-	
+
 	# test if callback from email form
 	try:
 		addresses = query_string.get('em', [])
 		email_body = ''.join(query_string.get('emailbody', ['']))
 		email_subject = ''.join(query_string.get('subject', ['no subject']))
 		action = query_string.get('action', None)
-		
+
 		docf = getJobFile( job, key)
-		
+
 		if len(addresses) > 0 and docf and len(email_subject) > 1:
 			email_outcome = "Queueing email to " + ','.join(addresses) + ' - check the result later!';
 			print(email_outcome)
@@ -358,7 +361,7 @@ def raw(query_string=dict()):
 	return job['plain'], 'text/plain'
 
 def getJob(query_string, returnLast=False):
-	for j in jobs: 
+	for j in jobs:
 		job = j
 		if j['name'] == query_string.get('name', [''])[0]: return j
 	if len(jobs) > 0 and returnLast: return jobs[0]
@@ -413,16 +416,16 @@ def debug(query_string=dict()):
 		pad = ' '*(max(0,len(high[row])-len(line)))
 		for col,char in enumerate(line + pad):
 			if high[row][col] != last_fmt:
-				if last_fmt: 
+				if last_fmt:
 					f.write('</span>')
-				if high[row][col]: 
+				if high[row][col]:
 					f.write('<span title="%s" style="background-color: #%s">' % (high[row][col]['t'],htmlcol(high[row][col]['rgb'])))
 			f.write(char)
 			last_fmt = high[row][col]
 		if last_fmt:
 			last_fmt = None
 			f.write('</span>')
-	
+
 	return ( template_lookup.get_template("/debug.html").render( job=job,
 			rows=rows, cols=cols, coloured_plaintext=f.getvalue(), pformatted=pformatted), 'text/html')
 

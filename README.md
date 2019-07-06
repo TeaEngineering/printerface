@@ -25,3 +25,26 @@ Unit tests
     $ python -m unittest discover --pattern=*.py
 
 Uses python asyncore/smtp, bootstrap web framework
+
+
+### Docker & deploy
+
+The Dockfile fully describes how to build a containerised printerface, including dependancies.
+
+    $ git clone git@github.com:shuckc/printerface.git
+    $ cd printerface
+    $ docker build .
+
+The built docker image does not appear on disk as a file, but is incorporated into docker's 'image repository'. To be able to use the docker image, you must tag it. For instance, build and tag like this:
+
+    $ docker build -t printerface:latest .
+
+If you wish to start a container locally, then you create a container, specifying the tagged image and provide the environment variables needed to start up successfully. You can do this as below:
+
+    docker create --name p1 -p 8081:8081 -p 1515:1515 printerface
+    docker start p1
+
+Note that the image is resolved permimently to a hash of some sort at this point. If you re-build and update the tag, you still need to throw away the container and recreate it.
+
+     docker stop p1
+     docker rm p1
