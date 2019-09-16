@@ -41,10 +41,15 @@ The built docker image does not appear on disk as a file, but is incorporated in
 
 If you wish to start a container locally, then you create a container, specifying the tagged image and provide the environment variables needed to start up successfully. You can do this as below:
 
-    docker create --name p1 -p 8081:8081 -p 1515:1515 printerface
+    docker create --name p1 -p 8081:8081 -p 515:1515 printerface
     docker start p1
 
 Note that the image is resolved permimently to a hash of some sort at this point. If you re-build and update the tag, you still need to throw away the container and recreate it.
 
      docker stop p1
      docker rm p1
+
+On windows you may wish to mount the job storage directory externally, as follows:
+
+    docker create --rm --name p1 -p 8081:8081 -p 515:1515 -v c:/Users/cshucks/printerface:/root/printerface printerface
+
