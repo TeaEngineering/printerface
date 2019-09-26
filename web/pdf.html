@@ -1,14 +1,14 @@
 
 <%inherit file="bootstrap.html"/>
 <%block name="title">- ${job.get('name')}</%block>
-	
+
 	<h3>Document Pages</h3>
 
 	% for (groupnum, gname) in enumerate(job['groupkey']):
 	<div class="">
 	<% docf = None %>
 
-	${gname}: 
+	${gname}:
 			% for dockey in sorted(job['groupfiles']):
 				<% doc = job['groupfiles'][dockey] %>
 				% if dockey[groupnum] == key:
@@ -30,7 +30,7 @@
 			% endfor
 			</ul>
 		</div>
-		<a class="btn" href="/pdf/${docf}" download><i class="icon-download"></i> Download</a>
+		<a class="btn" href="/pdf_file?name=${job['name'] | u}&key=${dockey[groupnum]}&attach=1" download><i class="icon-download"></i> Download</a>
 		<a class="btn" href="#emailModal" role="button" data-toggle="modal"><i class="icon-envelope"></i> Email</a>
 		&nbsp; ${docf}
 	</label>
@@ -48,27 +48,26 @@
 		${email_error}
 	</div>
 	% endif
-
-	<object data="/pdf/${docf}#toolbar=1&amp;navpanes=0&amp;scrollbar=1&amp;page=0&amp;zoom=80" type="application/pdf" width="100%" height="400px">
+	<object data="/pdf_file?name=${job['name'] | u}&key=${dockey[groupnum]}#toolbar=1&amp;navpanes=0&amp;scrollbar=1&amp;page=0&amp;zoom=80" type="application/pdf" width="100%" height="400px">
 	<p>It appears you don\'t have a PDF plugin for this browser.</p>
 	</object>
-	
+
 	<p>
-		<a class="btn" href="/debug?name=${job['name'] | u}"><i class="icon-fire"></i> Debug Info</a> 
+		<a class="btn" href="/debug?name=${job['name'] | u}"><i class="icon-fire"></i> Debug Info</a>
 		<a class="btn" href="/plaintext?name=${job['name'] | u}"><i class="icon-font"></i> Plain text</a>
 	</p>
-	
+
 	<form class="form-horizontal" method="get" action="">
 		<input type="hidden" name="name" value="${job['name'] | u}"/>
 		<input type="hidden" name="key" value="${key}"/>
 		<input type="hidden" name="action" value="send"/>
-		
+
 		<div id="emailModal" class="modal hide fade" tabIndex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true">
-			
+
 			<div class="modal-header">
 				<button type="button" class="close" data-dismiss="modal" aria-hidden="true">x</button>
 				<h3 id="myModalLabel">Compose Email</h3>
-			</div>		
+			</div>
 			<div class="modal-body">
 
 				% if len(email_dest) == 0:
@@ -88,7 +87,7 @@
 				<div class="control-group">
 					<label class="control-label" for="inputFrom">Subject</label>
 					<div class="controls"><input type="text" id="inputFrom" name="subject" placeholder="Subject" required></div>
-				</div>			
+				</div>
 				<div class="control-group">
 					<label class="control-label" for="inputAttached">Attachment</label>
 					<div class="controls">${docf}</div>
@@ -103,11 +102,11 @@ ${email_templ}
 				</div>
 
 			</div>
-			
-			
+
+
 			<div class="modal-footer">
 				<button class="btn" data-dismiss="modal" aria-hidden="true">Close</button>
 				<button class="btn btn-primary">Send Email</button>
-			</div>		
+			</div>
 		</div>
 	</form>

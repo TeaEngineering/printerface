@@ -304,12 +304,8 @@ def settings_template(query_string='', postreq=None, resp=None):
 		message = '<strong>Ohno!</strong> Template failed'
 	return ( template_lookup.get_template("/settings_template.html").render(template=email_template, message=message), 'text/html')
 
-def printfn(query_string=''):
-	job = getJob(query_string)
-	default_key = job['groupfiles'].iterkeys().next()[0]
-	key = query_string.get('key', [default_key])[0]
-	docf = getJobFile( job, key)
-
+def printfn(query_string='', resp=None):
+	docf = getJobFile(query_string)
 	if docf:
 		try:
 			printFile(pdfdir + docf, ''.join(query_string['printer']) )
@@ -332,7 +328,7 @@ def pdf(query_string=dict(), resp=None):
 		email_subject = ''.join(query_string.get('subject', ['no subject']))
 		action = query_string.get('action', None)
 
-		docf = getJobFile( job, key)
+		docf = getJobFile(query_string)
 
 		if len(addresses) > 0 and docf and len(email_subject) > 1:
 			email_outcome = "Queueing email to " + ','.join(addresses) + ' - check the result later!';
@@ -351,7 +347,20 @@ def pdf(query_string=dict(), resp=None):
 
 	return ( template_lookup.get_template("/pdf.html").render(printers=getPrinters(), job=job, key=key, email_templ=email_template, email_dest=email_dest, email_outcome=email_outcome, email_error=email_error), 'text/html')
 
-def plain(query_string=dict()):
+
+def pdf_file(query_string='', resp=None):
+	docf = getJobFile(query_string)
+	if docf:
+		fpath = pdfdir + docf
+		filename = os.path.basename(fpath)
+		print('serving ' + fpath + ' as ' + filename)
+		if query_string.get('attach'):
+			resp.add_header('Content-Disposition', 'attachment; filename="' + filename + '"')
+		with open(fpath, 'rb') as f:
+			content = f.read()
+		return content, 'application/pdf'
+
+def plain(query_string=dict(), resp=None):
 	job = getJob(query_string, returnLast=True)
 
 	return ( template_lookup.get_template("/plain.html").render(printers=getPrinters(), job=job, pb='always'), 'text/html')
@@ -367,7 +376,12 @@ def getJob(query_string, returnLast=False):
 	if len(jobs) > 0 and returnLast: return jobs[0]
 	return {'name': 'None', 'plain':'none'}
 
-def getJobFile(job, key):
+def getJobFile(query_string, job=None):
+	if not job:
+		job = getJob(query_string)
+	default_key = job['groupfiles'].iterkeys().next()[0]
+	key = query_string.get('key', [default_key])[0]
+
 	docf = None
 	for (groupnum, gname) in enumerate(job['groupkey']):
 		for (dockey,doc) in job['groupfiles'].iteritems():
@@ -448,6 +462,7 @@ if __name__=="__main__":
 		'/job': job,
 		'/printers':printers,
 		'/pdf':pdf,
+		'/pdf_file': pdf_file,
 		'/sent':sent,
 		'/print' : printfn,
 		'/plaintext':plain,

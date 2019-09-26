@@ -9,3 +9,4 @@ docker create --name p1 -p 8081:8081 -p 515:1515 -v c:/Users/cshucks/printerface
 
 docker start p1
 
+docker logs p1 -f
