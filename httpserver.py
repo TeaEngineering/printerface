@@ -3,15 +3,15 @@ Simple HTTP server build on the asyncore/asynchat module.
 
 Python's built-in SimpleHTTPServer is mixed up with SocketServer blocking/
 threading semantics in the classes it inherits. The various adapters to make
-it work with asynchat are pretty auful. This file class strips it back to 
+it work with asynchat are pretty auful. This file class strips it back to
 work only with asynchat.
 
-Incorporates basic support for dynamic pages, simple logging, connection re-use, 
+Incorporates basic support for dynamic pages, simple logging, connection re-use,
 and allows http root to be specified.
 
 There are plenty of capable web servers for python, absoutely nobody should use
-this class. _Except_ in the rare case you need a co-operative single 
-threaded HTTP to mix inline with other protocol handlers to avoid locking a 
+this class. _Except_ in the rare case you need a co-operative single
+threaded HTTP to mix inline with other protocol handlers to avoid locking a
 datamodel.
 """
 
@@ -49,16 +49,16 @@ class CaseInsensitiveDict(dict):
 			k,v=line.split(":",1)
 			self._ci_dict[k.lower()] = self[k] = v.strip()
 		self.headers = self.keys()
-	
+
 	def getheader(self,key,default=""):
 		return self._ci_dict.get(key.lower(),default)
-	
+
 	def get(self,key,default=""):
 		return self._ci_dict.get(key.lower(),default)
-	
+
 	def __getitem__(self,key):
 		return self._ci_dict[key.lower()]
-	
+
 	def __contains__(self,key):
 		return key.lower() in self._ci_dict
 
@@ -101,14 +101,14 @@ class BaseHTTPRequestHandler(asynchat.async_chat):
 		the results are in self.command, self.path, self.request_version,
 		self.headers and self.close_connection.
 
-		Return True for success, False for failure; on failure a call to 
+		Return True for success, False for failure; on failure a call to
 		send_error is made before returning.
 
 		"""
 		self.command = None  # set in case of error on the first line
 		self.request_version = version = self.default_request_version
 		self.close_connection = 1
-		
+
 		requestline = requestline.rstrip('\r\n')
 		self.requestline = requestline
 		words = requestline.split()
@@ -151,7 +151,7 @@ class BaseHTTPRequestHandler(asynchat.async_chat):
 
 		querystring = dict()
 		qparts = path.split('?', 1);
-		if len(qparts) > 1: 
+		if len(qparts) > 1:
 			path = qparts[0]
 			querystring = cgi.parse_qs(qparts[1])
 		self.command, self.path, self.request_version, self.query_string = command, path, version, querystring
@@ -438,15 +438,26 @@ class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
 		None, in which case the caller has nothing further to do.
 
 		"""
+		class ResponseGatherer():
+			def __init__(self):
+				self.headers = []
+			def add_header(self, key, value):
+				self.headers.append((key, value))
+			def write_headers(self, connection):
+				for (k,v) in self.headers:
+					connection.send_header(k,v)
+
 		handler = self.handlers.get(self.path)
 		if (handler):
 			try:
-				(f, ctype) = handler(query_string=self.query_string)
+				resp = ResponseGatherer()
+				(f, ctype) = handler(query_string=self.query_string, resp=resp)
 				if type(f) is str:
 					c = StringIO()
 					c.write(f)
 					f = c
 				self.send_response(200)
+				resp.write_headers(self)
 				self.send_header("Content-type", ctype)
 				f.seek(0, os.SEEK_END)
 				self.send_header("Content-Length", str(f.tell()))
@@ -592,27 +603,27 @@ class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
 		'.c': 'text/plain',
 		'.h': 'text/plain',
 		})
-	
+
 class RequestHandler(SimpleHTTPRequestHandler):
 
 	def __init__(self,conn,addr, webroot=os.getcwd(), path_handlers={}):
 		asynchat.async_chat.__init__(self,conn)
-		
+
 		self.client_address = addr
 		self.id = "[httpd-%d]" % addr[1]
 		self.webroot = webroot
 		self.handlers = path_handlers
-		
+
 		# set the terminator : when it is received, this means that the
 		# http request is complete ; control will be passed to
 		# self.found_terminator
 		self.reset_terminator();
-			
+
 	def reset_terminator(self):
 		self.set_terminator ('\r\n\r\n')
 		self.found_terminator = self.handle_request_line
 		self.rfile = cStringIO.StringIO()
-				
+
 	def collect_incoming_data(self,data):
 		self.rfile.write(data)
 
@@ -623,7 +634,7 @@ class RequestHandler(SimpleHTTPRequestHandler):
 		postreq = cgi.FieldStorage(fp=self.rfile,
 			headers=self.headers, environ = {'REQUEST_METHOD':'POST'},
 			keep_blank_values = 1)
-		
+
 		handler = self.handlers.get(self.path)
 		if (handler):
 			try:
@@ -663,7 +674,7 @@ class RequestHandler(SimpleHTTPRequestHandler):
 			self.rfile = cStringIO.StringIO()
 			# control will be passed to a new found_terminator
 			self.found_terminator = self.dispatch_handler
-		
+
 		else:
 			# no content from brower - generate response now
 			self.dispatch_handler()
@@ -679,7 +690,7 @@ class RequestHandler(SimpleHTTPRequestHandler):
 			"""Send data, then close"""
 			self.log_message("close_connection set, closing connection")
 			self.close_when_done()
-		
+
 		self.reset_terminator()
 
 	def handle_error(self):
@@ -688,7 +699,7 @@ class RequestHandler(SimpleHTTPRequestHandler):
 
 	def log_message(self, format, *args):
 		sys.stdout.write("%s %s %s %s\n" %
-						(self.id,self.log_date_time_string(), self.address_string(),						
+						(self.id,self.log_date_time_string(), self.address_string(),
 						format%args))
 
 	def log_message(self, format, *args):
@@ -696,9 +707,9 @@ class RequestHandler(SimpleHTTPRequestHandler):
 			(self.id, self.log_date_time_string(), self.address_string(), format%args))
 
 class ToyHttpServer(asyncore.dispatcher):
-	
+
 	def __init__ (self, ip='', port=8081, webroot=os.getcwd(), handler=RequestHandler, pathhandlers={}):
-		
+
 		self.webroot=webroot
 		self.path_handlers = pathhandlers
 		self.handler = handler
@@ -722,7 +733,7 @@ class ToyHttpServer(asyncore.dispatcher):
 			return
 
 if __name__=="__main__":
-	
+
 	def about(query_string=''):
 		f = StringIO()
 		f.write("hi %s" % query_string)

@@ -201,7 +201,7 @@ def identify(j):
 			}
 	return types.get(j['doctype'])
 
-def home(query_string=''):
+def home(query_string='', resp=None):
 	email_fails = sum([1 for x in mailqueue.results if x['error']])
 	account = sum([ 1 for k in email_accounts.iterkeys() if len(email_addresses[k]) > 0 ]), len(email_accounts.keys())
 	return template_lookup.get_template("/home.html").render(email_fails=email_fails, account=account), 'text/html'
@@ -210,7 +210,7 @@ def getrows_byslice(seq, rowlen):
     for start in xrange(0, len(seq), rowlen):
         yield seq[start:start+rowlen]
 
-def recent(query_string=dict()):
+def recent(query_string=dict(), resp=None):
 	query = query_string.get('query', [''])[0]
 	templ = query_string.get('templ', [''])[0]
 	doctype = query_string.get('doctype', [''])[0]
@@ -237,7 +237,7 @@ def recent(query_string=dict()):
 		return template_lookup.get_template("/recent.html").render(jobs=pagejobs, page=page, pages=len(pagejobs), query=query, templ=templ, doctype=doctype), 'text/html'
 
 
-def job(query_string=dict()):
+def job(query_string=dict(), resp=None):
 	job = getJob(query_string, returnLast=True)
 	if not job:
 		return doMessage(message=('Unknown job %s' % query_string) )
@@ -252,13 +252,13 @@ def job(query_string=dict()):
 		}
 	return json.dumps(output, indent=3), 'text/json'
 
-def printers(query_string=''):
+def printers(query_string='', resp=None):
 	return ( template_lookup.get_template("/printers.html").render(printers=getPrinters()), 'text/html')
 
-def sent(query_string=''):
+def sent(query_string='', resp=None):
 	return ( template_lookup.get_template("/sent.html").render(mailqueue=mailqueue), 'text/html')
 
-def settings_email(query_string='', postreq=None):
+def settings_email(query_string='', postreq=None, resp=None):
 	warning=None
 	print('query_string=%s' % query_string)
 	try:
@@ -289,7 +289,7 @@ def settings_email(query_string='', postreq=None):
 
 	return ( template_lookup.get_template("/settings_email.html").render(emails=email_list, warning=warning), 'text/html')
 
-def settings_template(query_string='', postreq=None):
+def settings_template(query_string='', postreq=None, resp=None):
 	global email_template
 
 	print('query_string=%s' % query_string)
@@ -318,7 +318,7 @@ def printfn(query_string=''):
 			traceback.print_exc(file=sys.stdout)
 	return doMessage(title='Printing', message='Could not find document, problem printing! Source: %s sent to printer %s<br>' % (docf, query_string['printer']))
 
-def pdf(query_string=dict()):
+def pdf(query_string=dict(), resp=None):
 	job = getJob(query_string)
 	default_key = job['groupfiles'].iterkeys().next()[0]
 	key = query_string.get('key', [default_key])[0]
@@ -356,7 +356,7 @@ def plain(query_string=dict()):
 
 	return ( template_lookup.get_template("/plain.html").render(printers=getPrinters(), job=job, pb='always'), 'text/html')
 
-def raw(query_string=dict()):
+def raw(query_string=dict(), resp=None):
 	job = getJob(query_string, returnLast=True)
 	return job['plain'], 'text/plain'
 
@@ -379,7 +379,7 @@ def getJobFile(job, key):
 def doMessage(message='?', title='Printerface'):
 	return ( template_lookup.get_template("/message.html").render(title=title, message=message), 'text/html')
 
-def debug(query_string=dict()):
+def debug(query_string=dict(), resp=None):
 	job = getJob(query_string, returnLast=True)
 
 	if not job:
