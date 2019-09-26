@@ -14,13 +14,11 @@ RUN python -m unittest discover --pattern=*.py
 
 RUN echo $HOME
 VOLUME ["/root/printerface"]
+EXPOSE 8081 1515
+ENTRYPOINT [ "/usr/local/bin/python" ]
+CMD [ "/app/main.py" ]
 
 COPY . /app/
 
-EXPOSE 8081
-EXPOSE 1515
-
 WORKDIR /app
-RUN ls -la /app/
-ENTRYPOINT [ "/usr/local/bin/python" ]
-CMD [ "/app/main.py" ]
+# RUN ls -la /app/
