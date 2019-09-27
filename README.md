@@ -1,7 +1,26 @@
-printerface
-===========
+# printerface
+[![Build Status](https://travis-ci.org/shuckc/printerface.svg?branch=master)](https://travis-ci.org/shuckc/printerface)
 
-LPD document to PDF/email gateway. Setup a text-only line printer and point it at the lpd server port. Documents are stored, searchable and rendered to PDF. Results can be browsed over HTTP, emailed and printed.
+Printerface is a self-hosted service to accept LPD (Line Printer Daemon) documents, and parse/render them to PDF files. Documents are stored, searchable to users on your LAN. Results can be browsed over HTTP, emailed and automatically printed to modern network printers (anything with a CUPS/ppd driver). It has been used in production for over eight years by customers with legacy stock control/management systems. Tea Engineering Ltd. provides commercial support and custom/integration services in the UK.
+
+The service is written in Python, with a Javascript web front end using bootstrap JS. It has a rich API and can be used as a general interface to legacy systems, whereby documents can be parsed to JSON and then consumed by downstream services.
+
+Computer systems as old as Windows NT4 can print to LPD printers built-in, so integration even into the most challenging environments is relatively easy compared to modifying legacy systems. Printerface provides a great path forward for customers trapped with old fixed-width, fanfold or pre-printed stationary systems, or struggling to maintain old dot-matrix line printers.
+
+Often we can de-duplicate or drop entirely sections of the documents that are no longer required in hard copies, to reduce the environmental footprint of the picking/dispatch cycle.
+
+## Quickstart
+
+The following will checkout the source code, build a docker image and start an instance of printerface on localhost. The web interface listens on http://loclahost:8081 ands the LPR printing endpoint will be running on tcp port 515. These steps roughly work on mac, linux and windows.
+
+    $ git clone git@github.com:shuckc/printerface.git
+    $ cd printerface
+    $ docker build -t printerface:latest .
+    $ docker create --name p1 -p 8081:8081 -p 515:1515 printerface
+    $ docker start p1
+
+
+## Source code & implementation notes
 
 * `lpdserver.py` implements a UNIX LPD daemon for recieving print jobs
 * `httpserver.py` simple http server using asynchat
@@ -10,7 +29,7 @@ LPD document to PDF/email gateway. Setup a text-only line printer and point it a
 * `stationary.py` format JSON to nice PDF files
 * `printing.py` Linux printing with CUPS via. command line
 
-Requirements
+Requirements are specified in requirements.txt as usual.
 
     $ wget --no-check-certificate https://pypi.python.org/packages/source/s/setuptools/setuptools-1.4.2.tar.gz
     $ tar -xvf setuptools-1.4.2.tar.gz
@@ -26,8 +45,7 @@ Unit tests
 
 Uses python asyncore/smtp, bootstrap web framework
 
-
-### Docker & deploy
+### Detailed docker deploy
 
 The Dockfile fully describes how to build a containerised printerface, including dependancies.
 
