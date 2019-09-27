@@ -861,7 +861,10 @@ class TestStationary(unittest.TestCase):
 		ctx['name'] = 'pick-a'
 		ctx['doctype'] = 'doctype'
 		ctx['ts'] = datetime(2014, 3, 4, 20, 53, 0, 0)
-		ctx['parsed'] = {'a': [{'data': 'blah '*26 }, {'data': 'fluff '*22 }]}
+		ctx['parsed'] = {'a': [
+			{'data': 'blah '*26, 'hdr': 'Picking list 5342', 'dt': 'Monday 03/12/18', 'page': 'PAGE 1'},
+			{'data': 'fluff '*22, 'hdr': 'Picking list 5342', 'dt': 'Monday 03/12/18', 'page': 'PAGE 1'}
+		]}
 		p = self.formatter.format(ctx)
 		self.assertEquals( ({('pick',): 'raw/201403/pick-a-pick.pdf'}, ('Group',) ),  p)
 

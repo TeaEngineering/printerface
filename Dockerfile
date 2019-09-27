@@ -10,7 +10,6 @@ COPY requirements.txt /app/
 WORKDIR /app/
 RUN pip install -r requirements.txt
 # RUN python -m unittest
-RUN python -m unittest discover --pattern=*.py
 
 RUN echo $HOME
 VOLUME ["/root/printerface"]
@@ -21,4 +20,5 @@ CMD [ "/app/main.py" ]
 COPY . /app/
 
 WORKDIR /app
+RUN python -m unittest discover --pattern=*.py
 # RUN ls -la /app/
