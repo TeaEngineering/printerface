@@ -33,7 +33,7 @@ def headerDetails(c, ctx, doctype="DELIVERY NOTE", terms_key='terms'):
 	textobject.textLine(config.get('Printing', 'email'))
 	textobject.textLine(config.get('Printing', 'website'))
 	c.drawText(textobject)
-	
+
 	c.setFont("Helvetica", 18)
 	c.drawRightString(pagewidth, top, doctype)
 	c.restoreState()
@@ -57,20 +57,20 @@ def topBox(c, x, y, title="Title", content="The quick brown", w=2*cm, h=2.0*cm, 
 	c.setFillColorRGB(0.95,0.95,0.95)
 	c.rect(0.0,0,w,-ht, fill=True)
 	c.restoreState()
-	
+
 	hfontsz = 7
 	c.setFont("Helvetica", hfontsz)
 	lineheight = hfontsz * 1.2
 	if align=='c':
 		for lineno, text in enumerate(title.splitlines()):
 			c.drawCentredString(w*0.5, -.33*cm*(lineno+1), text)
-	else:		
+	else:
 		c.drawString(0.8*cm, -.33*cm, title)
-	
+
 	# default "leading" (line spacing) is 120% of the font size, in points. The native unit of reportlib is points
 	lineheight = fontsz * 1.3
 	c.setFont(font, fontsz)
-	for lineno, line in enumerate(content.split('\n')): 
+	for lineno, line in enumerate(content.split('\n')):
 		if colfmt == 'da':
 			c.drawAlignedString(w - pad, -(0.52*cm + ht + lineheight*lineno), line)
 		elif colfmt == 'dr':
@@ -96,7 +96,7 @@ def leftBox(c, x, y, title="Title", content="Quick brown", h=0.85*cm, w=2.0*cm, 
 	c.setFillColorRGB(0.95,0.95,0.95)
 	c.rect(0.0,0,w*split,-h, fill=True)
 	c.restoreState()
-	
+
 	c.setFont("Helvetica", 8)
 	c.drawString(p, -h+p, title)
 	c.setFont("Helvetica", 10)
@@ -151,29 +151,29 @@ def accountSection(c, ctx, h = 1.25*cm, y=0):
 	topBox(c, 1*w, y, w=w, h=h, title="INSTRUCTIONS", content=ctx['instructions'].replace('\n', ' '))
 	return y-h
 
-def deliveryNotePage(c, ctx, mark):	
-	
+def deliveryNotePage(c, ctx, mark):
+
 	# move the origin up and to the left
 	c.setFillColorRGB(0,0,0)
 	c.translate(0.8*cm,0.8*cm)
-	
+
 	watermark(c, mark=mark)
 	#outline(c)
 	headerDetails(c, ctx)
 
-	y = rightHeaderBlock(c, ctx, y = 27.2*cm)		
+	y = rightHeaderBlock(c, ctx, y = 27.2*cm)
 	y = addressHorizDoubleBox(c, ctx, y=y-vpad)
 	y = accountSection(c, ctx, y=y-vpad)
-	
+
 	# base this section on 9 column format, with some *2, *3 width columns
 	y = y - vpad
-	w = pagewidth / 9.0	
+	w = pagewidth / 9.0
 	h = 11*cm
 	(x, y0) = topBox(c, 0, y, w=2*w, h=h, title="PRODUCT CODE", content=ctx['prod_code'], font='Courier')
 	(x, y0) = topBox(c, x, y, w=5*w, h=h, title="PRODUCT DESCRIPTION", content=ctx['prod_desc'], font='Courier')
 	(x, y0) = topBox(c, x, y, w=w,   h=h, title="QTY", content=ctx['prod_qty'], pad=0.2*cm, colfmt='dr', font='Courier')
 	(x, y)  = topBox(c, x, y, w=w,   h=h, title="UNIT", content=ctx['prod_unit'], pad=0.2*cm, font='Courier')
-	
+
 	w = pagewidth / 2.0
 	h = 0.45*cm
 	topBox(c, 0, y, w=w, h=h, title='SECTION TO BE COMPLETED BY CUSTOMER', content='', align='c')
@@ -198,19 +198,19 @@ def deliveryNotePage(c, ctx, mark):
 	c.showPage()
 
 def accountNotePage(c, ctx, mark):
-		
+
 	# move the origin up and to the left
 	c.setFillColorRGB(0,0,0)
 	c.translate(0.8*cm,0.8*cm)
-	
+
 	watermark(c, mark=mark)
 	#outline(c)
 	headerDetails(c, ctx, doctype=ctx['doctype'])
 
-	y = rightHeaderBlock(c, ctx, y = 27.2*cm)		
+	y = rightHeaderBlock(c, ctx, y = 27.2*cm)
 	y = addressHorizDoubleBox(c, ctx, lhs='INVOICE ADDRESS', y=y-vpad)
 	y = accountSection(c, ctx, y=y-vpad)
-	
+
 	# 8 column section, individual widths
 	y = y - vpad
 	h = 11*cm
@@ -222,7 +222,7 @@ def accountNotePage(c, ctx, mark):
 	(x, y0) = topBox(c, x, y, w=1.5*cm, h=h, ht=0.9*cm, title="", content=ctx['prod_blank'], pad=0.1*cm, align='c', font='Courier')
 	(x, y0) = topBox(c, x, y, w=2.5*cm, h=h, ht=0.9*cm, title="NET AMOUNT", content=ctx['prod_net'], pad=0.8*cm, align='c', colfmt='da', font='Courier')
 	(x, y0) = topBox(c, x, y, w=pagewidth-x, h=h, ht=0.9*cm, title="VAT\nCODE", content=ctx['prod_vcode'], pad=0.1*cm, align='c', colfmt='dc', font='Courier')
-	
+
 	w = 8.0*cm
 	(x, y) = leftBox(c, pagewidth-w, y0, w=w, title='TOTAL NET', content=ctx['tot_net'], colfmt='dr')
 	(x, y) = leftBox(c, pagewidth-w, y,  w=w, title='TOTAL VAT', content=ctx['tot_vat'], colfmt='dr')
@@ -240,17 +240,17 @@ def accountNotePage(c, ctx, mark):
 	c.showPage()
 
 def remittancePage(c, ctx, mark):
-		
+
 	# move the origin up and to the left
 	c.setFillColorRGB(0,0,0)
 	c.translate(0.8*cm,0.8*cm)
-	
+
 	watermark(c, mark=mark)
 	headerDetails(c, ctx, doctype='REMITTANCE ADVICE')
 
 	y = rightHeaderBlock(c, ctx, y = 27.2*cm)
 	y = addressHorizDoubleBox(c, ctx, lhs='INVOICE ADDRESS', y=y-vpad)
-	
+
 	# 6 column section, individual widths
 	y = y - vpad
 	h = 15.5*cm
@@ -261,7 +261,7 @@ def remittancePage(c, ctx, mark):
 	(x, y0) = topBox(c, x, y, w=2.8*cm, h=h, title="NET", content=ctx['rem_net'], pad=0.2*cm, align='c', colfmt='dr')
 	(x, y0) = topBox(c, x, y, w=2.8*cm, h=h, title="VAT", content=ctx['rem_vat'], pad=0.2*cm, align='c', colfmt='dr')
 	(x, y0) = topBox(c, x, y, w=pagewidth-x, h=h, title="GROSS", content=ctx['rem_gross'], pad=0.2*cm, align='c', colfmt='dr')
-	
+
 	w = 10.0*cm
 	(x, y) = leftBox(c, x3, y0, w=pagewidth-x3, title='LESS DISCOUNT', content=ctx['amt_discount'], colfmt='dr')
 	(x, y) = leftBox(c, x3, y,  w=pagewidth-x3, title='AMOUNT ENCLOSED', content=ctx['amt_encl'], colfmt='dr')
@@ -279,13 +279,13 @@ def purchasePage(c, ctx, mark):
 	# move the origin up and to the left
 	c.setFillColorRGB(0,0,0)
 	c.translate(0.8*cm,0.8*cm)
-	
+
 	watermark(c, mark=mark, x=6.7*cm, fontsz=36)
 	headerDetails(c, ctx, doctype='PURCHASE ORDER', terms_key='terms_purch')
 
 	y = rightHeaderBlock(c, ctx, y = 27.2*cm)
 	y = addressHorizDoubleBox(c, ctx, lhs='ORDER TO', y=y-vpad)
-	
+
 	# 8 column section, individual widths
 	y = y - vpad
 	h = 1.25*cm
@@ -297,7 +297,7 @@ def purchasePage(c, ctx, mark):
 	(x, y0) = topBox(c, 0, y, w=w, h=h, title="OUR CONTACT", content=ctx['ourcontact'], pad=0.2*cm, align='c')
 	(x, y0) = topBox(c, x, y, w=3.1*cm, h=h, title="ORDER DATE", content=ctx['orderdate'], pad=0.2*cm, align='c')
 	(x, y) = topBox(c, x, y, w=pagewidth-x, h=h, title="INSTRUCTIONS", content=ctx['instructions'], pad=0.2*cm, align='c')
-	
+
 	w = 10.0*cm
 
 	# 6 column section, individual widths
@@ -326,12 +326,12 @@ def purchasePage(c, ctx, mark):
 	c.showPage()
 
 def statementPage(c, ctx, mark):
-		
+
 	# move the origin up and to the left
 	c.setFillColorRGB(0,0,0)
 	c.translate(0.8*cm,0.8*cm)
 
-	# entire page breaks at 12cm, LHS is tear off (originally perferated)	
+	# entire page breaks at 12cm, LHS is tear off (originally perferated)
         watermark(c, mark=mark, x=6*cm, fontsz=36)
         watermark(c, mark=mark, x=16*cm, fontsz=20)
 
@@ -342,7 +342,7 @@ def statementPage(c, ctx, mark):
 	textobject = c.beginText()
 	textobject.setTextOrigin(divide+vpad, top-vpad)
 	textobject.setFont("Helvetica", 8)
-	textobject.textLines('PLEASE DETACH AND RETURN\nWITH YOUR REMITTANCE TO:') 
+	textobject.textLines('PLEASE DETACH AND RETURN\nWITH YOUR REMITTANCE TO:')
 	textobject.textLines(config.get('Printing', 'address').replace("\\n", '\n'))
 	textobject.textLines(config.get('Printing', 'fax1'))
 	c.drawText(textobject)
@@ -354,7 +354,7 @@ def statementPage(c, ctx, mark):
 	(x0,y) = topBox(c, x+vpad, y, h=1.25*cm, w=w, title='ACCOUNT NO.', content=ctx['accno'])
 	(x0,y) = topBox(c, x+vpad, y, h=1.25*cm, w=w, title='DATE', content=ctx['date'])
 	(x0,y) = topBox(c, x+vpad, y, h=y-y0, w=w, title='PAGE No.', content=ctx['page'])
-	
+
 	x = divide+vpad; y = 24.6*cm; w=(pagewidth-x)/2
 	(x0,y0) = topBox(c, x, y, h=1.25*cm, w=w, title='ACCOUNT NO.', content=ctx['accno'])
 	(x0,y)  = topBox(c, x0,y, h=1.25*cm, w=w, title='DATE', content=ctx['date'])
@@ -363,7 +363,7 @@ def statementPage(c, ctx, mark):
 	(x0,y)  = topBox(c, x, y, h=1.25*cm, w=2*w, title='FROM', content=ctx['addr_invoice'].split('\n')[0])
 
 	#y = accountSection(c, ctx, y=y-vpad)
-	
+
 	# 8 column section, individual widths
 	y = y - vpad
 	h = 15.5*cm; hs=0.8*cm
@@ -379,7 +379,7 @@ def statementPage(c, ctx, mark):
 	w = divide - vpad - x2
 	(x3,y0) = stTopBox(c, x2, y, w=w, h=h, title="BALANCE", content=ctx['prod_bal'], colfmt='da', pad=0.85*cm)
 	(x3,y1) = stTopBox(c, x2, y0,w=w, h=hs,title="", content=ctx['tot_bal'], ht=0, colfmt='dr')
-	
+
 	x = divide+vpad
 	(x, y0) = stTopBox(c, x, y, w=1.6*cm, h=h, title="DATE", content=ctx['prod_date'])
 	(x, y0) = stTopBox(c, x, y, w=1.8*cm, h=h, title="OUR REF.", content=ctx['prod_ref'])
@@ -388,13 +388,13 @@ def statementPage(c, ctx, mark):
 
 	c.setFont("Helvetica", 8)
 	c.drawString(0, y0-vpad, ctx['summ_box'].strip())
-	
+
 	w=(divide-vpad)/4; x=0; y=3.95*cm; h=1.3*cm;
 	(x, y0) = stTopBox(c, x, y, w=w, h=h, title="CURRENT", content=ctx['age_curr'], colfmt='dr')
 	(x, y0) = stTopBox(c, x, y, w=w, h=h, title="ONE MONTH", content=ctx['age_1m'], colfmt='dr')
 	(x, y0) = stTopBox(c, x, y, w=w, h=h, title="TWO MONTHS", content=ctx['age_2m'], colfmt='dr')
 	(x, y0) = stTopBox(c, x, y, w=w, h=h, title="THREE MONTHS", content=ctx['age_3m'], colfmt='dr')
-	
+
 	y=y0-vpad; x=0; w=4.5*cm;
 	(x, y0) = stTopBox(c, x, y, w=w, h=h, title="CURRENCY", content='')
 	(x, y0) = stTopBox(c, x+vpad, y, w=w, h=h, title="AMOUNT DUE", content=ctx['age_due'], colfmt='dr')
@@ -408,7 +408,7 @@ def statementPage(c, ctx, mark):
 
 	c.showPage()
 
-def genericPage(c, data, title=None, fontsz=7, landsc=False, overlay=None):
+def genericPage(c, data, title=None, fontsz=7, landsc=False, overlay=None, decorate_fn=None):
 	# move the origin up and to the left
 	pagesize = landscape(A4) if landsc else A4
 	c.setPageSize( pagesize )
@@ -420,20 +420,20 @@ def genericPage(c, data, title=None, fontsz=7, landsc=False, overlay=None):
 		c.setFont("Helvetica", 18)
 		c.drawRightString(pagewidth, top, title)
 		c.drawImage(os.path.expanduser(config.get('Printing', 'logo')) , 0.0*cm, top-1.1*cm, width=7.0*cm,height=1.8*cm, preserveAspectRatio=True, anchor='sw')
-		if config.get('Printing', 'logo2'):
-			c.drawImage(os.path.expanduser(config.get('Printing', 'logo2')), 5.0*cm, top-0.9*cm, width=5.0*cm,height=1.4*cm, preserveAspectRatio=True, anchor='sw')
 		y = y - 2.0*cm
-	
+
 	textobject = c.beginText()
 	textobject.setTextOrigin(0, y)
 	textobject.setFont("Courier-Bold", fontsz)
 	for line in data.split('\n'):
-		textobject.textLine(line.rstrip())	
+		textobject.textLine(line.rstrip())
 	c.drawText(textobject)
 
 	if overlay:
 		c.setFont("Helvetica", 18)
-		c.drawRightString(pagesize[0]/2.0, pagesize[1]/2.0, overlay)		
+		c.drawRightString(pagesize[0]/2.0, pagesize[1]/2.0, overlay)
+	if decorate_fn:
+		decorate_fn(c)
 	c.showPage()
 
 class DocFormatter(object):
@@ -466,10 +466,10 @@ class DocFormatter(object):
 
 			for page in v:
 				accountNotePage(c, page, 'CUSTOMER COPY')
-			
+
 			c.save()
 			rendered_pdfs[ (acc,) ] = os.path.relpath(p, self.jobdir)
-	 	
+
 		p = os.path.join(self.jobdir, ctx['ts'].strftime('%Y'), 'accounts', "%s-%s.pdf" % (ctx['name'], 'accounts'))
 		self.create_dirs(p)
 		c = canvas.Canvas(p, pagesize=A4)
@@ -481,7 +481,7 @@ class DocFormatter(object):
 		for k in reversed(sorted(pages_by_docnum.keys())):
 			for page in pages_by_docnum[k]:
 				accountNotePage(c, page, 'ACCOUNTS COPY')
-		 			 	
+
 	 	c.save()
 		rendered_pdfs[ ('accounts',) ] = os.path.relpath(p, self.jobdir)
 
@@ -495,7 +495,17 @@ class DocFormatter(object):
 
 		for (acc,v) in ctx['parsed'].iteritems():
 			for page in v:
-				genericPage(c, page['data'], 'Picking list')
+				data = page['data']
+
+				def decorate(c):
+					c.setFont("Helvetica", 13)
+					c.drawCentredString(A4[0]/2.0, 27*cm, page['hdr'] + page['dt'] + '  ' + page['page'])
+					if 'TOTAL FOR' in page['data']:
+						c.drawString(0*cm, 2*cm, 'Total weight _______________  Picked by _________________  Time in  ____________')
+						c.drawString(0*cm, 1*cm, 'Total cases  _______________  Checked by _______________  Time out ____________')
+
+				#data = '\n'.join(line for line in page['data'].split('\n') if line.rstrip())
+				genericPage(c, data, title='Picking list', fontsz=9, decorate_fn=decorate)
 
 		c.save()
 		rendered_pdfs[ ('pick',) ] = os.path.relpath(p, self.jobdir)
@@ -514,7 +524,7 @@ class DocFormatter(object):
 		self.create_dirs(p)
 		c = canvas.Canvas(p, pagesize=A4)
 		landsc, fontsz, row, cols = ctx['autofmt']
-		
+
 		pages = filter(None, ctx['plain'].strip().split("\f"))
 		for page in pages:
 			genericPage(c, page, title=None, fontsz=fontsz, landsc=landsc)
@@ -528,10 +538,10 @@ class DocFormatter(object):
 		p = os.path.join(self.jobdir, "%s-%s.pdf" % (ctx['name'], 'test'))
 		self.create_dirs(p)
 		c = canvas.Canvas(p, pagesize=A4)
-		
+
 		for landsc in (True, False):
 			for fs in range(6,14):
-				v = [ctx['data']] 
+				v = [ctx['data']]
 				for page in v:
 					genericPage(c, page, title=None, fontsz=fs, landsc=landsc, overlay='landscape=%d fontsz=%d' % (landsc, fs) )
 
@@ -549,7 +559,7 @@ class DocFormatter(object):
 			p = os.path.join(self.jobdir, ctx['ts'].strftime('%Y'), acc, "%s-%s.pdf" % (ctx['name'], acc))
 			self.create_dirs(p)
 			c = canvas.Canvas(p, pagesize=A4)
-			
+
 		 	for page in v:
 				statementPage(c, page, 'CUSTOMER COPY')
 
@@ -559,7 +569,7 @@ class DocFormatter(object):
 		p = os.path.join(self.jobdir, ctx['ts'].strftime('%Y'), 'accounts', "%s-%s.pdf" % (ctx['name'], 'accounts'))
 		self.create_dirs(p)
 		c = canvas.Canvas(p, pagesize=A4)
-		
+
 		for (acc,v) in ctx['parsed'].iteritems():
 		 	for page in v:
 				statementPage(c, page, 'ACCOUNTS COPY')
@@ -580,11 +590,11 @@ class DocFormatter(object):
 			for mark in ['CUSTOMER COPY', 'ACCOUNTS COPY']:
 				for page in v:
 					deliveryNotePage(c, page, mark)
-		 			 	
+
 	 	c.save()
 		rendered_pdfs[ ('accounts',) ] = os.path.relpath(p, self.jobdir)
 		return rendered_pdfs, ('type',)
-	
+
 	def writeRemittance(self, ctx):
 
 		rendered_pdfs = {}
@@ -600,13 +610,13 @@ class DocFormatter(object):
 
 	 		c.save()
 			rendered_pdfs[ (acc,) ] = os.path.relpath(p, self.jobdir)
-		
+
 		p = os.path.join(self.jobdir, ctx['ts'].strftime('%Y'), 'accounts', "%s-%s.pdf" % (ctx['name'], 'accounts'))
 		self.create_dirs(p)
 		c = canvas.Canvas(p, pagesize=A4)
-		
+
 		for (acc,v) in ctx['parsed'].iteritems():
-		 	
+
 		 	for page in v:
 				remittancePage(c, page, 'ACCOUNTS COPY')
 
@@ -615,14 +625,14 @@ class DocFormatter(object):
 
 		# protocol: key tuples must all be same length, second tuple is key descriptions
 		return rendered_pdfs, ('Group',)
-			
+
 	def writePurchase(self, ctx):
-		
+
 		rendered_pdfs = {}
-		
+
 		for (acc,v) in ctx['parsed'].iteritems():
 			for (bundle, marks) in [ ( '', ['SUPPLIER COPY']), ('-transport', ['TRANSPORTER COPY']), ('-admin', ['MASTER COPY', 'BOOKING IN COPY', 'PRE LOCATION COPY']) ]:
-		
+
 				p = os.path.join(self.jobdir, ctx['ts'].strftime('%Y'), acc, "%s-%s%s.pdf" % (ctx['name'], acc, bundle))
 				self.create_dirs(p)
 				c = canvas.Canvas(p, pagesize=A4)
@@ -656,7 +666,7 @@ class DocFormatter(object):
 	# port   13   51    71
 	def getBestPageFormat(self, plaintext):
 		pages = filter(None, plaintext.strip().split("\f"))
-		
+
 		worst_rows, worst_cols = 0, 0
 		for pi, page in enumerate(pages):
 			lines = page.splitlines()
@@ -664,7 +674,7 @@ class DocFormatter(object):
 			# print (' page %d rows %d cols %d' % (pi, rows, cols))
 			worst_cols = max(worst_cols, cols)
 			worst_rows = max(worst_rows, rows)
-		
+
 		# A4: (landscape, sz, rows, cols) lookup table. Orded by font size, return the first
 		# onto which the document fits
 		a4_cand = [
@@ -683,7 +693,7 @@ class DocFormatter(object):
 			(False, 7 ,  95 , 133),
 			(True, 7 ,   66,  192),
 			(False, 6 ,  112, 156),
-			(True, 6 ,   78,  224),		
+			(True, 6 ,   78,  224),
 		]
 
 		soln = filter( lambda x: x[2] > worst_rows and x[3] > worst_cols, a4_cand)
@@ -696,14 +706,14 @@ class DocFormatter(object):
 import unittest
 from datetime import datetime
 class TestStationary(unittest.TestCase):
-	
+
 	def setUp(self):
 		pdir = os.path.expanduser("~/printerface/")
 		jobdir = pdir + 'pdf/'
 		self.formatter = DocFormatter(jobdir)
 
 		self.chuff = dict(date='04/10/12',
-			doc_num='731/289073', 
+			doc_num='731/289073',
 			addr_invoice='SAMPLE ACCOUNT\nCHRIS SHUCKSMITH',
 			addr_delivery='CHRIS SHUCKSMITH\nFLAT 999 MIDNIGHT TERRACE\n32 GREAT NOWHERE ST. LONDON SE1 W1J\nIF OUT PSE LEAVE WITH THE\nCAT',
 			accno='MULTI-21',
@@ -714,7 +724,7 @@ class TestStationary(unittest.TestCase):
 			salesperson='SAMPLE ACCOUNT',
 			instructions='TO BE DELIVERED LDN0510',
 			doctype='DOCTYPE XX',
-			tot_net='12345.00', 
+			tot_net='12345.00',
 		)
 
 	def test_delnote(self):
@@ -750,7 +760,7 @@ class TestStationary(unittest.TestCase):
 			)
 
 			s.append( dict(order.items() + self.chuff.items()))
-		ctx['parsed'] = { 'SMP109': s} 
+		ctx['parsed'] = { 'SMP109': s}
 
 		p = self.formatter.format(ctx)
 		self.assertEquals( ({('accounts',): '2014/accounts/blahdel-accounts.pdf'}, ('type',) ),  p)
@@ -765,7 +775,7 @@ class TestStationary(unittest.TestCase):
 		ctx['templ'] = 'remittance'
 		ctx['name'] = 'blahremit'
 		p = self.formatter.format(ctx)
-		self.assertEquals( ({('SMP109',): '2014/SMP109/blahremit-SMP109.pdf', 
+		self.assertEquals( ({('SMP109',): '2014/SMP109/blahremit-SMP109.pdf',
 							('accounts',): '2014/accounts/blahremit-accounts.pdf'}, ('Group',) ),  p)
 
 	def test_statement(self):
@@ -805,15 +815,15 @@ class TestStationary(unittest.TestCase):
 			)
 
 			s.append( dict(order.items() + self.chuff.items()))
-		ctx['parsed'] = { 'SMP109': s} 
+		ctx['parsed'] = { 'SMP109': s}
 
 		p = self.formatter.format(ctx)
 		self.assertEquals( ({('SMP109',): '2014/SMP109/blahstate-SMP109.pdf', ('accounts',): '2014/accounts/blahstate-accounts.pdf'}, ('Group',) ),  p)
 
 	def test_cnote(self):
 	 	# CREDIT NOTE / INVOICE paperwork
-		extra = dict( doctype='CREDIT NOTE', 
-			summ_code='5\n'*4, 
+		extra = dict( doctype='CREDIT NOTE',
+			summ_code='5\n'*4,
 			summ_netamt='12345.67\n'*4,
 			summ_rate='0.00\n'*4,
 			summ_vat='0.00\n'*4,
@@ -841,7 +851,7 @@ class TestStationary(unittest.TestCase):
 				prod_vcode="5\n"*sz
 			)
 			s.append( dict(order.items() + self.chuff.items() + extra.items()))
-		ctx['parsed'] = { 'SMP109': s} 
+		ctx['parsed'] = { 'SMP109': s}
 		p = self.formatter.format(ctx)
 		self.assertEquals( ({('SMP109',): '2014/SMP109/blahcn-SMP109.pdf', ('accounts',): '2014/accounts/blahcn-accounts.pdf'}, ('Group',) ),  p)
 
@@ -859,7 +869,7 @@ class TestStationary(unittest.TestCase):
 		# test document to calibrate width/height fontsize matrix
 		cols = 240
 		rows = 120
-		
+
 		import StringIO
 		chunks10 = (cols+9)/10
 		f = StringIO.StringIO()
@@ -889,7 +899,7 @@ class TestStationary(unittest.TestCase):
 		ctx['autofmt'] = self.formatter.getBestPageFormat(ctx['plain'])
 		p = self.formatter.format(ctx)
 		self.assertEquals( ({('plain',): 'raw/201402/rawtest-plain.pdf'}, ('Type',) ),  p)
-	
+
 	def test_plainformat(self):
 		ctx = {}
 		ctx['name'] = 'rawtest2'

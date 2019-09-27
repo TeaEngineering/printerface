@@ -56,7 +56,7 @@ class DocParser(object):
 			field(fs, line+16,28,w=8,t='ord_date')
 			field(fs, line+16,66,w=8,t='req_date')
 			field(fs, line+16,39,w=26,t='salesperson')
-			
+
 			field(fs, line+19,0,w=15,t='prod_code',h=18)
 			field(fs, line+19,19,w=30,t='prod_desc',h=18)
 			field(fs, line+19,55,w=6, t='prod_qty',h=18)
@@ -104,7 +104,7 @@ class DocParser(object):
 			field(fs, line+16,28,w=8,t='ord_date')
 			field(fs, line+16,66,w=8,t='req_date')
 			field(fs, line+16,40,w=26,t='salesperson')
-			
+
 			field(fs, line+19,0,w=15,t='prod_code',h=18)
 			field(fs, line+19,18,w=30,t='prod_desc',h=18)
 			field(fs, line+19,53,w=6, t='prod_qty',h=18)
@@ -137,7 +137,7 @@ class DocParser(object):
 			field(fs, line+1, 82,w=10,t='page')
 			field(fs, line+8, 12,w=38,h=6,t='addr_invoice')
 			field(fs, line+10,58,w=10,t='accno')
-			
+
 			field(fs, line+19,1 ,w=9, t='prod_date',h=22)
 			field(fs, line+19,12,w=24,t='prod_code',h=22)
 			field(fs, line+19,37,w=4, t='prod_trans',h=22)
@@ -166,7 +166,7 @@ class DocParser(object):
 
 			extracted = self.populate(lines, fs)
 			page_data.setdefault(extracted['accno'], []).append(extracted)
-			
+
 		return (all_fields, page_data)
 
 	def extractPurchase(self, job, lines, (rows,cols)):
@@ -175,7 +175,7 @@ class DocParser(object):
 
 		pages = (rows-48)/48
 		for page in range(pages):
-			line =(page+1) * 48 
+			line =(page+1) * 48
 			fs = []
 			field(fs, line+2, 0,w=20,t='doctype')
 			field(fs, line+2, 95,w=10,t='date')
@@ -196,7 +196,7 @@ class DocParser(object):
 			field(fs, line+20,52,w=6, t='prod_qty',h=20)
 			field(fs, line+20,65,w=11,t='prod_price',h=20)
 			field(fs, line+20,74,w=8,t='prod_unit',h=20)
-			
+
 			field(fs, line+43,84,w=12,t='tot_net')
 			all_fields += fs
 			extracted = self.populate(lines, fs)
@@ -210,7 +210,7 @@ class DocParser(object):
 
 		pages = (rows-48)/48
 		for page in range(pages):
-			line =(page+1) * 48 
+			line =(page+1) * 48
 			fs = []
 			field(fs, line+0, 8,w=38,h=5,t='addr_firm')
 			field(fs, line+0, 68,w=10,t='date')
@@ -224,12 +224,12 @@ class DocParser(object):
 			field(fs, line+17,46,w=10,h=20,t='rem_net')
 			field(fs, line+17,58,w=8,h=20,t='rem_vat')
 			field(fs, line+17,70,w=9,h=20,t='rem_gross')
-			
+
 			field(fs, line+40,8,w=40,t='instructions',h=2)
 			field(fs, line+38,60,w=19,t='amt_discount')
 			field(fs, line+40,60,w=19,t='amt_encl')
 			all_fields += fs
-			
+
 			extracted = self.populate(lines, fs)
 			page_data.setdefault(extracted['doc_num'], []).append(extracted)
 
@@ -240,16 +240,22 @@ class DocParser(object):
 		page_data = collections.defaultdict(list)
 
 		# variable length per page, split into pages by pagebreak
-		line = 0
-		for part in filter(None, job['plain'].split("\f")):
-			if len(part.strip()) > 0:
-				h = len(part.splitlines())
-				fs = []
-				field(fs, line,0,w=cols,t='data',h=h)
-				all_fields += fs
-				line = line + h
-				extracted = self.populate(lines, fs, stripText=False)
-				page_data['all'].append(extracted)
+		line_from = 0
+		for i, line in enumerate(lines):
+			if "\f" in line:
+				# Skip summary pages (if printed)
+				if not 'STOCK TO BE PICKED  (SUMMARY)' in lines[line_from+2]:
+					fs = []
+					field(fs, line_from+6,0,w=100,t='data',h=i-(line_from+6))
+					field(fs, line_from,120,w=10,t='page',h=1)
+					field(fs, line_from+2,104,w=22,t='dt',h=1)
+					field(fs, line_from+2,40,w=20,t='hdr',h=1)
+
+					all_fields += fs
+					# we can strip the RHS of cols, stripping left ruins alignment
+					extracted = self.populate(lines, fs, stripText=False)
+					page_data['all'].append(extracted)
+				line_from = i
 
 		return (all_fields, page_data)
 
@@ -261,21 +267,22 @@ class DocParser(object):
 		rows = max(rows, max([c['r']+c['h'] for c in fs]))
 
 		high = [[None for col in range(cols)] for row in range(rows)]
-		
+
 		for c in fs:
 			c['text'] = ''
 			for row in range(c['r'], c['r']+c['h']):
 				for col in range(c['c'], c['c']+c['w']):
 					high[row][col] = c
-		
+
 		for row,line in enumerate(lines):
 			for col,char in enumerate(line + (' '*(cols-len(line)))):
 				if high[row][col]:
 					node = high[row][col]
-					if not node['line'] == row: 
+					if not node['line'] == row:
 						node['text'] += '\n'
 						node['line'] = row
-					node['text'] += char
+					if not char == '\f':
+						node['text'] += char
 		data = {}
 		for c in fs:
 			if stripText:

@@ -133,6 +133,8 @@ control_char_re = re.compile('[^\w\s%s_\'=/]' % re.escape('.*+()-\\;:,#?%$^&!<>|
 def cleanJob(j):
 	print(' recovering %s' % j['name'])
 
+	# crucial to preserve \f (formfeed) in 'plain', as some parsers need it to
+	# handle input
 	j['plain'] = control_char_re.sub(' ', j['data'])
 
 	summary = re.compile('[^\w\s]').sub('', j['data'])
@@ -434,7 +436,10 @@ def debug(query_string=dict(), resp=None):
 					f.write('</span>')
 				if high[row][col]:
 					f.write('<span title="%s" style="background-color: #%s">' % (high[row][col]['t'],htmlcol(high[row][col]['rgb'])))
-			f.write(char)
+			if char == '\f':
+				f.write('F')
+			else:
+				f.write(char)
 			last_fmt = high[row][col]
 		if last_fmt:
 			last_fmt = None
