@@ -499,7 +499,7 @@ class DocFormatter(object):
 
 				def decorate(c):
 					c.setFont("Helvetica", 13)
-					c.drawCentredString(A4[0]/2.0, 27*cm, page['hdr'] + page['dt'] + '  ' + page['page'])
+					c.drawCentredString(A4[0]/2.0, 27*cm, page['hdr'].strip() + ' ' + page['dt'].strip() + ' ' + page['page'].strip())
 					if 'TOTAL FOR' in page['data']:
 						c.drawString(0*cm, 2*cm, 'Total weight _______________  Picked by _________________  Time in  ____________')
 						c.drawString(0*cm, 1*cm, 'Total cases  _______________  Checked by _______________  Time out ____________')

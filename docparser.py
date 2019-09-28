@@ -248,7 +248,7 @@ class DocParser(object):
 					fs = []
 					field(fs, line_from+6,0,w=100,t='data',h=i-(line_from+6))
 					field(fs, line_from,120,w=10,t='page',h=1)
-					field(fs, line_from+2,104,w=22,t='dt',h=1)
+					field(fs, line_from+2,104,w=25,t='dt',h=1)
 					field(fs, line_from+2,40,w=20,t='hdr',h=1)
 
 					all_fields += fs
