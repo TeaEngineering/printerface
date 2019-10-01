@@ -30,7 +30,7 @@
 			% endfor
 			</ul>
 		</div>
-		<a class="btn" href="/pdf_file?name=${job['name'] | u}&key=${dockey[groupnum]}&attach=1" download><i class="icon-download"></i> Download</a>
+		<a class="btn" href="/pdf_file?name=${job['name'] | u}&key=${key}&attach=1" download><i class="icon-download"></i> Download</a>
 		<a class="btn" href="#emailModal" role="button" data-toggle="modal"><i class="icon-envelope"></i> Email</a>
 		&nbsp; ${docf}
 	</label>
@@ -48,7 +48,7 @@
 		${email_error}
 	</div>
 	% endif
-	<object data="/pdf_file?name=${job['name'] | u}&key=${dockey[groupnum]}#toolbar=1&amp;navpanes=0&amp;scrollbar=1&amp;page=0&amp;zoom=80" type="application/pdf" width="100%" height="400px">
+	<object data="/pdf_file?name=${job['name'] | u}&key=${key}#toolbar=1&amp;navpanes=0&amp;scrollbar=1&amp;page=0&amp;zoom=80" type="application/pdf" width="100%" height="400px">
 	<p>It appears you don\'t have a PDF plugin for this browser.</p>
 	</object>
 
