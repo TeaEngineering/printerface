@@ -1,5 +1,5 @@
 # printerface
-[![Build Status](https://travis-ci.org/shuckc/printerface.svg?branch=master)](https://travis-ci.org/shuckc/printerface)
+[![Build Status](https://travis-ci.org/shuckc/printerface.svg?branch=master)](https://travis-ci.org/shuckc/printerface) [![License](https://img.shields.io/badge/License-BSD%203--Clause-blue.svg)](https://opensource.org/licenses/BSD-3-Clause)
 
 Printerface is a self-hosted service to accept LPD (Line Printer Daemon) documents, and parse/render them to PDF files. Documents are stored, searchable to users on your LAN. Results can be browsed over HTTP, emailed and automatically printed to modern network printers (anything with a CUPS/ppd driver). It has been used in production for over eight years by customers with legacy stock control/management systems. Tea Engineering Ltd. provides commercial support and custom/integration services in the UK.
 
