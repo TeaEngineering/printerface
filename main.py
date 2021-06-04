@@ -21,6 +21,7 @@ import collections
 import traceback
 import json
 import time
+import pytz
 
 config = ConfigParser.ConfigParser()
 config.readfp(open(os.path.expanduser('defaults.cfg')))
@@ -51,6 +52,7 @@ pageQty = int(config.get('History', 'pageqty'))
 base_uri = config.get('Main', 'baseuri')
 
 summary_regexps = [ re.compile(x) for x in config.get('Main', 'summary_trim').strip().split(',') ]
+local_tz = pytz.timezone(config.get('Main', 'tz'))
 
 def saveJob(queue, local, remote, control, data):
 	ts = datetime.utcnow()
@@ -146,6 +148,13 @@ def cleanJob(j):
 	j['summary'] = summary
 	j['doctype'] = j.get('control', {}).get('J').strip()
 	j['templ'] = identify(j)
+
+	# ts object is from datetime.utcnow() which is unaware for compactness
+	# force it to utc-aware, then convert to our local timezone for display
+	ts = j['ts']
+	if not ts.tzinfo:
+		ts = ts.replace(tzinfo=pytz.utc)
+	j['localts'] = ts.astimezone(tz=local_tz)
 
 	j['autofmt'] = formatter.getBestPageFormat(j['plain'])
 

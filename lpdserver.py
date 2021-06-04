@@ -96,8 +96,9 @@ class LpdHandler(asynchat.async_chat):
 		try:
 			print('%s dispatching' % (self.id))
 			self.controller(self.queue, self.sock.getpeername(), self.sock.getsockname(), self.controldata, data)
-		except:
+		except Exception as e:
 			print('LPD dispatch of print job threw exception: %s', sys.exc_info()[0])
+			print(e)
 			sys.stdout.flush()
 		print('%s dispatch complete' % (self.id))
 

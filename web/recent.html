@@ -46,7 +46,7 @@
 		<a href="/plaintext?name=${j['name']}">
 		% endif
 		${xstr(j['control'].get('H'))|h} ${j['doctype']|h}</a></td>
-		<td>${str(j['ts'])[0:19]|h}</td>
+		<td>${str(j['localts'])[0:19]|h}</td>
 		% if j['templ']:
 		<td>${xstr(j['templ'])} (${len(j.get('parsed', {}).keys())})</td>
 		% else:

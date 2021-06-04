@@ -2,3 +2,4 @@ Mako==0.9.1
 MarkupSafe==0.19
 reportlab==2.7
 wsgiref==0.1.2
+pytz==2018.9

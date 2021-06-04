@@ -1,17 +1,17 @@
 # printerface
 [![Build Status](https://travis-ci.org/shuckc/printerface.svg?branch=master)](https://travis-ci.org/shuckc/printerface) [![License](https://img.shields.io/badge/License-BSD%203--Clause-blue.svg)](https://opensource.org/licenses/BSD-3-Clause)
 
-Printerface is a self-hosted service to accept LPD (Line Printer Daemon) documents, and parse/render them to PDF files. Documents are stored, searchable to users on your LAN. Results can be browsed over HTTP, emailed and automatically printed to modern network printers (anything with a CUPS/ppd driver). It has been used in production for over eight years by customers with legacy stock control/management systems. Tea Engineering Ltd. provides commercial support and custom/integration services in the UK.
+Printerface is a self-hosted service to accept LPD (Line Printer Daemon) documents, and parse/render them to PDF files. Documents are stored, searchable to users on your LAN. Results can be browsed over HTTP, emailed and automatically printed to modern network printers (anything with a CUPS/ppd driver). It has been used in production for over eight years by customers with legacy stock control/management systems, alarm pannels and fire pannels. Tea Engineering Ltd. provides commercial support and custom/integration services in the UK.
 
-The service is written in Python, with a Javascript web front end using bootstrap JS. It has a rich API and can be used as a general interface to legacy systems, whereby documents can be parsed to JSON and then consumed by downstream services.
+The service is written in Python, with a Javascript web front end using bootstrap JS. It has a rich API and can be used as a centralised interface to legacy system output, whereby documents can be parsed to JSON and then consumed by downstream services. We have production instances with over 100k documents a year, 5-6M pages.
 
 Computer systems as old as Windows NT4 can print to LPD printers built-in, so integration even into the most challenging environments is relatively easy compared to modifying legacy systems. Printerface provides a great path forward for customers trapped with old fixed-width, fanfold or pre-printed stationary systems, or struggling to maintain old dot-matrix line printers.
 
-Often we can de-duplicate or drop entirely sections of the documents that are no longer required in hard copies, to reduce the environmental footprint of the picking/dispatch cycle.
+Often we can de-duplicate or drop entirely sections of the documents that are no longer required in hard copies, to reduce the environmental footprint of legacy print jobs.
 
 ## Quickstart
 
-The following will checkout the source code, build a docker image and start an instance of printerface on localhost. The web interface listens on http://loclahost:8081 ands the LPR printing endpoint will be running on tcp port 515. These steps roughly work on mac, linux and windows.
+The following will checkout the source code, build a docker image and start an instance of printerface on localhost. The web interface listens on http://localhost:8081 ands the LPR printing endpoint will be running on tcp port 515. These steps roughly work on mac, linux and windows.
 
     $ git clone git@github.com:shuckc/printerface.git
     $ cd printerface
