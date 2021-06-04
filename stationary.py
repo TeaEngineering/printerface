@@ -320,7 +320,7 @@ def purchasePage(c, ctx, mark):
 	(x, y1) = leftBox(c, x, y0-vpad, w=pagewidth-x, title='TOTAL NET', content=price_tot, colfmt='dr')
 
 	w = 10.4*cm
-	(x, y) = topBox(c, 0, y0-vpad, w=w, h=3.7*cm, pad=0.2*cm, title="FOR SUPPLIERS OUTSIDE THE UNITED KINGDOM", align='c', content=config.get('Printing', 'purch_instruction_en').replace("\\n", '\n'))
+	(x, y) = topBox(c, 0, y0-vpad, w=w, h=3.7*cm, pad=0.2*cm, title=config.get('Printing', 'purch_instruction_header'), align='c', content=config.get('Printing', 'purch_instruction_en').replace("\\n", '\n'))
 
 	c.showPage()
 
