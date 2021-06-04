@@ -29,17 +29,8 @@ The following will checkout the source code, build a docker image and start an i
 * `stationary.py` format JSON to nice PDF files
 * `printing.py` Linux printing with CUPS via. command line
 
-Requirements are specified in requirements.txt as usual.
-
-    $ wget --no-check-certificate https://pypi.python.org/packages/source/s/setuptools/setuptools-1.4.2.tar.gz
-    $ tar -xvf setuptools-1.4.2.tar.gz
-    $ cd setuptools-1.4.2
-    $ python2.7 setup.py install
-
-    $ easy_install mako
-    $ easy_install reportlab==2.7
-
-Unit tests
+Requirements are specified in requirements.txt
+Unit tests run during `docker build` or with:
 
     $ python -m unittest discover --pattern=*.py
 
@@ -70,4 +61,15 @@ Note that the image is resolved permimently to a hash of some sort at this point
 On windows you may wish to mount the job storage directory externally, as follows:
 
     docker create --rm --name p1 -p 8081:8081 -p 515:1515 -v c:/Users/cshucks/printerface:/root/printerface printerface
+
+
+### From-scratch userland python install
+
+    $ mkdir ~/opt
+    $ wget https://www.python.org/ftp/python/2.7.18/Python-2.7.18.tgz
+    $ tar -xzf Python-2.7.18.tgz
+    $ cd Python-2.7.18
+    $ ./configure prefix=$HOME/opt --with-ensurepip=install
+    $ make && make install
+    $ ~/opt/bin/pip install -r ~/repos/printerface/requirements.txt
 
