@@ -31,7 +31,7 @@
 printerface=~/repos/printerface/main.py
 lock=~/printerface/lock
 pidfile=~/printerface/run
-work=~/printerface/
+work=~/repos/printerface/
 . /etc/rc.d/init.d/functions
 
 # Source networking configuration.
