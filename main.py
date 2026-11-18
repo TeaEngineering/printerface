@@ -218,8 +218,8 @@ def home(query_string='', resp=None):
 	return template_lookup.get_template("/home.html").render(email_fails=email_fails, account=account), 'text/html'
 
 def getrows_byslice(seq, rowlen):
-    for start in xrange(0, len(seq), rowlen):
-        yield seq[start:start+rowlen]
+	for start in xrange(0, len(seq), rowlen):
+		yield seq[start:start+rowlen]
 
 def recent(query_string=dict(), resp=None):
 	query = query_string.get('query', [''])[0]

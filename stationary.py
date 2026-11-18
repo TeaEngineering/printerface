@@ -331,8 +331,8 @@ def statementPage(c, ctx, mark):
 	c.translate(0.8*cm,0.8*cm)
 
 	# entire page breaks at 12cm, LHS is tear off (originally perferated)
-        watermark(c, mark=mark, x=6*cm, fontsz=36)
-        watermark(c, mark=mark, x=16*cm, fontsz=20)
+	watermark(c, mark=mark, x=6*cm, fontsz=36)
+	watermark(c, mark=mark, x=16*cm, fontsz=20)
 
 	headerDetails(c, ctx, 'Statement')
 
@@ -348,7 +348,7 @@ def statementPage(c, ctx, mark):
 
 	h = 0.85*cm
 	y = 24.6*cm
-        (x,y0) = topBox(c, 0*cm, y, h=3.8*cm, w=8.2*cm, title='TO', content=ctx['addr_invoice'])
+	(x,y0) = topBox(c, 0*cm, y, h=3.8*cm, w=8.2*cm, title='TO', content=ctx['addr_invoice'])
 	w = divide - vpad - (x + vpad)
 	(x0,y) = topBox(c, x+vpad, y, h=1.25*cm, w=w, title='ACCOUNT NO.', content=ctx['accno'])
 	(x0,y) = topBox(c, x+vpad, y, h=1.25*cm, w=w, title='DATE', content=ctx['date'])
@@ -481,7 +481,7 @@ class DocFormatter(object):
 			for page in pages_by_docnum[k]:
 				accountNotePage(c, page, 'ACCOUNTS COPY')
 
-	 	c.save()
+		c.save()
 		rendered_pdfs[ ('accounts',) ] = os.path.relpath(p, self.jobdir)
 
 		return rendered_pdfs, ('Group',)
@@ -559,10 +559,10 @@ class DocFormatter(object):
 			self.create_dirs(p)
 			c = canvas.Canvas(p, pagesize=A4)
 
-		 	for page in v:
+			for page in v:
 				statementPage(c, page, 'CUSTOMER COPY')
 
-	 		c.save()
+			c.save()
 			rendered_pdfs[ (acc,) ] = os.path.relpath(p, self.jobdir)
 
 		p = os.path.join(self.jobdir, ctx['ts'].strftime('%Y'), 'accounts', "%s-%s.pdf" % (ctx['name'], 'accounts'))
@@ -570,10 +570,10 @@ class DocFormatter(object):
 		c = canvas.Canvas(p, pagesize=A4)
 
 		for (acc,v) in ctx['parsed'].iteritems():
-		 	for page in v:
+			for page in v:
 				statementPage(c, page, 'ACCOUNTS COPY')
 
-	 	c.save()
+		c.save()
 		rendered_pdfs[ ('accounts',) ] = os.path.relpath(p, self.jobdir)
 
 		# protocol: key tuples must all be same length, second tuple is key descriptions
@@ -590,7 +590,7 @@ class DocFormatter(object):
 				for page in v:
 					deliveryNotePage(c, page, mark)
 
-	 	c.save()
+		c.save()
 		rendered_pdfs[ ('accounts',) ] = os.path.relpath(p, self.jobdir)
 		return rendered_pdfs, ('type',)
 
@@ -604,10 +604,10 @@ class DocFormatter(object):
 			self.create_dirs(p)
 			c = canvas.Canvas(p, pagesize=A4)
 
-		 	for page in v:
+			for page in v:
 				remittancePage(c, page, 'CUSTOMER COPY')
 
-	 		c.save()
+			c.save()
 			rendered_pdfs[ (acc,) ] = os.path.relpath(p, self.jobdir)
 
 		p = os.path.join(self.jobdir, ctx['ts'].strftime('%Y'), 'accounts', "%s-%s.pdf" % (ctx['name'], 'accounts'))
@@ -616,10 +616,10 @@ class DocFormatter(object):
 
 		for (acc,v) in ctx['parsed'].iteritems():
 
-		 	for page in v:
+			for page in v:
 				remittancePage(c, page, 'ACCOUNTS COPY')
 
-	 	c.save()
+		c.save()
 		rendered_pdfs[ ('accounts',) ] =  os.path.relpath(p, self.jobdir)
 
 		# protocol: key tuples must all be same length, second tuple is key descriptions
@@ -637,10 +637,10 @@ class DocFormatter(object):
 				c = canvas.Canvas(p, pagesize=A4)
 
 				for mark in marks:
-		 			for page in v:
+					for page in v:
 						purchasePage(c, page, mark)
 
-		 		c.save()
+				c.save()
 				rendered_pdfs[ ("%s%s" % (acc, bundle),) ] = os.path.relpath(p, self.jobdir)
 
 		return rendered_pdfs, ('type', )
@@ -820,7 +820,7 @@ class TestStationary(unittest.TestCase):
 		self.assertEquals( ({('SMP109',): '2014/SMP109/blahstate-SMP109.pdf', ('accounts',): '2014/accounts/blahstate-accounts.pdf'}, ('Group',) ),  p)
 
 	def test_cnote(self):
-	 	# CREDIT NOTE / INVOICE paperwork
+		# CREDIT NOTE / INVOICE paperwork
 		extra = dict( doctype='CREDIT NOTE',
 			summ_code='5\n'*4,
 			summ_netamt='12345.67\n'*4,
