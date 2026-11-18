@@ -1,15 +1,11 @@
-FROM python:2.7-alpine as builder
+# asyncore/asynchat (used by lpdserver.py and httpserver.py) were removed in python 3.12
+FROM python:3.11-slim
 MAINTAINER chris@shucksmith.co.uk
 
-# add the dev dependencies
-RUN apk add --no-cache python make gcc g++ libc-dev
-
-# use cached layer for node modules
 COPY requirements.txt /app/
 
 WORKDIR /app/
-RUN pip install -r requirements.txt
-# RUN python -m unittest
+RUN pip install --no-cache-dir -r requirements.txt
 
 RUN echo $HOME
 VOLUME ["/root/printerface"]
@@ -21,4 +17,3 @@ COPY . /app/
 
 WORKDIR /app
 RUN python -m unittest discover --pattern=*.py
-# RUN ls -la /app/

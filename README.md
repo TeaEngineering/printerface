@@ -1,5 +1,5 @@
 # printerface
-[![Build Status](https://travis-ci.org/shuckc/printerface.svg?branch=master)](https://travis-ci.org/shuckc/printerface) [![License](https://img.shields.io/badge/License-BSD%203--Clause-blue.svg)](https://opensource.org/licenses/BSD-3-Clause)
+[![Tests](https://github.com/shuckc/printerface/actions/workflows/tests.yml/badge.svg)](https://github.com/shuckc/printerface/actions/workflows/tests.yml) [![License](https://img.shields.io/badge/License-BSD%203--Clause-blue.svg)](https://opensource.org/licenses/BSD-3-Clause)
 
 Printerface is an application that acts as a virtual printer, accepting LPD (Line Printer Daemon) documents and parses/renders them to PDF files. Documents are stored, searchable to users on your LAN using the build in web interface. Results can be browsed, emailed and automatically printed to modern network printers (anything with a CUPS/ppd driver). It has been used in production for over eight years by customers with legacy stock control/management systems, alarm pannels and fire pannels. Tea Engineering Ltd. provides commercial support and custom/integration services in the UK.
 
@@ -29,12 +29,21 @@ The following will checkout the source code, build a docker image and start an i
 * `stationary.py` format JSON to nice PDF files
 * `printing.py` Linux printing with CUPS via. command line
 
+Requires **python 3.11** (3.9+ for the dependencies, but `asyncore`/`asynchat` were removed from the standard library in 3.12).
 Requirements are specified in requirements.txt
 Unit tests run during `docker build` or with:
 
-    $ python -m unittest discover --pattern=*.py
+    $ python3.11 -m unittest discover --pattern=*.py
 
 Uses python asyncore/smtp, bootstrap web framework
+
+Jobs, rendered PDFs, the email address book and `email.cfg` overrides live in `~/printerface`. Set the
+`PRINTERFACE_HOME` environment variable to use a different directory, for example to run a second instance
+against a copy of the data on other ports (`lpd_port` and `http_port` in `defaults.cfg`/`email.cfg`).
+
+Jobs and the address book are stored as pickles. They are written with pickle protocol 2 (see
+`PICKLE_PROTOCOL` in `textutil.py`) so that python 2.7 can still read them, and python 2 pickles from earlier
+releases are converted when loaded. Print data is treated as latin-1 throughout, one byte per column.
 
 ### Detailed docker deploy
 
@@ -66,10 +75,12 @@ On windows you may wish to mount the job storage directory externally, as follow
 ### From-scratch userland python install
 
     $ mkdir ~/opt
-    $ wget https://www.python.org/ftp/python/2.7.18/Python-2.7.18.tgz
-    $ tar -xzf Python-2.7.18.tgz
-    $ cd Python-2.7.18
+    $ wget https://www.python.org/ftp/python/3.11.10/Python-3.11.10.tgz
+    $ tar -xzf Python-3.11.10.tgz
+    $ cd Python-3.11.10
     $ ./configure prefix=$HOME/opt --with-ensurepip=install
     $ make && make install
-    $ ~/opt/bin/pip install -r ~/repos/printerface/requirements.txt
+    $ ~/opt/bin/python3.11 -m pip install -r ~/repos/printerface/requirements.txt
 
+On older distributions pip has no prebuilt wheels for `pillow`, so you also need a compiler and the
+`libjpeg` and `zlib` development headers installed to build it.
