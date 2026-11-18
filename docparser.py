@@ -1,26 +1,26 @@
-#!/usr/bin/python
+#!/usr/bin/env python3
 
 import sys
 import os
 import itertools
 import collections
-from StringIO import StringIO
+from textutil import split_lines
 
 jobdir = os.path.expanduser("~/printerface/pickle/")
 
 import colorsys
 N=20
 HSV_tuples = [(x*1.0/N, 0.5, 0.8) for x in range(N)]
-colours = itertools.cycle(map(lambda x: colorsys.hsv_to_rgb(*x), HSV_tuples))
+colours = itertools.cycle([colorsys.hsv_to_rgb(*x) for x in HSV_tuples])
 
 def field(col, r, c, w=10, h=1, t='??'):
-	col.append(dict(r=r,c=c,w=w,h=h,t=t,line=r,rgb=colours.next()))
+	col.append(dict(r=r,c=c,w=w,h=h,t=t,line=r,rgb=next(colours)))
 
 class DocParser(object):
 	def parse(self, job):
 		if job['templ']:
 			mname = 'extract' + job['templ'].title()
-			lines = job['plain'].splitlines()
+			lines = split_lines(job['plain'])
 			dims = (len(lines), max([len(line) for line in lines]))
 			if hasattr(self, mname):
 				fields, page_data = getattr(self, mname)(job, lines, dims)
@@ -33,11 +33,12 @@ class DocParser(object):
 	def extractCrednote(self, job, lines, dims):
 		return self.extractInvoice(job, lines, dims)
 
-	def extractInvoice(self, job, lines, (rows,cols)):
+	def extractInvoice(self, job, lines, dims):
+		(rows, cols) = dims
 		all_fields = []
 		page_data = collections.OrderedDict()
 
-		pages = (rows-48)/48
+		pages = (rows-48)//48
 		for page in range(pages):
 			line =(page+1) * 48
 			fs = []
@@ -83,11 +84,12 @@ class DocParser(object):
 
 		return (all_fields, page_data)
 
-	def extractDelnote(self, job, lines, (rows,cols)):
+	def extractDelnote(self, job, lines, dims):
+		(rows, cols) = dims
 		all_fields = []
 		page_data = collections.OrderedDict()
 
-		pages = (rows-48)/48
+		pages = (rows-48)//48
 		for page in range(pages):
 			line =(page+1) * 48
 			fs = []
@@ -122,13 +124,14 @@ class DocParser(object):
 
 		return (all_fields, page_data)
 
-	def extractStatement(self, job, lines, (rows,cols)):
+	def extractStatement(self, job, lines, dims):
+		(rows, cols) = dims
 		# any lines after line containing 'PRINT STATEMENT SUMMARY' should be ignored
 		rows = min([rows] + [lnum for (lnum,text) in enumerate(lines) if 'PRINT STATEMENT SUMMARY' in text])
 		all_fields = []
 		page_data = collections.OrderedDict()
 
-		pages = (rows-51)/51
+		pages = (rows-51)//51
 		for page in range(pages):
 			line =(page+1) * 51
 			fs = []
@@ -169,11 +172,12 @@ class DocParser(object):
 
 		return (all_fields, page_data)
 
-	def extractPurchase(self, job, lines, (rows,cols)):
+	def extractPurchase(self, job, lines, dims):
+		(rows, cols) = dims
 		all_fields = []
 		page_data = collections.OrderedDict()
 
-		pages = (rows-48)/48
+		pages = (rows-48)//48
 		for page in range(pages):
 			line =(page+1) * 48
 			fs = []
@@ -204,11 +208,12 @@ class DocParser(object):
 
 		return (all_fields, page_data)
 
-	def extractRemittance(self, job, lines, (rows,cols)):
+	def extractRemittance(self, job, lines, dims):
+		(rows, cols) = dims
 		all_fields = []
 		page_data = collections.OrderedDict()
 
-		pages = (rows-48)/48
+		pages = (rows-48)//48
 		for page in range(pages):
 			line =(page+1) * 48
 			fs = []
@@ -235,7 +240,8 @@ class DocParser(object):
 
 		return (all_fields, page_data)
 
-	def extractPicklist(self, job, lines, (rows,cols)):
+	def extractPicklist(self, job, lines, dims):
+		(rows, cols) = dims
 		all_fields = []
 		page_data = collections.defaultdict(list)
 

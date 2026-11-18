@@ -1,13 +1,12 @@
-import ConfigParser
 import reportlab
 import os
+import shutil
 import sys
 
 from reportlab.pdfgen import canvas
 
-config = ConfigParser.ConfigParser()
-config.read('defaults.cfg')
-config.read(os.path.expanduser('~/printerface/email.cfg'))
+from settings import config
+from textutil import split_lines
 
 from reportlab.lib.units import cm
 from reportlab.lib.pagesizes import A4, landscape
@@ -62,7 +61,7 @@ def topBox(c, x, y, title="Title", content="The quick brown", w=2*cm, h=2.0*cm, 
 	c.setFont("Helvetica", hfontsz)
 	lineheight = hfontsz * 1.2
 	if align=='c':
-		for lineno, text in enumerate(title.splitlines()):
+		for lineno, text in enumerate(split_lines(title)):
 			c.drawCentredString(w*0.5, -.33*cm*(lineno+1), text)
 	else:
 		c.drawString(0.8*cm, -.33*cm, title)
@@ -438,10 +437,7 @@ def genericPage(c, data, title=None, fontsz=7, landsc=False, overlay=None, decor
 class DocFormatter(object):
 	def __init__(self, pdfdir):
 		self.jobdir = pdfdir
-		try:
-			os.makedirs(jobdir)
-		except:
-			pass
+		os.makedirs(self.jobdir, exist_ok=True)
 
 	def format(self, ctx):
 		mname = 'write' + ctx['templ'].title()
@@ -458,7 +454,7 @@ class DocFormatter(object):
 	def writeInvoice(self, ctx ):
 		rendered_pdfs = {}
 
-		for (acc,v) in ctx['parsed'].iteritems():
+		for (acc,v) in ctx['parsed'].items():
 			p = os.path.join(self.jobdir, ctx['ts'].strftime('%Y'), acc, "%s-%s.pdf" % (ctx['name'], acc))
 			self.create_dirs(p)
 			c = canvas.Canvas(p, pagesize=A4)
@@ -474,7 +470,7 @@ class DocFormatter(object):
 		c = canvas.Canvas(p, pagesize=A4)
 
 		pages_by_docnum = dict()
-		for (acc,v) in ctx['parsed'].iteritems():
+		for (acc,v) in ctx['parsed'].items():
 			for page in v:
 				pages_by_docnum.setdefault(page['doc_num'], []).append(page)
 		for k in reversed(sorted(pages_by_docnum.keys())):
@@ -492,7 +488,7 @@ class DocFormatter(object):
 		self.create_dirs(p)
 		c = canvas.Canvas(p, pagesize=A4)
 
-		for (acc,v) in ctx['parsed'].iteritems():
+		for (acc,v) in ctx['parsed'].items():
 			for page in v:
 				data = page['data']
 
@@ -524,7 +520,7 @@ class DocFormatter(object):
 		c = canvas.Canvas(p, pagesize=A4)
 		landsc, fontsz, row, cols = ctx['autofmt']
 
-		pages = filter(None, ctx['plain'].strip().split("\f"))
+		pages = [p for p in ctx['plain'].strip().split("\f") if p]
 		for page in pages:
 			genericPage(c, page, title=None, fontsz=fontsz, landsc=landsc)
 
@@ -554,7 +550,7 @@ class DocFormatter(object):
 	def writeStatement(self, ctx):
 		rendered_pdfs = {}
 
-		for (acc,v) in ctx['parsed'].iteritems():
+		for (acc,v) in ctx['parsed'].items():
 			p = os.path.join(self.jobdir, ctx['ts'].strftime('%Y'), acc, "%s-%s.pdf" % (ctx['name'], acc))
 			self.create_dirs(p)
 			c = canvas.Canvas(p, pagesize=A4)
@@ -569,7 +565,7 @@ class DocFormatter(object):
 		self.create_dirs(p)
 		c = canvas.Canvas(p, pagesize=A4)
 
-		for (acc,v) in ctx['parsed'].iteritems():
+		for (acc,v) in ctx['parsed'].items():
 			for page in v:
 				statementPage(c, page, 'ACCOUNTS COPY')
 
@@ -585,7 +581,7 @@ class DocFormatter(object):
 		self.create_dirs(p)
 		c = canvas.Canvas(p, pagesize=A4)
 
-		for (acc,v) in ctx['parsed'].iteritems():
+		for (acc,v) in ctx['parsed'].items():
 			for mark in ['CUSTOMER COPY', 'ACCOUNTS COPY']:
 				for page in v:
 					deliveryNotePage(c, page, mark)
@@ -598,7 +594,7 @@ class DocFormatter(object):
 
 		rendered_pdfs = {}
 
-		for (acc,v) in ctx['parsed'].iteritems():
+		for (acc,v) in ctx['parsed'].items():
 
 			p = os.path.join(self.jobdir, ctx['ts'].strftime('%Y'), acc, "%s-%s.pdf" % (ctx['name'], acc))
 			self.create_dirs(p)
@@ -614,7 +610,7 @@ class DocFormatter(object):
 		self.create_dirs(p)
 		c = canvas.Canvas(p, pagesize=A4)
 
-		for (acc,v) in ctx['parsed'].iteritems():
+		for (acc,v) in ctx['parsed'].items():
 
 			for page in v:
 				remittancePage(c, page, 'ACCOUNTS COPY')
@@ -629,7 +625,7 @@ class DocFormatter(object):
 
 		rendered_pdfs = {}
 
-		for (acc,v) in ctx['parsed'].iteritems():
+		for (acc,v) in ctx['parsed'].items():
 			for (bundle, marks) in [ ( '', ['SUPPLIER COPY']), ('-transport', ['TRANSPORTER COPY']), ('-admin', ['MASTER COPY', 'BOOKING IN COPY', 'PRE LOCATION COPY']) ]:
 
 				p = os.path.join(self.jobdir, ctx['ts'].strftime('%Y'), acc, "%s-%s%s.pdf" % (ctx['name'], acc, bundle))
@@ -664,11 +660,11 @@ class DocFormatter(object):
 	# port   12   55    76
 	# port   13   51    71
 	def getBestPageFormat(self, plaintext):
-		pages = filter(None, plaintext.strip().split("\f"))
+		pages = [p for p in plaintext.strip().split("\f") if p]
 
 		worst_rows, worst_cols = 0, 0
 		for pi, page in enumerate(pages):
-			lines = page.splitlines()
+			lines = split_lines(page)
 			(rows, cols) = (len(lines), max([len(line) for line in lines]))
 			# print (' page %d rows %d cols %d' % (pi, rows, cols))
 			worst_cols = max(worst_cols, cols)
@@ -695,7 +691,7 @@ class DocFormatter(object):
 			(True, 6 ,   78,  224),
 		]
 
-		soln = filter( lambda x: x[2] > worst_rows and x[3] > worst_cols, a4_cand)
+		soln = [x for x in a4_cand if x[2] > worst_rows and x[3] > worst_cols]
 		if len(soln):
 			sol = soln[0]
 			# print(' solution for pages=%d worst r=%d c=%d is %s' % (len(pages), worst_rows, worst_cols, sol))
@@ -707,9 +703,10 @@ from datetime import datetime
 class TestStationary(unittest.TestCase):
 
 	def setUp(self):
-		pdir = os.path.expanduser("~/printerface/")
-		jobdir = pdir + 'pdf/'
-		self.formatter = DocFormatter(jobdir)
+		import tempfile
+		self.tmp = tempfile.mkdtemp(prefix='printerface-test-')
+		self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+		self.formatter = DocFormatter(os.path.join(self.tmp, 'pdf') + os.sep)
 
 		self.chuff = dict(date='04/10/12',
 			doc_num='731/289073',
@@ -758,23 +755,23 @@ class TestStationary(unittest.TestCase):
 				amt_encl='amt_encl',
 			)
 
-			s.append( dict(order.items() + self.chuff.items()))
+			s.append( {**order, **self.chuff})
 		ctx['parsed'] = { 'SMP109': s}
 
 		p = self.formatter.format(ctx)
-		self.assertEquals( ({('accounts',): '2014/accounts/blahdel-accounts.pdf'}, ('type',) ),  p)
+		self.assertEqual( ({('accounts',): '2014/accounts/blahdel-accounts.pdf'}, ('type',) ),  p)
 
 		ctx['templ'] = 'purchase'
 		ctx['name'] = 'blahpurch'
 		p = self.formatter.format(ctx)
-		self.assertEquals( ({	('SMP109',):           '2014/SMP109/blahpurch-SMP109.pdf',
+		self.assertEqual( ({	('SMP109',):           '2014/SMP109/blahpurch-SMP109.pdf',
 								('SMP109-admin',):     '2014/SMP109/blahpurch-SMP109-admin.pdf',
 								('SMP109-transport',): '2014/SMP109/blahpurch-SMP109-transport.pdf'}, ('type',) ),  p)
 
 		ctx['templ'] = 'remittance'
 		ctx['name'] = 'blahremit'
 		p = self.formatter.format(ctx)
-		self.assertEquals( ({('SMP109',): '2014/SMP109/blahremit-SMP109.pdf',
+		self.assertEqual( ({('SMP109',): '2014/SMP109/blahremit-SMP109.pdf',
 							('accounts',): '2014/accounts/blahremit-accounts.pdf'}, ('Group',) ),  p)
 
 	def test_statement(self):
@@ -813,11 +810,11 @@ class TestStationary(unittest.TestCase):
 				age_due="16.00"
 			)
 
-			s.append( dict(order.items() + self.chuff.items()))
+			s.append( {**order, **self.chuff})
 		ctx['parsed'] = { 'SMP109': s}
 
 		p = self.formatter.format(ctx)
-		self.assertEquals( ({('SMP109',): '2014/SMP109/blahstate-SMP109.pdf', ('accounts',): '2014/accounts/blahstate-accounts.pdf'}, ('Group',) ),  p)
+		self.assertEqual( ({('SMP109',): '2014/SMP109/blahstate-SMP109.pdf', ('accounts',): '2014/accounts/blahstate-accounts.pdf'}, ('Group',) ),  p)
 
 	def test_cnote(self):
 		# CREDIT NOTE / INVOICE paperwork
@@ -849,10 +846,10 @@ class TestStationary(unittest.TestCase):
 				prod_net="1499.40\n"*sz,
 				prod_vcode="5\n"*sz
 			)
-			s.append( dict(order.items() + self.chuff.items() + extra.items()))
+			s.append( {**order, **self.chuff, **extra})
 		ctx['parsed'] = { 'SMP109': s}
 		p = self.formatter.format(ctx)
-		self.assertEquals( ({('SMP109',): '2014/SMP109/blahcn-SMP109.pdf', ('accounts',): '2014/accounts/blahcn-accounts.pdf'}, ('Group',) ),  p)
+		self.assertEqual( ({('SMP109',): '2014/SMP109/blahcn-SMP109.pdf', ('accounts',): '2014/accounts/blahcn-accounts.pdf'}, ('Group',) ),  p)
 
 	def test_picklist(self):
 		ctx = {}
@@ -865,16 +862,16 @@ class TestStationary(unittest.TestCase):
 			{'data': 'fluff '*22, 'hdr': 'Picking list 5342', 'dt': 'Monday 03/12/18', 'page': 'PAGE 1'}
 		]}
 		p = self.formatter.format(ctx)
-		self.assertEquals( ({('pick',): 'raw/201403/pick-a-pick.pdf'}, ('Group',) ),  p)
+		self.assertEqual( ({('pick',): 'raw/201403/pick-a-pick.pdf'}, ('Group',) ),  p)
 
 	def test_calibrate(self):
 		# test document to calibrate width/height fontsize matrix
 		cols = 240
 		rows = 120
 
-		import StringIO
-		chunks10 = (cols+9)/10
-		f = StringIO.StringIO()
+		import io
+		chunks10 = (cols+9)//10
+		f = io.StringIO()
 		f.write('' +  ''.join(["%-10d" % (d*10) for d in range(chunks10)]))
 		f.write('\n' + ('0123456789' * chunks10))
 		for row in range(2,rows):
@@ -888,9 +885,9 @@ class TestStationary(unittest.TestCase):
 		p = self.formatter.format(ctx)
 
 	def test_rawformat(self):
-		self.assertEquals( (False, 13,51,71),  self.formatter.getBestPageFormat('ABCDEF') )
-		self.assertEquals( (True,  13,35,102), self.formatter.getBestPageFormat('test'*20) )
-		self.assertEquals( (False, 8, 83,115), self.formatter.getBestPageFormat('ABCDEF\n'*80) )
+		self.assertEqual( (False, 13,51,71),  self.formatter.getBestPageFormat('ABCDEF') )
+		self.assertEqual( (True,  13,35,102), self.formatter.getBestPageFormat('test'*20) )
+		self.assertEqual( (False, 8, 83,115), self.formatter.getBestPageFormat('ABCDEF\n'*80) )
 
 		ctx = {}
 		ctx['templ'] = 'raw'
@@ -900,7 +897,7 @@ class TestStationary(unittest.TestCase):
 		ctx['plain'] = 'test12 ' * 20
 		ctx['autofmt'] = self.formatter.getBestPageFormat(ctx['plain'])
 		p = self.formatter.format(ctx)
-		self.assertEquals( ({('plain',): 'raw/201402/rawtest-plain.pdf'}, ('Type',) ),  p)
+		self.assertEqual( ({('plain',): 'raw/201402/rawtest-plain.pdf'}, ('Type',) ),  p)
 
 	def test_plainformat(self):
 		ctx = {}
@@ -909,7 +906,7 @@ class TestStationary(unittest.TestCase):
 		ctx['ts'] = datetime(2014, 3, 4, 20, 53, 0, 0)
 		ctx['autofmt'] = self.formatter.getBestPageFormat(ctx['plain'])
 		p = self.formatter.plainFormat(ctx)
-		self.assertEquals( ({('plain',): 'raw/201403/rawtest2-plain.pdf'}, ('Type',) ),  p)
+		self.assertEqual( ({('plain',): 'raw/201403/rawtest2-plain.pdf'}, ('Type',) ),  p)
 
 if __name__=="__main__":
 	unittest.main()

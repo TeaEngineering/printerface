@@ -1,6 +1,4 @@
-#!/usr/bin/env python2.7
-
-from __future__ import with_statement
+#!/usr/bin/env python3.11
 
 from mako.template import Template
 from mako.lookup import TemplateLookup
@@ -15,21 +13,19 @@ from docparser import DocParser
 from stationary import DocFormatter
 from printing import getPrinters, printFile
 
-import sys, pickle, ConfigParser
-from StringIO import StringIO
+import sys, pickle
+from io import StringIO
 import collections
 import traceback
 import json
 import time
 import pytz
+from settings import config, HOME
+from textutil import split_lines, load_job_pickle, load_user_pickles, PICKLE_PROTOCOL
 
-config = ConfigParser.ConfigParser()
-config.readfp(open(os.path.expanduser('defaults.cfg')))
-config.read(os.path.expanduser('~/printerface/email.cfg'))
+email_pickle = os.path.join(HOME, 'email.pickle')
 
-email_pickle = os.path.expanduser('~/printerface/email.pickle')
-
-data_dir = os.path.expanduser("~/printerface/data/")
+data_dir = os.path.join(HOME, 'data') + os.sep
 jobdir = os.path.join(data_dir, 'pickle')
 pdfdir = os.path.join(data_dir, 'pdf/')
 
@@ -60,14 +56,10 @@ def saveJob(queue, local, remote, control, data):
 	subdir = ts.strftime('%Y%m')
 	d = {'queue':queue, 'from':repr(local), 'to':repr(remote), 'control':control, 'data':data, 'ts': ts, 'name':jobname}
 
-	try:
-		os.makedirs(os.path.join(jobdir, subdir))
-	except:
-		pass
+	os.makedirs(os.path.join(jobdir, subdir), exist_ok=True)
 
-	f = file(os.path.join(jobdir, subdir, jobname), "wb")
-	pickle.dump(d, f)
-	f.close()
+	with open(os.path.join(jobdir, subdir, jobname), "wb") as f:
+		pickle.dump(d, f, protocol=PICKLE_PROTOCOL)
 
 	cleanJob(d)
 	autoPrint(d)
@@ -81,14 +73,14 @@ def autoPrint(job):
 	if job['autoprint']:
 		printer = job['autoprint']
 		for (groupnum, gname) in enumerate(job['groupkey']):
-			for (dockey, doc) in job['groupfiles'].iteritems():
+			for (dockey, doc) in job['groupfiles'].items():
 				if doc:
 					printFile(pdfdir + doc, printer )
 					print( 'auto printing: Document %s sent to printer %s' % (doc, printer))
 
 def saveEmails():
 	with open(email_pickle, 'wb') as f:
-		p = pickle.Pickler(f)
+		p = pickle.Pickler(f, protocol=PICKLE_PROTOCOL)
 		p.dump(email_addresses)
 		p.dump(email_accounts)
 		p.dump(email_template)
@@ -98,11 +90,10 @@ def recover():
 	global email_template
 	try:
 		with open(email_pickle, 'rb') as f:
-			p = pickle.Unpickler(f)
-			for (k,v) in p.load().iteritems():
+			(addresses, accounts, email_template) = load_user_pickles(f, 3)
+			for (k,v) in addresses.items():
 				email_addresses[k].update(v)
-			email_accounts.update(p.load())
-			email_template = p.load()
+			email_accounts.update(accounts)
 
 		print('recovered emails: %s' % email_addresses)
 		print('recovered accounts: %s' % email_accounts)
@@ -118,8 +109,8 @@ def recover():
 			p = os.path.join(jobdir, yyyymmdir, x)
 			if not os.path.isfile(p): continue
 			try:
-				with file(p, "rb") as f:
-					s = pickle.load(f)
+				with open(p, "rb") as f:
+					s = load_job_pickle(f)
 					s['name'] = x;
 					jobs.append(s)
 			except Exception as e:
@@ -130,7 +121,9 @@ def recover():
 	for j in jobs:
 		cleanJob(j)
 
-control_char_re = re.compile('[^\w\s%s_\'=/]' % re.escape('.*+()-\\;:,#?%$^&!<>|`"'))
+# re.ASCII: python 2 str patterns only ever treated ASCII as word/space characters, so any 8-bit
+# character in the print data becomes a space. Without it \x85 etc. count as whitespace and survive.
+control_char_re = re.compile(r'[^\w\s%s_\'=/]' % re.escape('.*+()-\\;:,#?%$^&!<>|`"'), re.ASCII)
 
 def cleanJob(j):
 	print(' recovering %s' % j['name'])
@@ -139,10 +132,10 @@ def cleanJob(j):
 	# handle input
 	j['plain'] = control_char_re.sub(' ', j['data'])
 
-	summary = re.compile('[^\w\s]').sub('', j['data'])
+	summary = re.compile(r'[^\w\s]', re.ASCII).sub('', j['data'])
 	for r in summary_regexps:
 		summary = r.sub(' ', summary)
-	summary = re.compile('\s+').sub(' ', summary)
+	summary = re.compile(r'\s+', re.ASCII).sub(' ', summary)
 	summary = summary.strip()[0:120]
 
 	j['summary'] = summary
@@ -162,7 +155,7 @@ def cleanJob(j):
 	if not j['colouring']: del j['colouring']
 
 	if j['parsed']:
-		for y in j['parsed'].itervalues():
+		for y in j['parsed'].values():
 			for x in y:
 				acc = None
 				addr = None
@@ -187,7 +180,7 @@ def cleanJob(j):
 		# groups {('all'): p}, ('all')
 		(j['groupfiles'], j['groupkey']) = formatter.format(j)
 
-		#for f in j['groupfiles'].itervalues():
+		#for f in j['groupfiles'].values():
 		#	from subprocess import call
 		#	proc = ['convert','-size','150x150','%s[0]' % f, '%s.png' % f]
 		#	print(proc)
@@ -214,11 +207,11 @@ def identify(j):
 
 def home(query_string='', resp=None):
 	email_fails = sum([1 for x in mailqueue.results if x['error']])
-	account = sum([ 1 for k in email_accounts.iterkeys() if len(email_addresses[k]) > 0 ]), len(email_accounts.keys())
+	account = sum([ 1 for k in email_accounts if len(email_addresses[k]) > 0 ]), len(email_accounts.keys())
 	return template_lookup.get_template("/home.html").render(email_fails=email_fails, account=account), 'text/html'
 
 def getrows_byslice(seq, rowlen):
-	for start in xrange(0, len(seq), rowlen):
+	for start in range(0, len(seq), rowlen):
 		yield seq[start:start+rowlen]
 
 def recent(query_string=dict(), resp=None):
@@ -259,7 +252,7 @@ def job(query_string=dict(), resp=None):
 			'doctype': job.get('doctype'),
 			'autofmt': job.get('autofmt'),
 			'stationary':
-				dict([ (' '.join(k), '{base}/pdf/{pdf}'.format(base=base_uri, pdf=v)) for k,v in job.get('groupfiles', {}).iteritems() ])
+				dict([ (' '.join(k), '{base}/pdf/{pdf}'.format(base=base_uri, pdf=v)) for k,v in job.get('groupfiles', {}).items() ])
 		}
 	return json.dumps(output, indent=3), 'text/json'
 
@@ -295,8 +288,8 @@ def settings_email(query_string='', postreq=None, resp=None):
 		pass
 
 	email_list = []
-	for key in sorted(email_accounts.iterkeys()):
-		email_list.append( (key, email_accounts[key], email_addresses[key].iteritems()) )
+	for key in sorted(email_accounts):
+		email_list.append( (key, email_accounts[key], list(email_addresses[key].items())) )
 
 	return ( template_lookup.get_template("/settings_email.html").render(emails=email_list, warning=warning), 'text/html')
 
@@ -327,7 +320,7 @@ def printfn(query_string='', resp=None):
 
 def pdf(query_string=dict(), resp=None):
 	job = getJob(query_string)
-	default_key = job['groupfiles'].iterkeys().next()[0]
+	default_key = next(iter(job['groupfiles']))[0]
 	key = query_string.get('key', [default_key])[0]
 	email_dest = email_addresses.get(key, {})
 	email_outcome, email_error = None, None
@@ -390,12 +383,12 @@ def getJob(query_string, returnLast=False):
 def getJobFile(query_string, job=None):
 	if not job:
 		job = getJob(query_string)
-	default_key = job['groupfiles'].iterkeys().next()[0]
+	default_key = next(iter(job['groupfiles']))[0]
 	key = query_string.get('key', [default_key])[0]
 
 	docf = None
 	for (groupnum, gname) in enumerate(job['groupkey']):
-		for (dockey,doc) in job['groupfiles'].iteritems():
+		for (dockey,doc) in job['groupfiles'].items():
 			if dockey[groupnum] == key:
 				docf = doc
 
@@ -414,7 +407,7 @@ def debug(query_string=dict(), resp=None):
 
 	colouring = job.get('colouring', [])
 
-	lines = job['plain'].splitlines()
+	lines = split_lines(job['plain'])
 	(rows, cols) = (len(lines), max([len(line) for line in lines]))
 
 	cols = max([cols] + [c['c']+c['w'] for c in colouring])
@@ -427,7 +420,7 @@ def debug(query_string=dict(), resp=None):
 			for col in range(c['c'], c['c']+c['w']):
 				high[row][col] = c
 
-	chunks10 = (cols+9)/10
+	chunks10 = (cols+9)//10
 	f = StringIO()
 	f.write('     ' +  ''.join(["%-10d" % (d*10) for d in range(chunks10)]))
 	f.write('\n     ' + ('0123456789' * chunks10))
@@ -457,32 +450,31 @@ def debug(query_string=dict(), resp=None):
 	return ( template_lookup.get_template("/debug.html").render( job=job,
 			rows=rows, cols=cols, coloured_plaintext=f.getvalue(), pformatted=pformatted), 'text/html')
 
+path_handlers = {
+	'/recent': recent,
+	'/home':home,
+	'/debug':debug,
+	'/raw':raw,
+	'/job': job,
+	'/printers':printers,
+	'/pdf':pdf,
+	'/pdf_file': pdf_file,
+	'/sent':sent,
+	'/print' : printfn,
+	'/plaintext':plain,
+	'/settings/email':settings_email,
+	'/settings/template':settings_template
+	}
+
 if __name__=="__main__":
 	# launch the server on the specified port
 	for x in [jobdir, pdfdir]:
-		try:
-			os.makedirs(x)
-		except:
-			pass
+		os.makedirs(x, exist_ok=True)
 
 	recover()
 
 	s = LpdServer(saveJob, ip='', port=int(config.get('Main', 'lpd_port')))
-	ToyHttpServer(port=int(config.get('Main', 'http_port')), pathhandlers={
-		'/recent': recent,
-		'/home':home,
-		'/debug':debug,
-		'/raw':raw,
-		'/job': job,
-		'/printers':printers,
-		'/pdf':pdf,
-		'/pdf_file': pdf_file,
-		'/sent':sent,
-		'/print' : printfn,
-		'/plaintext':plain,
-		'/settings/email':settings_email,
-		'/settings/template':settings_template
-		}, webroot=web_dir)
+	ToyHttpServer(port=int(config.get('Main', 'http_port')), pathhandlers=path_handlers, webroot=web_dir)
 	try:
 		while True:
 			asyncore.loop(timeout=1, count=10)
@@ -492,7 +484,7 @@ if __name__=="__main__":
 	except KeyboardInterrupt:
 		print("Crtl+C pressed. Shutting down.")
 	except:
-		print("Terminating: Unexpected error: %s", sys.exc_info()[0])
+		print("Terminating: Unexpected error: %s" % sys.exc_info()[0])
 		sys.stdout.flush()
 		raise
 

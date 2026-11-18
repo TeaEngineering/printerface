@@ -23,7 +23,7 @@
 	% if job.get('groupfiles', None):
 	<p>keys: ${job['groupkey']}
 	<table>
-	% for k,v in job['groupfiles'].iteritems():
+	% for k,v in job['groupfiles'].items():
 	  <tr>
 		<td>${k}</td><td><a href="/pdf/${v}">${v}</a></td>
 	  </tr>

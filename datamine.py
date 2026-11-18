@@ -1,19 +1,18 @@
-#!/usr/bin/env python2.7
-from __future__ import with_statement
-
+#!/usr/bin/env python3.11
 from datetime import datetime
 from docparser import DocParser
 from printing import getPrinters, printFile
+from settings import HOME
+from textutil import load_job_pickle, split_lines
 
 import sys
 import pickle
 import os
 import re
-from StringIO import StringIO
 import collections
 import traceback
 
-data_dir = os.path.expanduser("~/printerface/data/")
+data_dir = os.path.join(HOME, "data")
 jobdir = os.path.join(data_dir, 'pickle')
 jobs = []
 
@@ -29,8 +28,8 @@ def recover(invf, invl):
 		for x in reversed(sorted( os.listdir(os.path.join(jobdir, yyyymmdir)) )):
 			p = os.path.join(jobdir, yyyymmdir, x)
 			if not os.path.isfile(p): continue
-			with file(p, "rb") as f:
-				s = pickle.load(f)
+			with open(p, "rb") as f:
+				s = load_job_pickle(f)
 				s['name'] = x;
 				jobs.append(s)
 				print(' recovering %s %s' % (p, s['name']))
@@ -38,7 +37,7 @@ def recover(invf, invl):
 			if len(jobs) > loadQty: break
 		if len(jobs) > loadQty: break
 
-control_char_re = re.compile('[^\w\s%s_\'=/]' % re.escape('.*+()-\\;:,#?%$^&!<>|`"'))
+control_char_re = re.compile(r'[^\w\s%s_\'=/]' % re.escape('.*+()-\\;:,#?%$^&!<>|`"'), re.ASCII)
 
 def cleanJob(j, invf, invl):
 	
@@ -67,9 +66,9 @@ def handlePr1(j, dest=os.path.expanduser('/tmp/pr1')):
 	suppliers = collections.defaultdict(int)
 	szs = collections.defaultdict(int)
 	with open(dest, 'w') as f:
-		for part in filter(None, j['plain'].split("\f")):
+		for part in [p for p in j['plain'].split("\f") if p]:
 			if len(part.strip()) > 0:
-				for l in part.splitlines():
+				for l in split_lines(part):
 					if len(l.strip()) == 0: continue
 					if 'STOCK MANAGEMENT' in l: continue
 					if '=' * 46 in l: continue
@@ -87,22 +86,22 @@ def handlePr1(j, dest=os.path.expanduser('/tmp/pr1')):
 						suppliers[sup] += 1
 						sz  = l[48:52]
 						szs[sz] += 1
-						print l
+						print(l)
 						# l can spill over 130 characters if last column is negative (1)
 						if len(l) > 129: l = l[0:129]
 						f.write(l)
 						f.write('\n')
-	print groups
-	print suppliers
-	print szs
+	print(groups)
+	print(suppliers)
+	print(szs)
 	with open(os.path.expanduser('/tmp/groups'), 'w') as f:
-		for k,v in groups.iteritems():
+		for k,v in groups.items():
 			f.write("%3d %-40s\n" % (k, v))
 	with open(os.path.expanduser('/tmp/sizes'), 'w') as f:
-		for k,v in szs.iteritems():
+		for k,v in szs.items():
 			f.write("%s\n" % k)
 	with open(os.path.expanduser('/tmp/suppliers'), 'w') as f:
-		for k,v in suppliers.iteritems():
+		for k,v in suppliers.items():
 			f.write("%s\n" % k)
 
 def handleInv(j, invf, invl):
@@ -113,7 +112,7 @@ def handleInv(j, invf, invl):
 	#    doc_num   ourref  accno custref  salesperson ord_date tot_net tot_due
 	# layout - lines
 	#    doc_num   prod_code prod_desc  prod_qty  prod_price  prod_unit  prod_net
-	for acc,pages in j['parsed'].iteritems():
+	for acc,pages in j['parsed'].items():
 		for page in pages:
 			if len(page['tot_due'].strip()) > 0:
 				invf.write("%6s %6s %7s %-12s %-20s %8s %10s %10s\n" % (page['doc_num'], page['ourref'], page['accno'], page['custref'], 
@@ -148,4 +147,4 @@ if __name__=="__main__":
 	with open(os.path.expanduser('/tmp/inv'), 'w') as f:
 		with open(os.path.expanduser('/tmp/invline'), 'w') as l:
 			recover(f, l)
-	print 'done'
+	print('done')

@@ -5,42 +5,42 @@
 # Import smtplib for the actual sending function
 import smtplib
 from email.mime.text import MIMEText
-from email.MIMEMultipart import MIMEMultipart
-from email.MIMEBase import MIMEBase
-from email import Encoders
+from email.mime.multipart import MIMEMultipart
+from email.mime.base import MIMEBase
+from email import encoders
+from settings import config, HOME
+from textutil import load_user_pickles, PICKLE_PROTOCOL
 
 # http://stackoverflow.com/questions/3362600/how-to-send-email-attachments-with-python
 import datetime 
-import ConfigParser, os, threading
-import Queue
+import os, threading
+import queue
 import traceback
 import pickle
 
-pickle_file = '~/printerface/mailer.pickle'
-
-config = ConfigParser.ConfigParser()
-config.read('defaults.cfg')
-config.read(os.path.expanduser('~/printerface/email.cfg'))
+pickle_file = os.path.join(HOME, 'mailer.pickle')
 
 class JobMailer(object):
 
 	def __init__(self, queuesz=10):
-		self.queue = Queue.Queue(queuesz)
-		self.thread = threading.Thread(target=self.run)
-		self.thread.daemon = True
-		self.thread.start()
+		self.queue = queue.Queue(queuesz)
 		self.results = []
-		self.resultLimit = config.get('Gmail', 'result_count')
+		self.resultLimit = config.getint('Gmail', 'result_count')
 
 		try:
-			with open(os.path.expanduser(pickle_file), 'rb') as f:
-				p = pickle.Unpickler(f)
-				self.results = p.load()				
+			with open(pickle_file, 'rb') as f:
+				[self.results] = load_user_pickles(f)
+		except FileNotFoundError:
+			pass
 		except:
 			traceback.print_exc()
 
 		while len(self.results) > self.resultLimit:
 				self.results.pop()
+
+		self.thread = threading.Thread(target=self.run)
+		self.thread.daemon = True
+		self.thread.start()
 
 	def append(self, job):
 		job['added'] = datetime.datetime.now()
@@ -65,7 +65,7 @@ class JobMailer(object):
 					work['error'] = None
 
 				except Exception as e:
-					print 'mailq: failed to send email: ' + repr(e)
+					print('mailq: failed to send email: ' + repr(e))
 					
 					work['completed'] = datetime.datetime.now()
 					work['error'] = repr(e)
@@ -77,13 +77,13 @@ class JobMailer(object):
 
 				self.pickleResults()
 
-			except Queue.Empty:
+			except queue.Empty:
 				print('mailq: idling for jobs')
 
 	def pickleResults(self):
 		try:
-			with open(os.path.expanduser(pickle_file), 'wb') as f:
-				p = pickle.Pickler(f)
+			with open(pickle_file, 'wb') as f:
+				p = pickle.Pickler(f, protocol=PICKLE_PROTOCOL)
 				p.dump(self.results)			
 		except Exception as e:
 			traceback.print_exc()
@@ -105,7 +105,7 @@ class JobMailer(object):
 
 		part = MIMEBase('application', "octet-stream")
 		part.set_payload(file.read())
-		Encoders.encode_base64(part)
+		encoders.encode_base64(part)
 
 		part.add_header('Content-Disposition', 'attachment; filename="%s"' % filename)
 
@@ -133,6 +133,6 @@ if __name__=="__main__":
 
 		print(mailq.results)
 
-	print 'done'
+	print('done')
 
 
