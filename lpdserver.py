@@ -1,88 +1,92 @@
 # Line Printer Daemon implementation, using asynchat
 # Chris Shucksmith 2013
 
-import asynchat, asyncore, socket, exceptions, os
+import asynchat, asyncore, socket, os
 import sys
+
+# LPD is a byte protocol and print data is 8-bit. Decode everything as latin-1 so that one byte is
+# always one character (columns in the fixed-width documents must not shift) and so it round-trips.
+ENCODING = 'latin-1'
 
 (AwaitingCommand, NewJob, NewJobControl, NewJobData, EndOfFile ) = range(0,5)
 
 class LpdHandler(asynchat.async_chat):
 
 	def __init__(self, sock, addr, controller):
-		try:
-			asynchat.async_chat.__init__(self, sock=sock)
-		except exceptions.TypeError:
-			# compat python 2.5.2  bugfix for http://bugs.python.org/issue1519
-			asynchat.async_chat.__init__(self, conn=sock)
+		asynchat.async_chat.__init__(self, sock=sock)
 		self.ibuffer = []
 		self.sm = AwaitingCommand
-		self.set_terminator("\n")
+		self.set_terminator(b"\n")
 		self.sock = sock
 		self.controller = controller
 		self.id = "[lpd-%d]" % addr[1]
 		print('%s installed LpdHandler' % self.id)
-				
+
 	def collect_incoming_data(self, data):
 		self.ibuffer.append(data)
 		print('%s collect_data - %d bytes' % (self.id, len(data)))
 
 	def found_terminator(self):
-		chunk = self.ibuffer.pop(0)
+		# the terminator can arrive split over several recv()s, so gather every fragment
+		chunk = b''.join(self.ibuffer)
+		self.ibuffer = []
+		cmd = chunk[:1]
 		if self.sm == AwaitingCommand: # Main command verb
-			if chunk[0] == '\x02':
-				self.queue = chunk[1:]
+			if cmd == b'\x02':
+				self.queue = chunk[1:].decode(ENCODING)
 				print('%s Incoming job to queue \'%s\'' % (self.id, self.queue))
-				self.push('\x00')
+				self.push(b'\x00')
 				self.sm = NewJob
 			else:
-				print('%s unknown message type %d' + (self.id, self.ibuffer[0]))
+				print('%s unknown message type %r' % (self.id, cmd))
 		elif self.sm == NewJob: # Recieve Job
-			if chunk[0] == '\x02':	# Subcommand - Control filename
-				sz,name = chunk[1:].split(' ', 1)
+			if cmd == b'\x02':	# Subcommand - Control filename
+				sz,name = chunk[1:].decode(ENCODING).split(' ', 1)
 				rdlength = int(sz)
 				print('%s Incoming header: control file sz %d filename %s' % (self.id, rdlength,name))
 				self.sm = NewJobControl
 				self.set_terminator(rdlength+1) # include the trailing null
-				self.push('\x00')
-			elif chunk[0] == '\x03': # Subcommand - Data filename
-				sz,name = chunk[1:].split(' ', 1)
+				self.push(b'\x00')
+			elif cmd == b'\x03': # Subcommand - Data filename
+				sz,name = chunk[1:].decode(ENCODING).split(' ', 1)
 				rdlength = int(sz)
 				print('%s incoming header: data file sz %d filename %s' % (self.id, rdlength,name))
 				self.sm = NewJobData
-				# windows seems to set a stupidly large length here and kill the socket to 
+				# windows seems to set a stupidly large length here and kill the socket to
 				# indicate eof. Handle either
 				self.set_terminator(rdlength+1) # include the trailing null
 				# self.set_terminator(None) # terminated by close of socket
-				self.push('\x00')
+				self.push(b'\x00')
 			else:
-				print('%s recieve job unknown subcommand: 0x%x' % (self.id, chunk[0]))
+				print('%s recieve job unknown subcommand: %r' % (self.id, cmd))
 		elif self.sm == NewJobControl: # Recieve - Job Control file (null terminated)
-			self.controldata = dict([ (x[0], x[1:]) for x in chunk[:-1].split('\n') if len(x) > 1])
+			self.controldata = dict([ (x[0], x[1:]) for x in chunk[:-1].decode(ENCODING).split('\n') if len(x) > 1])
 			print('%s control file: %s' % (self.id, repr(self.controldata)))
-			self.push('\x00')
+			self.push(b'\x00')
 			self.sm = NewJob
-			self.set_terminator("\n")
+			self.set_terminator(b"\n")
 		elif self.sm == NewJobData: # Recieve - Job Data file (terminated by close)
 			# Windows NT4 lpr sends a well formed size, hits this code
 			print('%s end of data file' % self.id)
 			# put the chunk back on the ibuffer for dispatch()
 			self.ibuffer.insert(0, chunk)
 			self.sm = EndOfFile
-			self.push('\x00')
+			self.push(b'\x00')
 			self.close_when_done()
 			self.dispatch()
 		else:
-			print('%s Unknown state, woken up by terminator, buffer was: %s' % (self.id, repr(self.ibuffer)))
+			print('%s Unknown state, woken up by terminator, chunk was: %s' % (self.id, repr(chunk)))
 			self.close_when_done()
+
 	def handle_close(self):
 		print('%s handle_close' % (self.id))
 		if self.sm == NewJobData:
 			print('%s data file: %s' % (self.id, repr(self.ibuffer)[:100]))
-			# calling push() after the client has closed the socket will re-invoke handle_close, so 
+			# calling push() after the client has closed the socket will re-invoke handle_close, so
 			# switch to terminal state to avoid inf recursion
 			self.sm = EndOfFile
 			self.dispatch()
-			self.push('\x00')
+			self.push(b'\x00')
 			self.close_when_done()
 		elif self.sm == EndOfFile:
 			self.close()
@@ -91,13 +95,13 @@ class LpdHandler(asynchat.async_chat):
 			self.close()
 
 	def dispatch(self):
-		data = ''.join(self.ibuffer)
+		data = b''.join(self.ibuffer).decode(ENCODING)
 		# log exceptions during dispatch so that we get the thread back to perform socket clean up
 		try:
 			print('%s dispatching' % (self.id))
 			self.controller(self.queue, self.sock.getpeername(), self.sock.getsockname(), self.controldata, data)
 		except Exception as e:
-			print('LPD dispatch of print job threw exception: %s', sys.exc_info()[0])
+			print('LPD dispatch of print job threw exception: %s' % sys.exc_info()[0])
 			print(e)
 			sys.stdout.flush()
 		print('%s dispatch complete' % (self.id))

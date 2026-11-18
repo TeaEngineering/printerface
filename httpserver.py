@@ -15,15 +15,16 @@ threaded HTTP to mix inline with other protocol handlers to avoid locking a
 datamodel.
 """
 
-import asynchat, asyncore, socket, select, urllib
-import posixpath, sys, cgi, cStringIO, os, traceback, shutil
-import mimetools, time
-import cgi
+import asynchat, asyncore, socket
+import posixpath, sys, io, os, traceback
+import html
+import time
+import urllib.parse
 import mimetypes
-try:
-	from cStringIO import StringIO
-except ImportError:
-	from StringIO import StringIO
+
+# HTTP headers and the request line are latin-1 on the wire; bodies we generate are utf-8
+HEADER_ENCODING = 'latin-1'
+BODY_ENCODING = 'utf-8'
 
 """HTTP server base class.
 
@@ -40,15 +41,18 @@ __version__ = "0.3"
 
 class CaseInsensitiveDict(dict):
 	"""Dictionary with case-insensitive keys
-	Replacement for the deprecated mimetools.Message class
+	Replacement for the deprecated mimetools.Message class. infile is a binary file of header lines.
 	"""
 	def __init__(self, infile, *args):
 		self._ci_dict = {}
 		lines = infile.readlines()
 		for line in lines:
+			line = line.decode(HEADER_ENCODING)
+			if ':' not in line:
+				continue
 			k,v=line.split(":",1)
 			self._ci_dict[k.lower()] = self[k] = v.strip()
-		self.headers = self.keys()
+		self.headers = list(self.keys())
 
 	def getheader(self,key,default=""):
 		return self._ci_dict.get(key.lower(),default)
@@ -77,8 +81,19 @@ DEFAULT_ERROR_MESSAGE = """\
 
 DEFAULT_ERROR_CONTENT_TYPE = "text/html"
 
-def _quote_html(html):
-	return html.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+def _quote_html(text):
+	return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+def _body_file(f, ctype):
+	"""Normalise whatever a path handler returned into (binary file object, content type).
+	Handlers return str (json, plain), bytes (mako output, pdf) or a binary file object."""
+	if isinstance(f, str):
+		f = f.encode(BODY_ENCODING)
+	if isinstance(f, (bytes, bytearray)):
+		f = io.BytesIO(f)
+	if ctype.startswith('text/') and 'charset' not in ctype:
+		ctype += '; charset=' + BODY_ENCODING
+	return f, ctype
 
 class BaseHTTPRequestHandler(asynchat.async_chat):
 
@@ -109,7 +124,7 @@ class BaseHTTPRequestHandler(asynchat.async_chat):
 		self.request_version = version = self.default_request_version
 		self.close_connection = 1
 
-		requestline = requestline.rstrip('\r\n')
+		requestline = requestline.decode(HEADER_ENCODING).rstrip('\r\n')
 		self.requestline = requestline
 		words = requestline.split()
 		if len(words) == 3:
@@ -150,10 +165,10 @@ class BaseHTTPRequestHandler(asynchat.async_chat):
 			return False
 
 		querystring = dict()
-		qparts = path.split('?', 1);
+		qparts = path.split('?', 1)
 		if len(qparts) > 1:
 			path = qparts[0]
-			querystring = cgi.parse_qs(qparts[1])
+			querystring = urllib.parse.parse_qs(qparts[1])
 		self.command, self.path, self.request_version, self.query_string = command, path, version, querystring
 
 		# Examine the headers and look for a Connection directive
@@ -196,7 +211,7 @@ class BaseHTTPRequestHandler(asynchat.async_chat):
 		self.send_header('Connection', 'close')
 		self.end_headers()
 		if self.command != 'HEAD' and code >= 200 and code not in (204, 304):
-			self.push(content)
+			self.push(content.encode(BODY_ENCODING))
 
 	error_message_format = DEFAULT_ERROR_MESSAGE
 	error_content_type = DEFAULT_ERROR_CONTENT_TYPE
@@ -215,15 +230,14 @@ class BaseHTTPRequestHandler(asynchat.async_chat):
 			else:
 				message = ''
 		if self.request_version != 'HTTP/0.9':
-			self.push("%s %d %s\r\n" % (self.protocol_version, code, message))
-			# print (self.protocol_version, code, message)
+			self.push(("%s %d %s\r\n" % (self.protocol_version, code, message)).encode(HEADER_ENCODING, 'replace'))
 		self.send_header('Server', self.version_string())
 		self.send_header('Date', self.date_time_string())
 
 	def send_header(self, keyword, value):
 		"""Send a MIME header."""
 		if self.request_version != 'HTTP/0.9':
-			self.push("%s: %s\r\n" % (keyword, value))
+			self.push(("%s: %s\r\n" % (keyword, value)).encode(HEADER_ENCODING, 'replace'))
 
 		if keyword.lower() == 'connection':
 			if value.lower() == 'close':
@@ -234,7 +248,7 @@ class BaseHTTPRequestHandler(asynchat.async_chat):
 	def end_headers(self):
 		"""Send the blank line ending the MIME headers."""
 		if self.request_version != 'HTTP/0.9':
-			self.push("\r\n")
+			self.push(b"\r\n")
 
 	def log_request(self, code='-', size='-'):
 		"""Log requests, called by send_response(). """
@@ -451,11 +465,7 @@ class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
 		if (handler):
 			try:
 				resp = ResponseGatherer()
-				(f, ctype) = handler(query_string=self.query_string, resp=resp)
-				if type(f) is str:
-					c = StringIO()
-					c.write(f)
-					f = c
+				(f, ctype) = _body_file(*handler(query_string=self.query_string, resp=resp))
 				self.send_response(200)
 				resp.write_headers(self)
 				self.send_header("Content-type", ctype)
@@ -467,7 +477,7 @@ class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
 				return f
 			except:
 				tb = traceback.format_exc()
-				print tb
+				print(tb)
 				self.send_error(500, "File not found")
 				return None
 
@@ -495,7 +505,7 @@ class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
 			f = open(path, 'rb')
 		except IOError:
 			tb = traceback.format_exc()
-			print tb
+			print(tb)
 			self.send_error(404, "File not found")
 			return None
 		self.send_response(200)
@@ -520,8 +530,8 @@ class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
 			self.send_error(404, "No permission to list directory")
 			return None
 		list.sort(key=lambda a: a.lower())
-		f = StringIO()
-		displaypath = cgi.escape(urllib.unquote(self.path))
+		f = io.StringIO()
+		displaypath = html.escape(urllib.parse.unquote(self.path))
 		f.write('<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 3.2 Final//EN">')
 		f.write("<html>\n<title>Directory listing for %s</title>\n" % displaypath)
 		f.write("<body>\n<h2>Directory listing for %s</h2>\n" % displaypath)
@@ -537,10 +547,10 @@ class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
 				displayname = name + "@"
 				# Note: a link to a directory displays with @ and links with /
 			f.write('<li><a href="%s">%s</a>\n'
-					% (urllib.quote(linkname), cgi.escape(displayname)))
+					% (urllib.parse.quote(linkname), html.escape(displayname)))
 		f.write("</ul>\n<hr>\n</body>\n</html>\n")
-		length = f.tell()
-		f.seek(0)
+		f = io.BytesIO(f.getvalue().encode(sys.getfilesystemencoding(), 'replace'))
+		length = len(f.getvalue())
 		self.send_response(200)
 		encoding = sys.getfilesystemencoding()
 		self.send_header("Content-type", "text/html; charset=%s" % encoding)
@@ -559,9 +569,9 @@ class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
 		# abandon query parameters
 		path = path.split('?',1)[0]
 		path = path.split('#',1)[0]
-		path = posixpath.normpath(urllib.unquote(path))
+		path = posixpath.normpath(urllib.parse.unquote(path))
 		words = path.split('/')
-		words = filter(None, words)
+		words = [w for w in words if w]
 		path = self.webroot
 		for word in words:
 			drive, word = os.path.splitdrive(word)
@@ -620,9 +630,9 @@ class RequestHandler(SimpleHTTPRequestHandler):
 		self.reset_terminator();
 
 	def reset_terminator(self):
-		self.set_terminator ('\r\n\r\n')
+		self.set_terminator (b'\r\n\r\n')
 		self.found_terminator = self.handle_request_line
-		self.rfile = cStringIO.StringIO()
+		self.rfile = io.BytesIO()
 
 	def collect_incoming_data(self,data):
 		self.rfile.write(data)
@@ -630,19 +640,14 @@ class RequestHandler(SimpleHTTPRequestHandler):
 	def do_POST(self):
 		"""Begins serving a POST request. The request data must be readable
 		on a file-like object called self.rfile"""
-		ctype, pdict = cgi.parse_header(self.headers.getheader('content-type'))
-		postreq = cgi.FieldStorage(fp=self.rfile,
-			headers=self.headers, environ = {'REQUEST_METHOD':'POST'},
-			keep_blank_values = 1)
+		# only urlencoded form bodies are understood; fields arrive as {name: [values]}, like query_string
+		body = self.rfile.getvalue().decode(BODY_ENCODING, 'replace')
+		postreq = urllib.parse.parse_qs(body, keep_blank_values=True)
 
 		handler = self.handlers.get(self.path)
 		if (handler):
 			try:
-				(f, ctype) = handler(query_string=self.query_string, postreq=postreq)
-				if type(f) is str:
-					c = StringIO()
-					c.write(f)
-					f = c
+				(f, ctype) = _body_file(*handler(query_string=self.query_string, postreq=postreq))
 				self.send_response(200)
 				self.send_header("Content-type", ctype)
 				f.seek(0, os.SEEK_END)
@@ -650,10 +655,12 @@ class RequestHandler(SimpleHTTPRequestHandler):
 				# self.send_header("Last-Modified", self.date_time_string(fs.st_mtime))
 				self.end_headers()
 				f.seek(0)
-				return f
+				self.push(f.read())
+				f.close()
+				return None
 			except:
 				tb = traceback.format_exc()
-				print tb
+				print(tb)
 				self.send_error(500, "File not found")
 				return None
 		else:
@@ -671,7 +678,7 @@ class RequestHandler(SimpleHTTPRequestHandler):
 		bytesToRead = int(self.headers.getheader('content-length', '0'))
 		if bytesToRead > 0:
 			self.set_terminator(bytesToRead)
-			self.rfile = cStringIO.StringIO()
+			self.rfile = io.BytesIO()
 			# control will be passed to a new found_terminator
 			self.found_terminator = self.dispatch_handler
 
@@ -699,11 +706,6 @@ class RequestHandler(SimpleHTTPRequestHandler):
 
 	def log_message(self, format, *args):
 		sys.stdout.write("%s %s %s %s\n" %
-						(self.id,self.log_date_time_string(), self.address_string(),
-						format%args))
-
-	def log_message(self, format, *args):
-		sys.stdout.write("%s %s %s %s\n" %
 			(self.id, self.log_date_time_string(), self.address_string(), format%args))
 
 class ToyHttpServer(asyncore.dispatcher):
@@ -720,7 +722,7 @@ class ToyHttpServer(asyncore.dispatcher):
 		self.bind ((ip, port))
 		self.listen (100)
 
-		print "[httpd] ToyHTTPServer running on port %s, serving from %s" % (port, self.webroot)
+		print("[httpd] ToyHTTPServer running on port %s, serving from %s" % (port, self.webroot))
 
 	def handle_accept (self):
 		try:
@@ -735,9 +737,7 @@ class ToyHttpServer(asyncore.dispatcher):
 if __name__=="__main__":
 
 	def about(query_string=''):
-		f = StringIO()
-		f.write("hi %s" % query_string)
-		return (f,'text/plain')
+		return ("hi %s" % query_string, 'text/plain')
 
 	# launch the server on the specified port
 	s = ToyHttpServer(port=8081, pathhandlers={'/about': about})
@@ -745,6 +745,6 @@ if __name__=="__main__":
 	try:
 		while True:
 			asyncore.loop(timeout=2, count=10)
-			print '[control] poll'
+			print('[control] poll')
 	except KeyboardInterrupt:
-		print "Crtl+C pressed. Shutting down."
+		print("Crtl+C pressed. Shutting down.")
