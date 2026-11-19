@@ -44,13 +44,19 @@ against a copy of the data on other ports (`lpd_port` and `http_port` in `defaul
 ### Email templates
 
 The text offered when emailing a document comes from a template per document type: `invoice`, `purchase` and
-`statement` (other types use the single "Default Email Text" under Settings). Templates are Mako files.
+`statement`, and `default` for every other kind of document (delivery notes, credit notes, reports...).
+Templates are Mako files.
 `~/printerface/templates/<type>.mako` is used if it exists, otherwise the copy shipped in `templates/` in the
 source, so an install that never customises a template follows the repository. Edit them under
 Settings > Email Templates, which previews the result against a real document (leave the filter blank for the
 newest, or enter a document number or account).
 
-Variables: `${doc.<field>}` (the document: `doc.ourref`, `doc.doc_num`, `doc.accno`, `doc.tot_due`,
+The default template only has `${email.name}`, `${email.address}` and `${job.name}`, `${job.doctype}`,
+`${job.host}`, since printerface doesn't read the contents of those documents. Earlier releases kept one email
+text in `email.pickle`; if there is one and no `default.mako` yet, it is saved as `~/printerface/templates/default.mako`
+the first time this release starts (once only: reverting to the shipped default isn't undone by a restart).
+
+The other templates also have: `${doc.<field>}` (the document: `doc.ourref`, `doc.doc_num`, `doc.accno`, `doc.tot_due`,
 `doc.customer`, ... - the editor lists them), `${email.name}`, `${email.address}`, `${job.name}`,
 `${company.name}`. If an account has several documents in one print run `doc` is the last; use
 `% for d in docs:` ... `% endfor` to visit each. `% if doc.field:` / `% else:` / `% endif` and `##` comments work too.

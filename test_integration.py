@@ -2,6 +2,7 @@
 # over HTTP. Runs against a throwaway PRINTERFACE_HOME, never ~/printerface.
 import asyncore
 import http.client
+import io
 import json
 import os
 import pickle
@@ -123,9 +124,9 @@ class TestPrinterface(unittest.TestCase):
 		main.email_addresses.clear()
 		shutil.rmtree(emailtemplates.USER_DIR, ignore_errors=True)
 
-	def send_invoice(self, **kw):
+	def send_invoice(self, jtype='Invoice', **kw):
 		before = len(main.jobs)
-		lpr(self.lpd_port, 'RAW', 'Hlocalhost\nPtester\nJInvoice\nldfA001testhost\n', make_invoice(**kw).encode('latin-1'))
+		lpr(self.lpd_port, 'RAW', 'Hlocalhost\nPtester\nJ%s\nldfA001testhost\n' % jtype, make_invoice(**kw).encode('latin-1'))
 		deadline = time.time() + 20
 		while len(main.jobs) == before and time.time() < deadline:
 			time.sleep(0.05)
@@ -204,7 +205,7 @@ class TestPrinterface(unittest.TestCase):
 		r, body = self.get('/pdf_file?name=%s&key=ACC001&attach=1' % name)
 		self.assertIn('attachment', r.getheader('Content-Disposition'))
 
-		for path in ['/home', '/sent', '/printers', '/settings/email', '/settings/template',
+		for path in ['/home', '/sent', '/printers', '/settings/email', '/settings/templates',
 				'/pdf?name=' + name, '/debug?name=' + name, '/plaintext?name=' + name, '/']:
 			r, body = self.get(path)
 			self.assertEqual(200, r.status, path)
@@ -262,19 +263,17 @@ class TestPrinterface(unittest.TestCase):
 		r, body = self.get('/pdf?name=%s&key=ACC001' % j['name'])
 		self.assertIn((self.INVOICE_TEXT % 'Ann and Bob &amp; Co').encode('utf-8'), body)
 
-	def test_documents_without_a_template_keep_the_default_text(self):
-		main.email_template = 'DEFAULT TEXT'
-		try:
-			lpr(self.lpd_port, 'RAW', 'Hlocalhost\nPtester\nJDelvnote\nldfA001testhost\n', make_invoice().encode('latin-1'))
-			deadline = time.time() + 20
-			while not main.jobs and time.time() < deadline:
-				time.sleep(0.05)
-			r, body = self.get('/pdf?name=%s' % main.jobs[0]['name'])
-			self.assertEqual('delnote', main.jobs[0]['templ'])
-			self.assertIn(b'DEFAULT TEXT', body)
-			self.assertNotIn(b'/settings/templates?kind', body)
-		finally:
-			main.email_template = ''
+	DEFAULT_TEXT = 'To %s\n\nPlease find your document attached.'
+
+	def test_other_documents_use_the_default_template(self):
+		j = self.send_invoice('Delvnote')
+		self.assertEqual('delnote', j['templ'])
+		r, body = self.get('/pdf?name=' + j['name'])
+		self.assertEqual(200, r.status)
+		self.assertNotIn(b'Mako Runtime Error', body)
+		self.assertIn((self.DEFAULT_TEXT % 'Sir or Madam').encode('utf-8'), body)
+		self.assertIn(('/settings/templates?kind=default&amp;docnum=' + j['name']).encode(), body)
+		self.assertIn(b'Edit the default email template', body)
 
 	def test_template_editor_preview_save_and_revert(self):
 		j = self.send_invoice(doc_num='424242')
@@ -317,7 +316,7 @@ class TestPrinterface(unittest.TestCase):
 
 		# revert goes back to the shipped text
 		r, body = self.post('/settings/templates', kind='invoice', action='revert')
-		self.assertIn(b'Reverted to the default invoice template', body)
+		self.assertIn(b'Reverted to the shipped invoice template', body)
 		self.assertFalse(os.path.exists(path))
 		r, body = self.get('/pdf?name=%s&key=ACC001' % j['name'])
 		self.assertIn((self.INVOICE_TEXT.replace('289073', '289073') % 'Sir or Madam').encode('utf-8'), body)
@@ -342,6 +341,74 @@ class TestPrinterface(unittest.TestCase):
 		r, body = self.post('/settings/templates', kind='../../etc/passwd', action='save', template='x')
 		self.assertEqual(200, r.status)
 		self.assertFalse(os.path.exists(os.path.join(emailtemplates.USER_DIR, '..', '..', 'etc')))
+
+	def test_default_template_editor(self):
+		self.send_invoice(doc_num='111')                  # an invoice does not count as "another document"
+		r, body = self.get('/settings/templates?kind=default')
+		self.assertEqual(200, r.status)
+		self.assertNotIn(b'Mako Runtime Error', body)
+		self.assertIn(b'No document found', body)
+		j = self.send_invoice('Delvnote')
+		r, body = self.get('/settings/templates?kind=default')
+		self.assertNotIn(b'Mako Runtime Error', body)
+		self.assertIn(j['name'].encode(), body)
+		self.assertIn(b'<strong>Delvnote</strong>', body)
+		self.assertIn(b'job name or document type', body)
+		self.assertNotIn(b'${company.name}', body)        # not available to the default template
+		self.assertNotIn(b'${doc.', body)
+		self.assertIn(b'Default</a>', body)               # the tab
+		# the filter takes a job name or a document type
+		for term in (j['name'], 'delvnote'):
+			r, body = self.get('/settings/templates?kind=default&docnum=' + term)
+			self.assertIn(j['name'].encode(), body, term)
+		r, body = self.get('/settings/templates?kind=default&docnum=Nonesuch')
+		self.assertIn(b'No document found matching', body)
+
+		r, body = self.post('/settings/templates', kind='default', action='preview', docnum='', template='${job.doctype} for ${email.name}')
+		self.assertIn(b'Delvnote for Sir or Madam', body)
+		# only email and job exist here
+		for text in ('${doc.ourref}', '${company.name}', '% for d in docs:\n% endfor'):
+			r, body = self.post('/settings/templates', kind='default', action='save', template=text)
+			self.assertIn(b"This template can", body, text)
+			self.assertFalse(os.path.exists(emailtemplates.user_path('default')), text)
+		r, body = self.post('/settings/templates', kind='default', action='save', template='Hello ${email.name}, re ${job.doctype}')
+		self.assertIn(b'Saved the default template', body)
+		r, body = self.get('/pdf?name=' + j['name'])
+		self.assertIn(b'Hello Sir or Madam, re Delvnote', body)
+		r, body = self.post('/settings/templates', kind='default', action='revert')
+		self.assertIn(b'Reverted to the shipped default template', body)
+		r, body = self.get('/pdf?name=' + j['name'])
+		self.assertIn((self.DEFAULT_TEXT % 'Sir or Madam').encode('utf-8'), body)
+
+	def test_the_old_single_email_text_is_migrated_once_at_startup(self):
+		import contextlib
+		j = self.send_invoice('Delvnote')
+		# the old text lives in email.pickle, which recover() reads back at startup
+		main.email_template = 'Please find it attached.\r\n\r\nRegards,\r\nTony Page'
+		try:
+			with contextlib.redirect_stdout(io.StringIO()):
+				main.saveEmails()
+				main.jobs.clear(); main.recover()
+			r, body = self.get('/pdf?name=' + j['name'])
+			self.assertIn(b'Please find it attached.\n\nRegards,\nTony Page', body)
+			with open(emailtemplates.user_path('default'), encoding='utf-8') as f:
+				self.assertEqual('Please find it attached.\n\nRegards,\nTony Page\n', f.read())
+			# reverting is not undone by the next restart
+			self.post('/settings/templates', kind='default', action='revert')
+			with contextlib.redirect_stdout(io.StringIO()):
+				main.jobs.clear(); main.recover()
+			self.assertFalse(os.path.exists(emailtemplates.user_path('default')))
+		finally:
+			main.email_template = ''
+			with contextlib.redirect_stdout(io.StringIO()):
+				main.saveEmails()
+
+	def test_the_old_default_text_editor_is_gone(self):
+		r, body = self.get('/settings/template')
+		self.assertEqual(404, r.status)
+		r, body = self.get('/home')
+		self.assertNotIn(b'Default Email Text', body)
+		self.assertIn(b'/settings/templates', body)
 
 	def test_keepalive_two_requests_one_connection(self):
 		self.send_invoice()
