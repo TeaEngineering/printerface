@@ -80,7 +80,7 @@
 					<label class="control-label" for="inputTo">To</label>
 					<div class="controls">
 						% for (em,cn) in email_dest.items():
-						<label><input type="checkbox" name="em" value="${em}" checked> ${cn} <em>${em}</em></label>
+						<label><input type="checkbox" name="em" value="${em | h}" checked> ${cn | h} <em>${em | h}</em></label>
 						% endfor
 					</div>
 				</div>
@@ -95,9 +95,13 @@
 
 				<div class="row-fluid">
 					<div class="span1">&nbsp;</div>
-					<textarea rows="12" class="span10" id="inputBody" name="emailbody">
+					<textarea rows="12" class="span10" id="inputBody" name="emailbody" data-url="${email_body_url | h}">
 ${email_templ | h}
 </textarea>
+					<div id="bodyNotice" class="span10 alert alert-info" style="display: none;">
+						The text has been edited, so it wasn't updated for the recipients you chose.
+						<a href="#" id="bodyReapply">Replace it with the template text</a>
+					</div>
 					% if template_warning:
 					<div class="span10 alert alert-error">${template_warning | h}</div>
 					% endif
@@ -114,3 +118,5 @@ ${email_templ | h}
 			</div>
 		</div>
 	</form>
+
+<script src="/js/compose.js"></script>

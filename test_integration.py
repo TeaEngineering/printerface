@@ -342,6 +342,42 @@ class TestPrinterface(unittest.TestCase):
 		self.assertEqual(200, r.status)
 		self.assertFalse(os.path.exists(os.path.join(emailtemplates.USER_DIR, '..', '..', 'etc')))
 
+	def test_email_body_follows_the_ticked_contacts(self):
+		j = self.send_invoice()
+		self.get('/settings/email?account=ACC001&email=ann%40x.com&contact=Ann')
+		self.get('/settings/email?account=ACC001&email=bob%40x.com&contact=Bob')
+
+		def body(*ticked):
+			query = ['name=' + j['name'], 'key=ACC001'] + ['em=' + urllib.parse.quote(e) for e in ticked]
+			r, data = self.get('/email_body?' + '&'.join(query))
+			self.assertEqual(200, r.status)
+			self.assertTrue(r.getheader('Content-Type').startswith('text/json'))
+			answer = json.loads(data.decode('utf-8'))
+			self.assertIsNone(answer['warning'])
+			return answer['body']
+
+		self.assertTrue(body('ann@x.com', 'bob@x.com').startswith('To Ann and Bob\n\nPlease find your latest invoice 289073'))
+		self.assertTrue(body('bob@x.com').startswith('To Bob\n\nPlease find'))
+		self.assertTrue(body().startswith('To Sir or Madam\n\nPlease find'))          # nobody ticked
+		self.assertTrue(body('stranger@x.com').startswith('To Sir or Madam\n'))        # not in the address book: no name to use
+		self.post('/settings/templates', kind='invoice', action='save', template='${email.name} <${email.address}>')
+		self.assertEqual('Bob and Ann <bob@x.com>\n', body('bob@x.com', 'ann@x.com'))   # the first ticked address
+		self.assertEqual('Sir or Madam <>\n', body())
+
+	def test_compose_form_is_wired_for_live_updates(self):
+		j = self.send_invoice()
+		self.get('/settings/email?account=ACC001&email=bob%40x.com&contact=Bob+%26+Co')
+		r, body = self.get('/pdf?name=%s&key=ACC001' % j['name'])
+		self.assertNotIn(b'Mako Runtime Error', body)
+		self.assertIn(('data-url="/email_body?name=%s&amp;key=ACC001"' % j['name']).encode(), body)
+		self.assertIn(b'id="bodyNotice"', body)
+		self.assertIn(b'<script src="/js/compose.js"></script>', body)
+		# contact names and addresses are escaped where they are shown and where they are values
+		self.assertIn(b'<input type="checkbox" name="em" value="bob@x.com" checked> Bob &amp; Co', body)
+		r, js = self.get('/js/compose.js')
+		self.assertEqual(200, r.status)
+		self.assertIn('javascript', r.getheader('Content-Type'))
+
 	def test_default_template_editor(self):
 		self.send_invoice(doc_num='111')                  # an invoice does not count as "another document"
 		r, body = self.get('/settings/templates?kind=default')
