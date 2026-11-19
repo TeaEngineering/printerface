@@ -1,6 +1,6 @@
-// Email compose form: when a contact is ticked or unticked the suggested text is re-rendered by the server,
-// since the template can use the recipients (${email.name}). Text the user has already edited is never
-// replaced silently: it is kept, and a notice offers to replace it.
+// Email compose form: when a contact is ticked or unticked the suggested subject and text are re-rendered by
+// the server, since the template can use the recipients (${email.name}). A field the user has already edited
+// is never replaced silently: it is kept, and a notice offers to replace it.
 (function () {
 	function init(doc, fetchFn) {
 		var area = doc.getElementById('inputBody');
@@ -10,8 +10,14 @@
 		var boxes = doc.querySelectorAll('input[name="em"]');
 		var notice = doc.getElementById('bodyNotice');
 		var reapply = doc.getElementById('bodyReapply');
-		var lastRendered = area.value;   // what the server gave us; anything else in the box was typed
 		var latest = 0;
+		// 'last' is what the server gave us; anything else in the box was typed
+		var fields = [{el: doc.getElementById('inputSubject'), key: 'subject'}, {el: area, key: 'body'}].filter(function (f) {
+			return f.el;
+		});
+		fields.forEach(function (f) {
+			f.last = f.el.value;
+		});
 
 		function selected() {
 			var out = [];
@@ -45,13 +51,19 @@
 				if (mine !== latest) {
 					return;   // a later tick has asked again; its answer is the one that counts
 				}
-				if (area.value !== lastRendered && !replaceEdits) {
-					showNotice(true);
-					return;
-				}
-				area.value = d.body;
-				lastRendered = area.value;
-				showNotice(false);
+				var kept = false;
+				fields.forEach(function (f) {
+					if (typeof d[f.key] !== 'string') {
+						return;   // never put 'undefined' in a box if an answer lacks a field
+					}
+					if (f.el.value !== f.last && !replaceEdits) {
+						kept = true;
+						return;
+					}
+					f.el.value = d[f.key];
+					f.last = f.el.value;
+				});
+				showNotice(kept);
 			}).catch(function () {
 				// leave the text as it is; the user can still edit it by hand
 			});

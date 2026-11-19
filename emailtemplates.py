@@ -11,6 +11,9 @@
 # plain text, ${field.lookups}, 'for ... in docs', simple 'if' tests and comments. There are no calls, no
 # <% %> blocks, no operators and no names starting with an underscore, so a template cannot reach
 # anything but the document data it is given.
+#
+# The first line of the rendered text is the email's subject; the rest is the body. So a template can
+# compute the subject from the document as well, and subjects are generated mechanically.
 import collections
 import os
 import re
@@ -192,6 +195,15 @@ def validate(text, kind=None):
 			errors.append('template structure: %s' % (str(e).splitlines() or ['invalid'])[0])
 	return errors
 
+Message = collections.namedtuple('Message', 'subject body')
+
+def split_subject(rendered):
+	"""The first line of the rendered text is the subject, the rest is the body. Blank lines between them
+	(a separator, for readability in the template) are not part of the body."""
+	first, _, rest = rendered.partition('\n')
+	rest = re.sub(r'\A(?:[ \t]*\n)+', '', rest)
+	return Message(first.strip(), (rest.rstrip() + '\n') if rest.strip() else '')
+
 def render(text, context, kind=None):
 	errors = validate(text, kind)
 	if errors:
@@ -201,6 +213,9 @@ def render(text, context, kind=None):
 	except Exception as e:
 		raise TemplateError(['%s: %s' % (type(e).__name__, e)])
 	return out.rstrip() + '\n'
+
+def render_message(text, context, kind=None):
+	return split_subject(render(text, context, kind))
 
 # ------------------------------------------------------------------------------------------ storage
 
@@ -256,7 +271,10 @@ def migrate_legacy_default(text):
 	if not (text or '').strip() or os.path.exists(marker) or os.path.exists(user_path(DEFAULT)):
 		return None
 	try:
-		save(DEFAULT, text)
+		# the old text had no subject line (the user typed one in); give it the shipped default's
+		with open(seed_path(DEFAULT), encoding=ENCODING) as f:
+			subject_line = f.readline().rstrip('\n')
+		save(DEFAULT, subject_line + '\n\n' + text.lstrip('\r\n'))
 		message = 'migrated the old email text to %s' % user_path(DEFAULT)
 	except TemplateError as e:
 		message = 'could not migrate the old email text (%s); it is still in email.pickle' % e
@@ -265,18 +283,18 @@ def migrate_legacy_default(text):
 	return message
 
 def render_for_job(job, key, names=(), addresses=(), company=None):
-	"""(body, kind, warning) for the compose form. A user template that no longer renders falls back to
-	the shipped one, with a warning."""
+	"""(Message(subject, body), kind, warning) for the compose form. A user template that no longer renders
+	falls back to the shipped one, with a warning."""
 	kind = kind_for_job(job)
 	context = build_context(job, key, names, addresses, company)
 	text, source = load(kind)
 	try:
-		return render(text, context, kind), kind, None
+		return render_message(text, context, kind), kind, None
 	except TemplateError as e:
 		if source != 'custom':
 			raise
-		body = render(open(seed_path(kind), encoding=ENCODING).read(), context, kind)
-		return body, kind, 'Your %s template could not be used (%s); showing the default.' % (KINDS[kind].lower(), e)
+		message = render_message(open(seed_path(kind), encoding=ENCODING).read(), context, kind)
+		return message, kind, 'Your %s template could not be used (%s); showing the default.' % (KINDS[kind].lower(), e)
 
 # ----------------------------------------------------------------------------------------------- tests
 
@@ -321,19 +339,21 @@ class TestEmailTemplates(unittest.TestCase):
 		for kind in KINDS:
 			text = open(seed_path(kind), encoding=ENCODING).read()
 			self.assertEqual([], validate(text, kind), kind)
-		ctx = build_context(self.job(), 'HAR108', names=['Ann'])
-		body = render(open(seed_path('invoice'), encoding=ENCODING).read(), ctx)
-		self.assertEqual('To Ann\n\nPlease find your latest invoice 289099 attached for account HAR108, for \xa310.00.\n', body)
+		ctx = build_context(self.job(), 'HAR108', names=['Ann'], company={'name': 'ABFW'})
+		message = render_message(open(seed_path('invoice'), encoding=ENCODING).read(), ctx)
+		self.assertEqual('Invoice 289099 from ABFW', message.subject)
+		self.assertEqual('To Ann\n\nPlease find your latest invoice 289099 attached for account HAR108, for \xa310.00.\n', message.body)
 
 	def test_shipped_templates_render_with_no_data_at_all(self):
 		for kind in KINDS:
-			body = render(open(seed_path(kind), encoding=ENCODING).read(), build_context({'templ': kind}, 'nothing'), kind)
-			self.assertTrue(body.startswith('To ' + NO_NAME), kind)
+			message = render_message(open(seed_path(kind), encoding=ENCODING).read(), build_context({'templ': kind}, 'nothing'), kind)
+			self.assertTrue(message.body.startswith('To ' + NO_NAME), kind)
+			self.assertTrue(message.subject, kind)
 
 	def test_other_document_types_use_the_default_template(self):
 		for templ in ('delnote', 'crednote', 'picklist', None):
-			body, kind, warning = render_for_job({'templ': templ, 'name': 'job-9', 'doctype': 'Delvnote'}, 'X', ['Ann'])
-			self.assertEqual(('To Ann\n\nPlease find your document attached.\n', DEFAULT, None), (body, kind, warning), templ)
+			message, kind, warning = render_for_job({'templ': templ, 'name': 'job-9', 'doctype': 'Delvnote'}, 'X', ['Ann'])
+			self.assertEqual((('Document attached', 'To Ann\n\nPlease find your document attached.\n'), DEFAULT, None), (tuple(message), kind, warning), templ)
 
 	def test_the_default_context_is_only_email_and_job(self):
 		ctx = build_context({'templ': 'delnote', 'name': 'job-9', 'doctype': 'Delvnote', 'control': {'H': 'PC1'}}, 'X', ['Ann'], ['a@b.c'], {'name': 'ABFW'})
@@ -354,7 +374,9 @@ class TestEmailTemplates(unittest.TestCase):
 			self.assertIsNone(migrate_legacy_default('   \r\n'))
 			self.assertFalse(os.path.exists(user_path(DEFAULT)))
 			self.assertIn('migrated', migrate_legacy_default('Please find it attached.\r\n\r\nRegards,\r\nTony'))
-			self.assertEqual(('Please find it attached.\n\nRegards,\nTony\n', 'custom'), load(DEFAULT))
+			# the old text had no subject, so it gets the shipped default's, and the old text stays the body
+			self.assertEqual(('Document attached\n\nPlease find it attached.\n\nRegards,\nTony\n', 'custom'), load(DEFAULT))
+			self.assertEqual(('Document attached', 'Please find it attached.\n\nRegards,\nTony\n'), tuple(render_message(load(DEFAULT)[0], build_context({}, 'x'), DEFAULT)))
 			# a user who reverts to the shipped text does not get the old text back at the next start
 			revert(DEFAULT)
 			self.assertIsNone(migrate_legacy_default('Please find it attached.'))
@@ -429,6 +451,26 @@ x
 		# ...but <% is refused everywhere, comment or not
 		self.assertTrue(validate('## <% x %>'))
 
+	def test_split_subject(self):
+		self.assertEqual(('Hello', 'Body\n'), tuple(split_subject('Hello\nBody\n')))
+		self.assertEqual(('Hello', 'Body\nmore\n'), tuple(split_subject('Hello\n\n\n  \nBody\nmore\n\n\n')))   # separator lines are not the body
+		self.assertEqual(('Hello', 'Para 1\n\nPara 2\n'), tuple(split_subject('Hello\n\nPara 1\n\nPara 2\n')))        # blank lines inside the body stay
+		self.assertEqual(('Only a subject', ''), tuple(split_subject('Only a subject\n')))
+		self.assertEqual(('Only a subject', ''), tuple(split_subject('Only a subject\n\n  \n')))
+		self.assertEqual(('', 'Body\n'), tuple(split_subject('\nBody\n')))                                          # an empty first line: no subject
+		self.assertEqual(('Trim me', 'x\n'), tuple(split_subject('  Trim me \t\nx\n')))
+		self.assertEqual(('', ''), tuple(split_subject('')))
+
+	def test_the_subject_is_the_first_rendered_line_so_it_can_be_computed(self):
+		job = self.job()
+		ctx = build_context(job, 'HAR108', names=['Ann'], company={'name': 'ABFW'})
+		text = '## a comment before the subject is not output\n% if doc.tot_due:\nInvoice ${doc.ourref}, \xa3${doc.tot_due}\n% else:\nInvoice ${doc.ourref}\n% endif\n\nHi ${email.name}\n'
+		self.assertEqual(('Invoice 289099, \xa310.00', 'Hi Ann\n'), tuple(render_message(text, ctx)))
+		ctx = build_context({'templ': 'invoice', 'parsed': {'A': [{'doc_num': '1', 'ourref': '77', 'accno': 'A', 'tot_due': ''}]}}, 'A')
+		self.assertEqual('Invoice 77', render_message(text, ctx).subject)
+		# a template whose first line is blank has no subject, and nothing else moves up into its place
+		self.assertEqual(('', 'Hi\n'), tuple(render_message('\nHi\n', ctx)))
+
 	def test_validate_reports_unbalanced_blocks(self):
 		self.assertTrue(validate('% if doc.a:\nx\n'))
 
@@ -463,8 +505,9 @@ x
 			os.makedirs(USER_DIR)
 			with open(user_path('invoice'), 'w') as f:
 				f.write('${__import__("os")}')       # written to disk behind the editor's back
-			body, kind, warning = render_for_job(self.job(), 'HAR108', ['Ann'])
-			self.assertTrue(body.startswith('To Ann\n\nPlease find your latest invoice'))
+			message, kind, warning = render_for_job(self.job(), 'HAR108', ['Ann'])
+			self.assertTrue(message.body.startswith('To Ann\n\nPlease find your latest invoice'))
+			self.assertTrue(message.subject.startswith('Invoice 289099'))
 			self.assertIn('could not be used', warning)
 		finally:
 			import shutil
