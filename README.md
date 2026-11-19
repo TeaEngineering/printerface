@@ -28,6 +28,7 @@ The following will checkout the source code, build a docker image and start an i
 * `docparser` recognise and parse some plain-text formats from 1990 to JSON
 * `stationary.py` format JSON to nice PDF files
 * `printing.py` Linux printing with CUPS via. command line
+* `printstatus.py` read-only CUPS status for the Printers page (one `lpstat -t` in the C locale, cached for 10s), and the check of whether auto-printing can work. lpstat can show a stuck or stopped queue but not that a page was printed
 
 A GET never changes anything: sending an email, printing, editing the address book and saving or reverting a
 template are POSTs, and their handlers return `httpserver.Redirect(...)` (a 303) to a page that is safe to refresh,

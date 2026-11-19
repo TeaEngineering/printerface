@@ -18,6 +18,7 @@ from unittest import mock
 
 import main
 import mailer
+import printstatus
 import emailtemplates
 from stationary import DocFormatter
 from lpdserver import LpdServer
@@ -96,6 +97,9 @@ class TestPrinterface(unittest.TestCase):
 		# would run lpr: on a machine without CUPS that fails, and on one with a printer called HP_TONY it would print.
 		cls.print_patch = mock.patch.object(main, 'printFile')
 		cls.printed = cls.print_patch.start()
+		# likewise the Printers page: lpstat is only ever the canned text, never the machine's own CUPS
+		cls.lpstat_patch = mock.patch.object(printstatus, 'run_lpstat', return_value=printstatus.SAMPLE)
+		cls.lpstat_patch.start()
 		cls.lpd = LpdServer(main.saveJob, ip='127.0.0.1', port=0)
 		cls.http = ToyHttpServer(ip='127.0.0.1', port=0, pathhandlers=main.path_handlers, webroot=main.web_dir)
 		cls.lpd_port = cls.lpd.socket.getsockname()[1]
@@ -110,8 +114,37 @@ class TestPrinterface(unittest.TestCase):
 		cls.lpd.close()
 		cls.http.close()
 		cls.print_patch.stop()
+		cls.lpstat_patch.stop()
 		emailtemplates.USER_DIR = cls.old_user_dir
 		shutil.rmtree(cls.home, ignore_errors=True)
+
+	def test_printers_page(self):
+		printstatus.reset_cache()
+		old = main.config.get('Robot', 'auto_printer')
+		try:
+			main.config.set('Robot', 'auto_printer', 'DESK_LASER')
+			r, body = self.get('/printers')
+			self.assertEqual(r.status, 200)
+			text = body.decode()
+			for expected in ['OFFICE_MFP', 'HALL_COPIER_192.0.2.10', 'Connecting to printer...', 'socket://192.0.2.10', 'OFFICE_MFP-41071']:
+				self.assertIn(expected, text)
+			# DESK_LASER has a 2017 job waiting
+			self.assertIn('may not be working', text)
+			main.config.set('Robot', 'auto_printer', 'NOPE')
+			printstatus.reset_cache()
+			self.assertIn('no printer called NOPE', self.get('/printers')[1].decode())
+		finally:
+			main.config.set('Robot', 'auto_printer', old)
+			printstatus.reset_cache()
+
+	def test_printers_page_without_cups(self):
+		printstatus.reset_cache()
+		with mock.patch.object(printstatus, 'run_lpstat', side_effect=printstatus.LpstatError('cupsd is <down>')):
+			r, body = self.get('/printers')
+		self.assertEqual(r.status, 200)
+		self.assertIn("Can't read the printer status", body.decode())
+		self.assertIn('cupsd is &lt;down&gt;', body.decode())
+		printstatus.reset_cache()
 
 	def get(self, path, headers=None):
 		conn = http.client.HTTPConnection('127.0.0.1', self.http_port, timeout=10)
@@ -673,6 +706,9 @@ class TestPrinterface(unittest.TestCase):
 			r, body = self.get('/pdf?name=%s&key=ACC001' % j['name'])
 			self.assertIn(b'<form id="printForm" method="post" action="/print"', body)
 			self.assertNotIn(b'href="/print?', body)
+			# and the menu offers the CUPS queues, never a made-up 'default' that lpr would reject
+			self.assertIn(b'data-printer="OFFICE_MFP"', body)
+			self.assertNotIn(b'data-printer="default"', body)
 			# an unknown job prints nothing
 			r, data = self.post('/print', name='job-19990101-000000', printer='default')
 			self.assertEqual(200, r.status)

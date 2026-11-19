@@ -1,24 +1,15 @@
 #!/usr/bin/env python3
-import sys
 import subprocess
-
-printers = []
+import printstatus
 
 def getPrinters():
-	global printers
-	if not sys.platform.startswith("linux"):
-		return ['default']
-	if len(printers) > 0: return printers
+	"""Names of the CUPS queues, as the Printers page sees them (same lpstat call, so the two always agree).
+	Empty if CUPS can't be asked, so the print menu is empty rather than offering a queue that doesn't exist."""
 	try:
-		process = subprocess.Popen(["lpstat", "-a"], stdout=subprocess.PIPE, universal_newlines=True)
-		result = process.communicate()[0].strip()
-		# KONICA_bizhub_192.168.12.10 accepting requests since Sun 16 Dec 2012 07:43:59 PM GMT
-		print(result)
-		printers = [x.split(' ')[0] for x in result.split('\n') if x.strip()]
-		print('[print] printers=%s' % repr(printers))
-	except OSError as e:
-		print('[print] %s' % repr(e))
-	return printers
+		return [p.name for p in printstatus.status().printers]
+	except printstatus.LpstatError as e:
+		print('[print] %s' % e)
+		return []
 
 def printFile(file, printer):
 	cmd = ["lpr","-P", printer, file]

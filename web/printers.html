@@ -1,16 +1,87 @@
-
 <%inherit file="bootstrap.html"/>
 <%block name="title">- Printers</%block>
+<%
+	def ago(when):
+		return humanise(now - when) + ' ago' if when else 'unknown'
+	def when_s(when):
+		return when.strftime('%d %b %Y %H:%M') if when else ''
+	def size_s(n):
+		return '%.0f KB' % (n / 1024.0) if n >= 1024 else '%d B' % n
+	LEVEL = {'ok': ('success', 'Automatic printing looks healthy'), 'warning': ('warning', 'Automatic printing may not be working'),
+		'error': ('error', 'Automatic printing will fail')}
+	STATE = {'idle': 'label-success', 'printing': 'label-info', 'disabled': 'label-important'}
+%>
 
 	<h3>Printers</h3>
 
-	<table class="table table-striped">
-		<tr><th>Printer</th></tr>
-	% for p in printers:
-	  <tr>
-		<td>${p}</td>
-	  </tr>
+	<h4>Automatic printing</h4>
+	<p>Documents of type
+	% for t in auto_types:
+		<strong>${t | h}</strong>${',' if not loop.last else ''}
+	% endfor
+	are printed on <strong>${auto_printer | h}</strong> as soon as they arrive. This is set by <code>auto_types</code> and
+	<code>auto_printer</code> under <code>[Robot]</code> in <code>~/printerface/email.cfg</code>.</p>
+
+	% if error:
+	<div class="alert alert-error"><strong>Can't read the printer status.</strong> ${error | h}</div>
+	% else:
+		<% cls, headline = LEVEL[verdict.level] %>
+		<div class="alert alert-${'success' if cls == 'success' else cls}">
+			<strong>${headline}.</strong>
+			% if verdict.problems:
+			<ul style="margin-bottom: 0;">
+			% for problem in verdict.problems:
+				<li>${problem | h}</li>
+			% endfor
+			</ul>
+			% else:
+			CUPS is running and ${auto_printer | h} is ready.
+			% endif
+		</div>
+	% endif
+
+	% if st:
+	<h4>CUPS printers</h4>
+	<table class="table table-striped table-condensed">
+		<tr><th>Printer</th><th>State</th><th>Accepting jobs</th><th>Since</th><th>Waiting</th><th>Message</th><th>Device</th></tr>
+	% for p in st.printers:
+		<% waiting = [j for j in st.jobs if j.printer == p.name] %>
+		<tr>
+			<td>${p.name | h}
+			% if p.name == auto_printer:
+				<span class="label label-info">auto-print</span>
+			% endif
+			% if p.name == st.default:
+				<span class="label">default</span>
+			% endif
+			</td>
+			<td><span class="label ${STATE.get(p.state, '')}">${p.state | h}</span></td>
+			<td>${'yes' if p.accepting else 'NO' if p.accepting is False else '?'}${(': ' + p.reject_reason) if p.reject_reason else '' | h}</td>
+			<td title="${when_s(p.since) | h}">${ago(p.since) | h}</td>
+			<td>${len(waiting) or ''}</td>
+			<td>${(p.reason or p.message or '') | h}</td>
+			<td class="muted">${(p.device or '') | h}</td>
+		</tr>
 	% endfor
 	</table>
+	<p class="muted">For an idle printer, <em>Since</em> is when CUPS last changed its state, roughly when it last printed. Waiting is not a record of paper
+	that came out: CUPS forgets a job once it has been handed to the printer.</p>
+
+	% if st.jobs:
+	<h4>Jobs waiting in CUPS</h4>
+	<table class="table table-condensed">
+		<tr><th>Job</th><th>Owner</th><th>Size</th><th>Submitted</th><th>Waiting</th></tr>
+	% for j in sorted(st.jobs, key=lambda j: j.submitted or now, reverse=True):
+		<tr class="${'warning' if j.submitted and now - j.submitted > stale else ''}">
+			<td>${j.id | h}</td><td>${j.user | h}</td><td>${size_s(j.size)}</td>
+			<td>${when_s(j.submitted) | h}</td><td>${ago(j.submitted).replace(' ago', '') | h}</td>
+		</tr>
+	% endfor
+	</table>
+	% else:
+	<p>No jobs are waiting in CUPS.</p>
+	% endif
+	<p class="muted">Fetched ${st.fetched.strftime('%H:%M:%S') | h} &ndash; <a href="/printers">refresh</a></p>
+	% endif
 
 	<p>To add or change printers use <a href="https://192.168.12.4:631/">CUPS Administration</a>
