@@ -13,6 +13,7 @@ from mailer import JobMailer
 from docparser import DocParser
 from stationary import DocFormatter
 from printing import getPrinters, printFile
+import printing
 import printstatus
 
 import sys, pickle
@@ -87,8 +88,12 @@ def autoPrint(job):
 		for (groupnum, gname) in enumerate(job['groupkey']):
 			for (dockey, doc) in job['groupfiles'].items():
 				if doc:
-					printFile(pdfdir + doc, printer )
-					print( 'auto printing: Document %s sent to printer %s' % (doc, printer))
+					try:
+						printFile(pdfdir + doc, printer )
+						print( 'auto printing: Document %s sent to printer %s' % (doc, printer))
+					except Exception as e:
+						# recorded in the print history; carry on with the other documents
+						print( 'auto printing: Document %s NOT sent to printer %s: %s' % (doc, printer, e))
 
 def saveEmails():
 	with open(email_pickle, 'wb') as f:
@@ -338,8 +343,9 @@ def printfn(query_string='', postreq=None, resp=None):
 			printFile(pdfdir + docf, printer)
 			key = postreq.get('key', [next(iter(job['groupfiles']))[0]])[0]
 			return Redirect('/pdf?' + urllib.parse.urlencode({'name': job['name'], 'key': key, 'printed': printer}))
-		except Exception:
+		except Exception as e:
 			traceback.print_exc(file=sys.stdout)
+			return doMessage(title='Printing', message='The document was not printed: %s<br>Source: %s sent to printer %s<br>' % (html.escape(str(e)), html.escape(str(docf)), html.escape(printer)))
 	return doMessage(title='Printing', message='Could not find the document, or a problem printing it! Source: %s sent to printer %s<br>' % (html.escape(str(docf)), html.escape(printer)))
 
 def company_info():
@@ -481,6 +487,8 @@ def pdf(query_string=dict(), postreq=None, resp=None):
 
 	# emails made from this job that are still in the sent history, newest first
 	sent_from_this_job = mailer.sent_from_job(mailqueue.results, job['name'])
+	# and what was sent to a printer from it, with the CUPS request ids
+	printed_from_this_job = printing.printlog.for_job(job['name'])
 
 	# what the editor's preview filter should be set to so that it shows this document
 	if template_kind == emailtemplates.DEFAULT:
@@ -491,7 +499,7 @@ def pdf(query_string=dict(), postreq=None, resp=None):
 		template_docnum = pages[0].get('doc_num', '').strip()
 
 	return ( template_lookup.get_template("/pdf.html").render(printers=getPrinters(), job=job, key=key, email_templ=email_body_default, email_subject_default=email_subject_default, ticked=typed['ticked'] if typed else None,
-		template_kind=template_kind, template_warning=template_warning, template_docnum=template_docnum, sent_from_this_job=sent_from_this_job,
+		template_kind=template_kind, template_warning=template_warning, template_docnum=template_docnum, sent_from_this_job=sent_from_this_job, printed_from_this_job=printed_from_this_job,
 		email_body_url='/email_body?' + urllib.parse.urlencode({'name': job['name'], 'key': key}),
 		email_dest=email_dest, email_outcome=email_outcome, email_error=email_error), 'text/html')
 
@@ -626,10 +634,12 @@ if __name__=="__main__":
 		while True:
 			asyncore.loop(timeout=1, count=10)
 			print('[control] poll %s' % str(datetime.now()))
+			printing.printlog.flush()
 			sys.stdout.flush()
 
 	except KeyboardInterrupt:
 		print("Crtl+C pressed. Shutting down.")
+		printing.printlog.flush()
 	except:
 		print("Terminating: Unexpected error: %s" % sys.exc_info()[0])
 		sys.stdout.flush()
