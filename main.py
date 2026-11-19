@@ -13,6 +13,7 @@ from mailer import JobMailer
 from docparser import DocParser
 from stationary import DocFormatter
 from printing import getPrinters, printFile
+import printstatus
 
 import sys, pickle
 import html
@@ -272,7 +273,18 @@ def job(query_string=dict(), resp=None):
 	return json.dumps(output, indent=3), 'text/json'
 
 def printers(query_string='', resp=None):
-	return ( template_lookup.get_template("/printers.html").render(printers=getPrinters()), 'text/html')
+	"""What CUPS says about the printers and the auto-print setup. Read-only: lpstat is the only thing run."""
+	auto_types = [t for t in config.get('Robot', 'auto_types').split(',') if t]
+	auto_printer = config.get('Robot', 'auto_printer')
+	try:
+		st = printstatus.status()
+		error = None
+		verdict = printstatus.assess(st, auto_printer)
+	except printstatus.LpstatError as e:
+		st, error, verdict = None, str(e), None
+	return ( template_lookup.get_template("/printers.html").render(st=st, error=error, verdict=verdict,
+		auto_types=auto_types, auto_printer=auto_printer, humanise=printstatus.humanise,
+		now=datetime.now(), stale=printstatus.STALE_AFTER), 'text/html')
 
 # The Sent Items page only shows this many of the most recent emails, however long the history is: the
 # history goes back years and the whole of it makes a page of many MB.
