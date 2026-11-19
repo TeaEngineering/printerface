@@ -530,8 +530,11 @@ class TestPrinterface(unittest.TestCase):
 			self.assertEqual(200, r.status)
 			self.assertNotIn(b'Mako Runtime Error', body)
 			self.assertEqual(2, body.count(('href="/pdf?name=%s&amp;key=ACC001"' % name).encode()))     # one link per email from the loaded job
-			self.assertIn(b'job-20150715-101010', body)                                                # the old job is named...
+			self.assertEqual(2, body.count(('>%s / ACC001</a>' % name).encode()))                       # the whole "job / key" is the link text
+			self.assertIn(b'job-20150715-101010 / OLD001', body)                                       # the old job is named...
 			self.assertNotIn(b'name=job-20150715-101010', body)                                        # ...but not linked
+			self.assertLess(body.index(b'<th>Document</th>'), body.index(b'<th>To</th>'))              # Document is the first column
+			self.assertIn(b'font-size: 11px', body)                                                    # the table is set small
 
 			# the job page lists the emails made from it, and only those
 			r, body = self.get('/pdf?name=%s&key=ACC001' % name)
