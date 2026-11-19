@@ -3,7 +3,8 @@
 
 <h3>Email Templates</h3>
 <p class="muted">The text offered when you email a document. Invoices, purchase orders and statements have a template each;
-every other document (delivery notes, credit notes, reports&hellip;) uses the Default one.</p>
+every other document (delivery notes, credit notes, reports&hellip;) uses the Default one.
+<strong>The first line of a template is the email's subject</strong>; the rest is the text of the email.</p>
 
 <ul class="nav nav-tabs">
 % for k, label in kinds.items():
@@ -81,6 +82,12 @@ every other document (delivery notes, credit notes, reports&hellip;) uses the De
 				% endif
 			</p>
 			% if preview is not None:
+				<p>
+					<strong>Subject:</strong> ${preview_subject | h}
+					% if not preview_subject:
+						<span class="text-warning">(none: the first line of the template is empty)</span>
+					% endif
+				</p>
 				<pre style="white-space: pre-wrap;">${preview | h}</pre>
 			% endif
 		% endif

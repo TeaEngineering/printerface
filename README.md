@@ -51,6 +51,10 @@ source, so an install that never customises a template follows the repository. E
 Settings > Email Templates, which previews the result against a real document (leave the filter blank for the
 newest, or enter a document number or account).
 
+The first line of the rendered template is the email's subject and the rest is the body (blank lines between
+them don't count), so subjects can be generated from the document like the rest of the text, for example
+`Invoice ${doc.ourref} from ${company.name}`. Both are filled into the compose form.
+
 The default template only has `${email.name}`, `${email.address}` and `${job.name}`, `${job.doctype}`,
 `${job.host}`, since printerface doesn't read the contents of those documents. Earlier releases kept one email
 text in `email.pickle`; if there is one and no `default.mako` yet, it is saved as `~/printerface/templates/default.mako`

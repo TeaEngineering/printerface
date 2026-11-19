@@ -346,7 +346,7 @@ def settings_templates(query_string='', postreq=None, resp=None):
 	# (for the default template: the newest other document, or the job name / document type that matches)
 	found = emailtemplates.find_document(jobs, kind, term)
 	is_default = kind == emailtemplates.DEFAULT
-	preview, preview_job, preview_acc, fields, names = None, None, None, [], []
+	preview, preview_subject, preview_job, preview_acc, fields, names = None, None, None, None, [], []
 	if not found:
 		what = 'document' if is_default else '%s document' % emailtemplates.KINDS[kind].lower()
 		preview_note = 'No %s found%s.' % (what, (' matching "%s"' % term) if term else '')
@@ -358,27 +358,28 @@ def settings_templates(query_string='', postreq=None, resp=None):
 		fields = emailtemplates.field_names(ctx['doc']) if 'doc' in ctx else []
 		preview_note = None
 		try:
-			preview = emailtemplates.render(text, ctx, kind)
+			rendered = emailtemplates.render_message(text, ctx, kind)
+			preview, preview_subject = rendered.body, rendered.subject
 		except emailtemplates.TemplateError as e:
 			errors = errors or e.errors
 
 	return ( template_lookup.get_template("/settings_templates.html").render(
 		kinds=emailtemplates.KINDS, kind=kind, text=text, source=source, user_path=emailtemplates.user_path(kind),
-		term=term, message=message, errors=errors, preview=preview, preview_note=preview_note,
+		term=term, message=message, errors=errors, preview=preview, preview_subject=preview_subject, preview_note=preview_note,
 		preview_job=preview_job, preview_acc=preview_acc, names=names, fields=fields, is_default=is_default), 'text/html')
 
 def email_body(query_string=dict(), resp=None):
 	"""The suggested email text for a document if only the contacts whose addresses are in 'em' are
 	recipients. The compose form asks for this when contacts are ticked or unticked, since a template can use
-	the recipients' names. No 'em' means no recipients. Answers {"body": ..., "warning": ...}."""
+	the recipients' names. No 'em' means no recipients. Answers {"subject": ..., "body": ..., "warning": ...}."""
 	job = getJob(query_string)
 	default_key = next(iter(job.get('groupfiles') or {}), ('',))[0]
 	key = query_string.get('key', [default_key])[0]
 	known = email_addresses.get(key, {})
 	ticked = query_string.get('em', [])
-	body, kind, warning = emailtemplates.render_for_job(
+	message, kind, warning = emailtemplates.render_for_job(
 		job, key, names=[known[a] for a in ticked if a in known], addresses=ticked, company=company_info())
-	return json.dumps({'body': body, 'warning': warning}), 'text/json'
+	return json.dumps({'subject': message.subject, 'body': message.body, 'warning': warning}), 'text/json'
 
 def pdf(query_string=dict(), resp=None):
 	job = getJob(query_string)
@@ -411,11 +412,13 @@ def pdf(query_string=dict(), resp=None):
 	except:
 		raise
 
-	# the suggested body comes from the template for this type of document (or the default template)
-	email_body_default, template_kind, template_warning, template_docnum = '', emailtemplates.DEFAULT, None, ''
+	# the suggested subject and body come from the template for this type of document (or the default template)
+	email_subject_default, email_body_default = '', ''
+	template_kind, template_warning, template_docnum = emailtemplates.DEFAULT, None, ''
 	try:
-		email_body_default, template_kind, template_warning = emailtemplates.render_for_job(
+		message, template_kind, template_warning = emailtemplates.render_for_job(
 			job, key, names=list(email_dest.values()), addresses=list(email_dest.keys()), company=company_info())
+		email_subject_default, email_body_default = message.subject, message.body
 	except Exception:
 		traceback.print_exc(file=sys.stdout)
 		template_warning = 'The email template for this document could not be used.'
@@ -427,7 +430,7 @@ def pdf(query_string=dict(), resp=None):
 		pages = parsed.get(emailtemplates.account_for_key(parsed, key)) or [{}]
 		template_docnum = pages[0].get('doc_num', '').strip()
 
-	return ( template_lookup.get_template("/pdf.html").render(printers=getPrinters(), job=job, key=key, email_templ=email_body_default,
+	return ( template_lookup.get_template("/pdf.html").render(printers=getPrinters(), job=job, key=key, email_templ=email_body_default, email_subject_default=email_subject_default,
 		template_kind=template_kind, template_warning=template_warning, template_docnum=template_docnum,
 		email_body_url='/email_body?' + urllib.parse.urlencode({'name': job['name'], 'key': key}),
 		email_dest=email_dest, email_outcome=email_outcome, email_error=email_error), 'text/html')

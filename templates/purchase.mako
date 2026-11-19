@@ -1,3 +1,5 @@
+Purchase order ${doc.doc_num} from ${company.name}
+
 To ${email.name}
 
 Please find attached purchase order ${doc.doc_num}, dated ${doc.orderdate}, for account ${doc.accno}.

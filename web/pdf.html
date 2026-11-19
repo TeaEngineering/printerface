@@ -85,8 +85,8 @@
 					</div>
 				</div>
 				<div class="control-group">
-					<label class="control-label" for="inputFrom">Subject</label>
-					<div class="controls"><input type="text" id="inputFrom" name="subject" placeholder="Subject" required></div>
+					<label class="control-label" for="inputSubject">Subject</label>
+					<div class="controls"><input type="text" id="inputSubject" name="subject" placeholder="Subject" value="${email_subject_default | h}" required></div>
 				</div>
 				<div class="control-group">
 					<label class="control-label" for="inputAttached">Attachment</label>
@@ -99,7 +99,7 @@
 ${email_templ | h}
 </textarea>
 					<div id="bodyNotice" class="span10 alert alert-info" style="display: none;">
-						The text has been edited, so it wasn't updated for the recipients you chose.
+						What you typed was kept, so it wasn't updated for the recipients you chose.
 						<a href="#" id="bodyReapply">Replace it with the template text</a>
 					</div>
 					% if template_warning:
