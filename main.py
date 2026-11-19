@@ -364,7 +364,7 @@ def settings_templates(query_string='', postreq=None, resp=None):
 			errors = errors or e.errors
 
 	return ( template_lookup.get_template("/settings_templates.html").render(
-		kinds=emailtemplates.KINDS, kind=kind, text=text, source=source, user_path=emailtemplates.user_path(kind),
+		kinds=emailtemplates.KINDS, kind=kind, text=text, source=source, filename=os.path.basename(emailtemplates.user_path(kind)),
 		term=term, message=message, errors=errors, preview=preview, preview_subject=preview_subject, preview_note=preview_note,
 		preview_job=preview_job, preview_acc=preview_acc, names=names, fields=fields, is_default=is_default), 'text/html')
 

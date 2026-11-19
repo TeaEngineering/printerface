@@ -40,13 +40,7 @@ every other document (delivery notes, credit notes, reports&hellip;) uses the De
 
 <div class="row-fluid">
 	<div class="span7">
-		<p>
-		% if source == 'custom':
-			Using your customised template, saved as <code>${user_path | h}</code>.
-		% else:
-			Using the default template shipped with printerface. Saving creates <code>${user_path | h}</code>.
-		% endif
-		</p>
+		<p>Template <code>${filename | h}</code></p>
 		<textarea rows="16" class="span12" name="template" spellcheck="false" style="font-family: monospace;">${text | h}</textarea>
 		<p>
 			<button class="btn btn-primary" name="action" value="save">Save</button>

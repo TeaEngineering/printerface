@@ -296,7 +296,8 @@ class TestPrinterface(unittest.TestCase):
 		r, body = self.get('/settings/templates?kind=invoice')
 		self.assertEqual(200, r.status)
 		self.assertNotIn(b'Mako Runtime Error', body)
-		self.assertIn(b'default template shipped with printerface', body)
+		self.assertIn(b'<p>Template <code>invoice.mako</code></p>', body)
+		self.assertNotIn(b'Revert to default', body)                    # nothing customised yet, so nothing to revert
 		self.assertIn(b'Please find your latest invoice 289073 attached', body)       # preview of the newest invoice
 		for kind in ('purchase', 'statement'):
 			r, body = self.get('/settings/templates?kind=' + kind)
@@ -327,7 +328,8 @@ class TestPrinterface(unittest.TestCase):
 		r, body = self.post('/settings/templates', kind='invoice', action='save', docnum='',
 			template='Dear ${email.name}\r\nInvoice ${doc.doc_num}\r\n')
 		self.assertIn(b'Saved the invoice template', body)
-		self.assertIn(b'Using your customised template', body)
+		self.assertIn(b'<p>Template <code>invoice.mako</code></p>', body)      # the same line, customised or not
+		self.assertIn(b'Revert to default', body)
 		with open(path, encoding='utf-8') as f:
 			self.assertEqual('Dear ${email.name}\nInvoice ${doc.doc_num}\n', f.read())
 		r, body = self.get('/pdf?name=%s&key=ACC001' % j['name'])
