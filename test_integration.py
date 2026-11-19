@@ -235,6 +235,8 @@ class TestPrinterface(unittest.TestCase):
 		r, body = self.get('/plaintext?name=' + name)
 		self.assertEqual(2, body.count(b'<pre '))
 		self.assertIn(b'INVOICE', body)
+		self.assertIn(b'Debug Info', body)
+		self.assertIn(b'Document Pages', body)
 
 		r, body = self.get('/css/print.css')
 		self.assertEqual(200, r.status)
