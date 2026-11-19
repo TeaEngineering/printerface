@@ -359,7 +359,7 @@ def settings_templates(query_string='', postreq=None, resp=None):
 	# (for the default template: the newest other document, or the job name / document type that matches)
 	found = emailtemplates.find_document(jobs, kind, term)
 	is_default = kind == emailtemplates.DEFAULT
-	preview, preview_subject, preview_job, preview_acc, fields, names = None, None, None, None, [], []
+	preview, preview_subject, preview_job, preview_acc, fields, summary_fields, names = None, None, None, None, [], [], []
 	if not found:
 		what = 'document' if is_default else '%s document' % emailtemplates.KINDS[kind].lower()
 		preview_note = 'No %s found%s.' % (what, (' matching "%s"' % term) if term else '')
@@ -369,6 +369,7 @@ def settings_templates(query_string='', postreq=None, resp=None):
 		names = list(contacts.values())
 		ctx = emailtemplates.build_context(preview_job, preview_acc, names=names, addresses=list(contacts.keys()), company=company_info())
 		fields = emailtemplates.field_names(ctx['doc']) if 'doc' in ctx else []
+		summary_fields = emailtemplates.field_names(ctx['all']) if 'all' in ctx else []
 		preview_note = None
 		try:
 			rendered = emailtemplates.render_message(text, ctx, kind)
@@ -379,7 +380,7 @@ def settings_templates(query_string='', postreq=None, resp=None):
 	return ( template_lookup.get_template("/settings_templates.html").render(
 		kinds=emailtemplates.KINDS, kind=kind, text=text, source=source, filename=os.path.basename(emailtemplates.user_path(kind)),
 		term=term, message=message, errors=errors, preview=preview, preview_subject=preview_subject, preview_note=preview_note,
-		preview_job=preview_job, preview_acc=preview_acc, names=names, fields=fields, is_default=is_default), 'text/html')
+		preview_job=preview_job, preview_acc=preview_acc, names=names, fields=fields, summary_fields=summary_fields, is_default=is_default), 'text/html')
 
 def email_body(query_string=dict(), resp=None):
 	"""The suggested email text for a document if only the contacts whose addresses are in 'em' are

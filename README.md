@@ -68,8 +68,12 @@ where node isn't installed.
 
 The other templates also have: `${doc.<field>}` (the document: `doc.ourref`, `doc.doc_num`, `doc.accno`, `doc.tot_due`,
 `doc.customer`, ... - the editor lists them), `${email.name}`, `${email.address}`, `${job.name}`,
-`${company.name}`. If an account has several documents in one print run `doc` is the last; use
-`% for d in docs:` ... `% endfor` to visit each. `% if doc.field:` / `% else:` / `% endif` and `##` comments work too.
+`${company.name}`. If an account has several documents in one print run `doc` is the last, and `all` describes them together:
+`${all.numbers}` writes the document numbers as operations do in a subject (`336806/7`, from the first digit
+that differs from the first number), `${all.list}` as words (`336806 and 336807`), `${all.total}` is the sum
+(`all.tot_due`, `all.tot_net`, `all.tot_vat` likewise), and `${all.count}`, `${all.many}` (true for several)
+and `${all.s}` (`s` for several) help with wording, for example `New Invoice${all.s} ${all.numbers}`. Use
+`% for d in docs:` ... `% endfor` to visit each document. `% if doc.field:` / `% else:` / `% endif` and `##` comments work too.
 
 The web interface has no authentication and Mako can run arbitrary python, so the editor only accepts that
 subset (no calls, operators, `<% %>` blocks or names starting with an underscore; see `emailtemplates.validate`).
