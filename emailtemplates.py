@@ -18,6 +18,7 @@ import collections
 import os
 import re
 import unittest
+from decimal import Decimal, InvalidOperation
 
 from mako.template import Template
 
@@ -70,6 +71,52 @@ def merge_documents(pages):
 		d['customer'] = d.get('addr_invoice', '').split('\n')[0].strip()
 	return list(docs.values())
 
+# the field that is "the total" for each kind of document, for all.total
+KIND_TOTAL = {'invoice': 'tot_due', 'purchase': 'tot_net', 'statement': 'tot_topay'}
+
+def collapse_numbers(numbers):
+	"""Document numbers the way the operations team writes them in a subject: the first in full, then each of
+	the others from the first digit that differs from the first one onward. ['336806', '336807'] gives
+	'336806/7', ['336769', '336771'] gives '336769/71' and ['335909', '335910', '335911'] gives '335909/10/11'.
+	Numbers that aren't all digits of the same length are just listed."""
+	if len(numbers) < 2 or not all(re.fullmatch(r'\d+', n) and len(n) == len(numbers[0]) for n in numbers):
+		return ', '.join(numbers)
+	first = numbers[0]
+	tails = []
+	for n in numbers[1:]:
+		i = 0
+		while i < len(first) - 1 and first[i] == n[i]:
+			i += 1
+		tails.append(n[i:])
+	return '/'.join([first] + tails)
+
+def and_list(items):
+	"""['A'] -> 'A', ['A', 'B'] -> 'A and B', ['A', 'B', 'C'] -> 'A, B and C'"""
+	if len(items) < 2:
+		return ''.join(items)
+	return ', '.join(items[:-1]) + ' and ' + items[-1]
+
+def summarise(docs, kind):
+	"""The 'all' helper: facts about every document of this account in the print run (docs, as dicts), so that
+	a subject and body can be written for one invoice or for several.
+	  all.count, all.many ('1' if there is more than one, else ''), all.s ('s' or '': 'Invoice${all.s}')
+	  all.numbers  the document numbers as operations write them: '336806/7'
+	  all.list     the document numbers in words: '336806 and 336807'
+	  all.total    the total of all of them (invoices: amount due); all.tot_due, all.tot_net, all.tot_vat... likewise
+	Amounts are summed exactly and shown with two decimals. A total that isn't a plain amount is left empty."""
+	numbers = [d['doc_num'] for d in docs if d.get('doc_num')]
+	many = len(docs) > 1
+	values = {'count': str(len(docs)), 'many': '1' if many else '', 's': 's' if many else '',
+		'numbers': collapse_numbers(numbers), 'list': and_list(numbers)}
+	for field in sorted(set(k for d in docs for k in d if k.startswith('tot_'))):
+		try:
+			amounts = [Decimal(d.get(field, '').replace(',', '')) for d in docs]
+		except InvalidOperation:
+			continue
+		values[field] = format(sum(amounts).quantize(Decimal('0.01')), 'f')
+	values['total'] = values.get(KIND_TOTAL.get(kind), '')
+	return Fields(values)
+
 def account_for_key(parsed, key):
 	"""PDF group key -> account code. Purchase orders also have '<account>-admin' and '<account>-transport'."""
 	if key in parsed:
@@ -94,6 +141,7 @@ def build_context(job, key, names=(), addresses=(), company=None):
 	"""The variables a template sees:
 	  doc      the document (the last one, if the account has several in this print run); doc.<field>
 	  docs     every document for the account in this print run, for '% for d in docs:'
+	  all      facts about all of them together, see summarise(): all.numbers, all.total, all.many, all.s
 	  email    the recipients: email.name ('Ann and Bob', or 'Sir or Madam' with none), email.address
 	  job      job.name, job.doctype, job.host
 	  company  company.name, company.email, company.website, from the [Printing] settings
@@ -109,7 +157,7 @@ def build_context(job, key, names=(), addresses=(), company=None):
 	parsed = job.get('parsed') or {}
 	acc = account_for_key(parsed, key)
 	docs = merge_documents(parsed[acc]) if acc else []
-	context.update(doc=Fields(docs[-1] if docs else {}), docs=[Fields(d) for d in docs])
+	context.update(doc=Fields(docs[-1] if docs else {}), docs=[Fields(d) for d in docs], all=summarise(docs, kind_for_job(job)))
 	return context
 
 def find_document(jobs, kind, term=''):
@@ -142,7 +190,7 @@ _FOR = re.compile(r'^\s*%\s*for\s+([a-z][a-z0-9]*)\s+in\s+docs\s*:\s*$')
 _IF = re.compile(r'^\s*%%\s*if\s+(?:not\s+)?(%s)\s*:\s*$' % _PATH)
 _ELSE = re.compile(r'^\s*%\s*else\s*:\s*$')
 _END = re.compile(r'^\s*%\s*(?:endif|endfor)\s*$')
-_ROOTS = frozenset(['doc', 'email', 'job', 'company'])
+_ROOTS = frozenset(['doc', 'all', 'email', 'job', 'company'])
 _DEFAULT_ROOTS = frozenset(['email', 'job', 'company'])
 
 def validate(text, kind=None):
@@ -341,11 +389,17 @@ class TestEmailTemplates(unittest.TestCase):
 		for kind in KINDS:
 			text = open(seed_path(kind), encoding=ENCODING).read()
 			self.assertEqual([], validate(text, kind), kind)
-		ctx = build_context(self.job(), 'HAR108', names=['Ann'], company={'name': 'ABFW'})
-		message = render_message(open(seed_path('invoice'), encoding=ENCODING).read(), ctx)
+		text = open(seed_path('invoice'), encoding=ENCODING).read()
 		# the wording of the shipped templates is theirs to change; these are the facts they must keep stating
-		self.assertTrue(message.subject.startswith('Invoice 289099 from ABFW'), message.subject)
-		self.assertRegex(message.body, r'\ATo Ann,?\n\nPlease find your latest invoice 289099 attached for account HAR108, for \xa310\.00\.\n')
+		two = render_message(text, build_context(self.job(), 'HAR108', names=['Ann'], company={'name': 'ABFW'}))
+		self.assertEqual('New Invoices 336769/70', two.subject)                         # as operations write it
+		self.assertRegex(two.body, r'\ATo Ann,?\n\nPlease find your latest invoices attached for account HAR108, for a total of \xa31244\.50')
+		self.assertRegex(two.body, r'336769 +\xa31,234\.50\n336770 +\xa310\.00\n')              # each invoice and its amount
+		one_job = self.job()
+		one_job['parsed'] = {'HAR108': self.pages()[2:]}
+		one = render_message(text, build_context(one_job, 'HAR108', names=['Ann'], company={'name': 'ABFW'}))
+		self.assertEqual('New Invoice 336770', one.subject)
+		self.assertRegex(one.body, r'\ATo Ann,?\n\nPlease find your latest invoice 336770 attached for account HAR108, for \xa310\.00\.\n')
 
 	def test_shipped_templates_render_with_no_data_at_all(self):
 		for kind in KINDS:
@@ -483,6 +537,41 @@ x
 		# a template whose first line is blank has no subject, and nothing else moves up into its place
 		self.assertEqual(('', 'Hi\n'), tuple(render_message('\nHi\n', ctx)))
 
+	def test_collapse_numbers_matches_the_operations_convention(self):
+		for numbers, want in (
+				([], ''), (['336806'], '336806'), (['336806', '336807'], '336806/7'), (['336829', '336830'], '336829/30'),
+				(['336769', '336771'], '336769/71'), (['336696', '336698'], '336696/8'), (['336813', '336814', '336815'], '336813/4/5'),
+				(['335909', '335910', '335911'], '335909/10/11'), (['331279', '331280', '331282'], '331279/80/82'),
+				(['332058', '332059', '332060', '332061', '332066'], '332058/9/60/61/66'),
+				# numbers that can't be abbreviated are just listed
+				(['99999', '100000'], '99999, 100000'), (['34529/ 1', '34529/ 2'], '34529/ 1, 34529/ 2')):
+			self.assertEqual(want, collapse_numbers(numbers), numbers)
+
+	def test_summarise_all_documents(self):
+		docs = [{'doc_num': '336806', 'tot_due': '569.73', 'tot_net': '474.78', 'tot_vat': '94.95'},
+			{'doc_num': '336807', 'tot_due': '44.92', 'tot_net': '37.44', 'tot_vat': '7.48'}]
+		a = summarise(docs, 'invoice')
+		self.assertEqual(('2', '1', 's', '336806/7', '336806 and 336807'), (a.count, a.many, a.s, a.numbers, a.list))
+		self.assertEqual(('614.65', '614.65', '512.22', '102.43'), (a.total, a.tot_due, a.tot_net, a.tot_vat))
+		one = summarise(docs[:1], 'invoice')
+		self.assertEqual(('1', '', '', '336806', '569.73'), (one.count, one.many, one.s, one.numbers, one.total))
+		# amounts are added exactly, with or without thousands separators
+		self.assertEqual('0.30', summarise([{'tot_due': '0.1'}, {'tot_due': '0.2'}], 'invoice').total)
+		self.assertEqual('1235.00', summarise([{'tot_due': '1,234.50'}, {'tot_due': '0.50'}], 'invoice').total)
+		# something that isn't a plain amount is left out rather than guessed at
+		self.assertEqual('', summarise([{'tot_due': '5.00'}, {'tot_due': 'CR'}], 'invoice').total)
+		# statements have no document number; their total is the amount to pay
+		st = summarise([{'accno': 'A', 'tot_topay': '3485.99'}], 'statement')
+		self.assertEqual(('', '3485.99', '1'), (st.numbers, st.total, st.count))
+		self.assertEqual(('', '', ''), (summarise([], 'invoice').numbers, summarise([], 'invoice').total, summarise([], 'invoice').many))
+
+	def test_all_exists_for_documents_with_fields_but_not_for_the_default_template(self):
+		ctx = build_context(self.job(), 'HAR108', names=['Ann'])
+		self.assertEqual(('2', '336769/70', '336769 and 336770'), (ctx['all'].count, ctx['all'].numbers, ctx['all'].list))
+		self.assertEqual([], validate('${all.numbers} ${all.total}\n% if all.many:\nx\n% endif', 'invoice'))
+		self.assertTrue(validate('${all.numbers}', DEFAULT))
+		self.assertNotIn('all', build_context({'templ': 'delnote'}, 'X'))
+
 	def test_validate_reports_unbalanced_blocks(self):
 		self.assertTrue(validate('% if doc.a:\nx\n'))
 
@@ -518,8 +607,8 @@ x
 			with open(user_path('invoice'), 'w') as f:
 				f.write('${__import__("os")}')       # written to disk behind the editor's back
 			message, kind, warning = render_for_job(self.job(), 'HAR108', ['Ann'])
-			self.assertRegex(message.body, r'\ATo Ann,?\n\nPlease find your latest invoice')
-			self.assertTrue(message.subject.startswith('Invoice 289099'))
+			self.assertRegex(message.body, r'\ATo Ann,?\n\nPlease find your latest invoices? ')
+			self.assertTrue(message.subject.startswith('New Invoice'), message.subject)
 			self.assertIn('could not be used', warning)
 		finally:
 			import shutil

@@ -95,6 +95,13 @@ every other document (delivery notes, credit notes, reports&hellip;) uses the De
 	<code>${'${job.name}'}</code> <code>${'${job.doctype}'}</code> <code>${'${job.host}'}</code>
 	<code>${'${company.name}'}</code> <code>${'${company.email}'}</code> <code>${'${company.website}'}</code>
 </p>
+% if summary_fields:
+<p>About all the documents of this account in the print run:
+	% for f in summary_fields:
+	<code>${'${all.' + f + '}'}</code>
+	% endfor
+</p>
+% endif
 % if fields:
 <p>From this document:
 	% for f in fields:
@@ -108,7 +115,9 @@ every other document (delivery notes, credit notes, reports&hellip;) uses the De
 <p class="muted">The default template is used for documents whose contents printerface doesn't read, so only the recipients,
 the job and the company details are available. Add <code>| trim</code> to remove surrounding spaces.</p>
 % else:
-<p class="muted">If an account has several documents in one print run, <code>doc</code> is the last of them; use
-<code>% for d in docs:</code> &hellip; <code>% endfor</code> with <code>${'${d.field}'}</code> to visit each one.
-Add <code>| trim</code> to remove surrounding spaces.</p>
+<p class="muted">If an account has several documents in one print run, <code>doc</code> is the last of them;
+<code>all</code> describes them together, so <code>New Invoice${'${all.s}'} ${'${all.numbers}'}</code> reads
+&ldquo;New Invoice 336807&rdquo; or &ldquo;New Invoices 336806/7&rdquo;. Use
+<code>% for d in docs:</code> &hellip; <code>% endfor</code> with <code>${'${d.field}'}</code> to visit each one, and
+<code>% if all.many:</code> to word it differently for several. Add <code>| trim</code> to remove surrounding spaces.</p>
 % endif

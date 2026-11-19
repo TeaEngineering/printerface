@@ -28,16 +28,17 @@ def put(lines, row, col, text):
 		line = lines[row + i]
 		lines[row + i] = line[:col] + part + line[col + len(part):]
 
-def make_invoice(doc_num='12345', acc='ACC001', pages=2):
+def make_invoice(doc_num='12345', acc='ACC001', pages=2, doc_nums=None, totals=None):
 	"""A synthetic Invoice print: 48 blank lines, then 48 lines per page. Each page ends in a form feed,
-	and the totals carry an 8-bit pound sign as the Windows print driver sends it."""
+	and the totals carry an 8-bit pound sign as the Windows print driver sends it. By default every page is
+	part of invoice doc_num; doc_nums gives each page its own invoice (and totals its own amount)."""
 	lines = [' ' * 130 for _ in range(48 * (pages + 1))]
 	for p in range(pages):
 		base = (p + 1) * 48
 		put(lines, base + 0, 0, 'INVOICE')
 		put(lines, base + 0, 95, '01/10/26')
 		put(lines, base + 2, 95, 'Page %d' % (p + 1))
-		put(lines, base + 4, 95, doc_num)
+		put(lines, base + 4, 95, doc_nums[p] if doc_nums else doc_num)
 		put(lines, base + 8, 12, 'ACME WINES LTD\n1 HIGH STREET\nLONDON')
 		put(lines, base + 16, 0, acc)
 		put(lines, base + 16, 9, 'PO-7')
@@ -45,7 +46,7 @@ def make_invoice(doc_num='12345', acc='ACC001', pages=2):
 		put(lines, base + 19, 0, 'B0321021\nB0308206')
 		put(lines, base + 19, 19, 'BAUCHET Customer Label\nDRAPPIER Carte D\'Or')
 		put(lines, base + 19, 55, '12\n6')
-		put(lines, base + 42, 89, '\xa3123.45')
+		put(lines, base + 42, 89, totals[p] if totals else '\xa3123.45')
 		lines[base + 47] = lines[base + 47][:100] + '\x0c'
 	return '\r\n'.join(lines) + '\r\n'
 
@@ -253,10 +254,10 @@ class TestPrinterface(unittest.TestCase):
 		self.assertEqual(second['ts'].isoformat(), rows[second['name']]['ts'])
 
 	# The wording of the shipped templates is theirs to change, so these check the facts rather than every word
-	INVOICE_SUBJECT_START = 'Invoice 289073 from'
+	INVOICE_SUBJECT = r'New Invoice \d+'                      # 'New Invoice 12345', as operations write it
 
-	def assertInvoiceBody(self, page, names, msg=None):
-		self.assertRegex(page.decode('utf-8'), r'To %s,?\n\nPlease find your latest invoice 289073 attached for account ACC001, for \xa3123\.45\.' % re.escape(names), msg)
+	def assertInvoiceBody(self, page, names, doc_num='12345', msg=None):
+		self.assertRegex(page.decode('utf-8'), r'To %s,?\n\nPlease find your latest invoice %s attached for account ACC001, for \xa3123\.45\.' % (re.escape(names), doc_num), msg)
 
 	def assertDefaultBody(self, page, names, msg=None):
 		self.assertRegex(page.decode('utf-8'), r'To %s,?\n\nPlease find your document attached\.' % re.escape(names), msg)
@@ -270,8 +271,8 @@ class TestPrinterface(unittest.TestCase):
 		self.assertEqual(200, r.status)
 		self.assertNotIn(b'Mako Runtime Error', body)
 		self.assertInvoiceBody(body, 'Sir or Madam')
-		self.assertSubjectBox(body, re.escape(self.INVOICE_SUBJECT_START) + '[^"]*')
-		self.assertNotRegex(body.decode('utf-8'), re.escape(self.INVOICE_SUBJECT_START) + '[^<\n]*\n\n?To ')   # the subject is not repeated in the text
+		self.assertSubjectBox(body, self.INVOICE_SUBJECT)
+		self.assertNotRegex(body.decode('utf-8'), self.INVOICE_SUBJECT + '[^<\n]*\n\n?To ')   # the subject is not repeated in the text
 		self.assertIn(b'/settings/templates?kind=invoice&amp;docnum=12345', body)
 		# with contacts on the account the greeting names them, and html in a name is escaped in the textarea
 		self.get('/settings/email?account=ACC001&email=a%40example.com&contact=Ann')
@@ -301,7 +302,7 @@ class TestPrinterface(unittest.TestCase):
 		self.assertNotIn(b'Mako Runtime Error', body)
 		self.assertIn(b'<p>Template <code>invoice.mako</code></p>', body)
 		self.assertNotIn(b'Revert to default', body)                    # nothing customised yet, so nothing to revert
-		self.assertIn(b'Please find your latest invoice 289073 attached', body)       # preview of the newest invoice
+		self.assertIn(b'Please find your latest invoice 424242 attached', body)       # preview of the newest invoice
 		for kind in ('purchase', 'statement'):
 			r, body = self.get('/settings/templates?kind=' + kind)
 			self.assertEqual(200, r.status)
@@ -345,8 +346,8 @@ class TestPrinterface(unittest.TestCase):
 		self.assertIn(b'Reverted to the shipped invoice template', body)
 		self.assertFalse(os.path.exists(path))
 		r, body = self.get('/pdf?name=%s&key=ACC001' % j['name'])
-		self.assertInvoiceBody(body, 'Sir or Madam')
-		self.assertSubjectBox(body, re.escape(self.INVOICE_SUBJECT_START) + '[^"]*')
+		self.assertInvoiceBody(body, 'Sir or Madam', doc_num='424242')
+		self.assertSubjectBox(body, self.INVOICE_SUBJECT)
 
 	def test_template_editor_refuses_templates_that_could_run_code(self):
 		self.send_invoice()
@@ -383,12 +384,12 @@ class TestPrinterface(unittest.TestCase):
 			self.assertIsNone(answer['warning'])
 			return answer['body']
 
-		self.assertRegex(body('ann@x.com', 'bob@x.com'), r'\ATo Ann and Bob,?\n\nPlease find your latest invoice 289073')
+		self.assertRegex(body('ann@x.com', 'bob@x.com'), r'\ATo Ann and Bob,?\n\nPlease find your latest invoice 12345')
 		self.assertRegex(body('bob@x.com'), r'\ATo Bob,?\n\nPlease find')
 		self.assertRegex(body(), r'\ATo Sir or Madam,?\n\nPlease find')              # nobody ticked
 		self.assertRegex(body('stranger@x.com'), r'\ATo Sir or Madam,?\n')            # not in the address book: no name to use
 		query = 'name=%s&key=ACC001&em=bob%%40x.com&em=ann%%40x.com' % j['name']
-		self.assertTrue(json.loads(self.get('/email_body?' + query)[1].decode())['subject'].startswith(self.INVOICE_SUBJECT_START))
+		self.assertTrue(json.loads(self.get('/email_body?' + query)[1].decode())['subject'].startswith('New Invoice '))
 		# subject and body both follow the recipients: first line is the subject, the rest the body
 		self.post('/settings/templates', kind='invoice', action='save', template='For ${email.name}\n\n${email.name} <${email.address}>')
 		answer = json.loads(self.get('/email_body?' + query)[1].decode())
@@ -551,6 +552,25 @@ class TestPrinterface(unittest.TestCase):
 			self.assertNotIn(b'Sent from this job', body)
 		finally:
 			mailer_results()[:] = original
+
+	def test_several_invoices_for_one_account_make_one_email(self):
+		# two invoices for one account in one print run, as for VAD101: one PDF, one email
+		j = self.send_invoice(doc_nums=['777', '778'], totals=['\xa3569.73', '\xa344.92'])
+		self.assertEqual(['777', '778'], [p['doc_num'] for p in j['parsed']['ACC001']])
+		r, body = self.get('/pdf?name=%s&key=ACC001' % j['name'])
+		self.assertNotIn(b'Mako Runtime Error', body)
+		self.assertSubjectBox(body, 'New Invoices 777/8')
+		page = body.decode('utf-8')
+		self.assertRegex(page, r'Please find your latest invoices attached for account ACC001, for a total of \xa3614\.65:')
+		self.assertRegex(page, r'777 +\xa3569\.73\n778 +\xa344\.92\n')
+		self.assertNotIn('\xa344.92.', page)                              # not "for \xa344.92", the last invoice alone
+		# the live update and the editor preview say the same
+		answer = json.loads(self.get('/email_body?name=%s&key=ACC001' % j['name'])[1].decode())
+		self.assertEqual('New Invoices 777/8', answer['subject'])
+		self.assertIn('for a total of \xa3614.65', answer['body'])
+		r, body = self.get('/settings/templates?kind=invoice&docnum=778')
+		self.assertIn(b'<strong>Subject:</strong> New Invoices 777/8', body)
+		self.assertIn(b'all.numbers', body)                                # the helper is listed in the editor
 
 	def test_pdf_page_for_a_job_that_is_not_loaded_is_a_message_not_an_error(self):
 		self.send_invoice()
