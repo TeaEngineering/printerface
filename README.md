@@ -29,6 +29,11 @@ The following will checkout the source code, build a docker image and start an i
 * `stationary.py` format JSON to nice PDF files
 * `printing.py` Linux printing with CUPS via. command line
 
+A GET never changes anything: sending an email, printing, editing the address book and saving or reverting a
+template are POSTs, and their handlers return `httpserver.Redirect(...)` (a 303) to a page that is safe to refresh,
+carrying at most a harmless note in the query string ("queued=1"). A POST that is refused re-renders the form
+instead, with what was typed. New actions should follow the same pattern.
+
 Requires **python 3.11** (3.9+ for the dependencies, but `asyncore`/`asynchat` were removed from the standard library in 3.12).
 Requirements are specified in requirements.txt
 Unit tests run during `docker build` or with:

@@ -1,6 +1,6 @@
 // Tests for web/js/compose.js with a minimal stand-in for the DOM. Run by test_compose_js.py, or: node test_compose.js
 const assert = require('assert');
-const {init} = require('./web/js/compose.js');
+const {init, initPrint, initSend} = require('./web/js/compose.js');
 
 function element(props) {
 	const handlers = {};
@@ -124,5 +124,26 @@ const untick = (t, i) => { t.boxes[i].checked = false; t.boxes[i].fire('change')
 
 	// a page without the compose form is left alone
 	assert.strictEqual(setup(['a@x.com'], 'x', {url: null}).api, undefined);
+	// printing posts a form: choosing a printer fills it in and submits it, and the click itself is cancelled
+	const submitted = [];
+	const printerField = {value: ''};
+	const printForm = {elements: {printer: printerField}, submit() { submitted.push(printerField.value); }};
+	const clickHandlers = [];
+	const printItem = {getAttribute: () => 'HP_TONY', addEventListener: (type, fn) => clickHandlers.push(fn)};
+	initPrint({getElementById: id => ({printForm}[id]), querySelectorAll: () => [printItem]});
+	let prevented = 0;
+	clickHandlers[0]({preventDefault() { prevented++; }});
+	assert.deepStrictEqual([submitted, prevented], [['HP_TONY'], 1]);
+	assert.strictEqual(initPrint({getElementById: () => null, querySelectorAll: () => []}), undefined);   // no print form: nothing to do
+
+	// the send button is disabled as the form is submitted, so a double click can't send twice
+	const sendButton = {disabled: false};
+	let onSubmit;
+	initSend({getElementById: id => id === 'composeForm' ? {addEventListener: (type, fn) => { if (type === 'submit') onSubmit = fn; }} : sendButton});
+	assert.strictEqual(sendButton.disabled, false);
+	onSubmit();
+	assert.strictEqual(sendButton.disabled, true);
+	assert.strictEqual(initSend({getElementById: () => null}), undefined);
+
 	console.log('compose.js: all tests passed');
 })().catch(e => { console.error(e); process.exit(1); });

@@ -84,6 +84,13 @@ DEFAULT_ERROR_CONTENT_TYPE = "text/html"
 def _quote_html(text):
 	return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
+class Redirect(object):
+	"""A path handler returns this instead of (body, content type) to answer with a redirect. It is a 303 See
+	Other, so the browser fetches the location with GET: after handling a POST this means the page the user ends
+	up on can be refreshed without repeating the POST."""
+	def __init__(self, location):
+		self.location = location
+
 def _body_file(f, ctype):
 	"""Normalise whatever a path handler returned into (binary file object, content type).
 	Handlers return str (json, plain), bytes (mako output, pdf) or a binary file object."""
@@ -465,7 +472,11 @@ class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
 		if (handler):
 			try:
 				resp = ResponseGatherer()
-				(f, ctype) = _body_file(*handler(query_string=self.query_string, resp=resp))
+				result = handler(query_string=self.query_string, resp=resp)
+				if isinstance(result, Redirect):
+					self.send_redirect(result)
+					return None
+				(f, ctype) = _body_file(*result)
 				self.send_response(200)
 				resp.write_headers(self)
 				self.send_header("Content-type", ctype)
@@ -515,6 +526,12 @@ class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
 		self.send_header("Last-Modified", self.date_time_string(fs.st_mtime))
 		self.end_headers()
 		return f
+
+	def send_redirect(self, redirect):
+		self.send_response(303)
+		self.send_header("Location", redirect.location)
+		self.send_header("Content-Length", "0")
+		self.end_headers()
 
 	def list_directory(self, path):
 		"""Helper to produce a directory listing (absent index.html).
@@ -647,7 +664,11 @@ class RequestHandler(SimpleHTTPRequestHandler):
 		handler = self.handlers.get(self.path)
 		if (handler):
 			try:
-				(f, ctype) = _body_file(*handler(query_string=self.query_string, postreq=postreq))
+				result = handler(query_string=self.query_string, postreq=postreq)
+				if isinstance(result, Redirect):
+					self.send_redirect(result)
+					return None
+				(f, ctype) = _body_file(*result)
 				self.send_response(200)
 				self.send_header("Content-type", ctype)
 				f.seek(0, os.SEEK_END)

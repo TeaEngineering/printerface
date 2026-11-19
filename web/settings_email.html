@@ -13,7 +13,7 @@
 	</div>
 	% endif
 
-	<form method="get" class="form-inline" action="">
+	<form method="post" class="form-inline" action="/settings/email">
 	<div class="controls">
   		<input class="span2" type="text" name="account" placeholder="Account" required>
   		
@@ -44,9 +44,9 @@
 		% endif
 
 		% for (em,cn) in addresses:
-		<form method="get" class="form-inline" action="" onsubmit="return confirm('Are you sure you want to remove ${cn} ${em}?')">
-			<input class="" type="hidden" name="account" value="${acc}">
-			<input class="" type="hidden" name="delete" value="${em}">
+		<form method="post" class="form-inline" action="/settings/email" onsubmit="return confirm('Are you sure you want to remove ${cn} ${em}?')">
+			<input class="" type="hidden" name="account" value="${acc | h}">
+			<input class="" type="hidden" name="delete" value="${em | h}">
 			${cn} <em>${em}</em>
 			<button type="submit" class="btn btn-mini" title="delete">  <i class="icon-remove-sign"></i> </button>	
 		</form>
