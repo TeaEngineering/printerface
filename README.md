@@ -56,6 +56,11 @@ The default template only has `${email.name}`, `${email.address}` and `${job.nam
 text in `email.pickle`; if there is one and no `default.mako` yet, it is saved as `~/printerface/templates/default.mako`
 the first time this release starts (once only: reverting to the shipped default isn't undone by a restart).
 
+In the email compose form, ticking or unticking a contact re-renders the suggested text for the chosen recipients
+(`${email.name}` and `${email.address}` follow the ticks). Text you have already edited is kept, with a notice
+offering to replace it. The form's script is `web/js/compose.js`; `test_compose.js` tests it with node and is skipped
+where node isn't installed.
+
 The other templates also have: `${doc.<field>}` (the document: `doc.ourref`, `doc.doc_num`, `doc.accno`, `doc.tot_due`,
 `doc.customer`, ... - the editor lists them), `${email.name}`, `${email.address}`, `${job.name}`,
 `${company.name}`. If an account has several documents in one print run `doc` is the last; use

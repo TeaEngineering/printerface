@@ -14,6 +14,7 @@ from stationary import DocFormatter
 from printing import getPrinters, printFile
 
 import sys, pickle
+import urllib.parse
 from io import StringIO
 import collections
 import traceback
@@ -366,6 +367,19 @@ def settings_templates(query_string='', postreq=None, resp=None):
 		term=term, message=message, errors=errors, preview=preview, preview_note=preview_note,
 		preview_job=preview_job, preview_acc=preview_acc, names=names, fields=fields, is_default=is_default), 'text/html')
 
+def email_body(query_string=dict(), resp=None):
+	"""The suggested email text for a document if only the contacts whose addresses are in 'em' are
+	recipients. The compose form asks for this when contacts are ticked or unticked, since a template can use
+	the recipients' names. No 'em' means no recipients. Answers {"body": ..., "warning": ...}."""
+	job = getJob(query_string)
+	default_key = next(iter(job.get('groupfiles') or {}), ('',))[0]
+	key = query_string.get('key', [default_key])[0]
+	known = email_addresses.get(key, {})
+	ticked = query_string.get('em', [])
+	body, kind, warning = emailtemplates.render_for_job(
+		job, key, names=[known[a] for a in ticked if a in known], addresses=ticked, company=company_info())
+	return json.dumps({'body': body, 'warning': warning}), 'text/json'
+
 def pdf(query_string=dict(), resp=None):
 	job = getJob(query_string)
 	default_key = next(iter(job['groupfiles']))[0]
@@ -415,6 +429,7 @@ def pdf(query_string=dict(), resp=None):
 
 	return ( template_lookup.get_template("/pdf.html").render(printers=getPrinters(), job=job, key=key, email_templ=email_body_default,
 		template_kind=template_kind, template_warning=template_warning, template_docnum=template_docnum,
+		email_body_url='/email_body?' + urllib.parse.urlencode({'name': job['name'], 'key': key}),
 		email_dest=email_dest, email_outcome=email_outcome, email_error=email_error), 'text/html')
 
 
@@ -529,7 +544,8 @@ path_handlers = {
 	'/print' : printfn,
 	'/plaintext':plain,
 	'/settings/email':settings_email,
-	'/settings/templates':settings_templates
+	'/settings/templates':settings_templates,
+	'/email_body':email_body
 	}
 
 if __name__=="__main__":
