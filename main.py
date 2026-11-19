@@ -267,8 +267,13 @@ def job(query_string=dict(), resp=None):
 def printers(query_string='', resp=None):
 	return ( template_lookup.get_template("/printers.html").render(printers=getPrinters()), 'text/html')
 
+# The Sent Items page only shows this many of the most recent emails, however long the history is: the
+# history goes back years and the whole of it makes a page of many MB.
+SENT_SHOWN = 100
+
 def sent(query_string='', resp=None):
-	return ( template_lookup.get_template("/sent.html").render(mailqueue=mailqueue), 'text/html')
+	results = mailqueue.results            # newest first; the mail thread inserts at the front
+	return ( template_lookup.get_template("/sent.html").render(shown=results[:SENT_SHOWN], total=len(results)), 'text/html')
 
 def settings_email(query_string='', postreq=None, resp=None):
 	warning=None
