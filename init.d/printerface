@@ -29,6 +29,11 @@
 
 # Location of printerface binary
 printerface=~/repos/printerface/main.py
+# Interpreter to run it with. Needs python 3.11 (asyncore was removed in 3.12) plus the packages from
+# requirements.txt, so default to a venv made from /opt/python311/bin/python3.11:
+#   /opt/python311/bin/python3.11 -m venv ~/.venv311 && ~/.venv311/bin/pip install -r requirements.txt
+# Set PRINTERFACE_PYTHON to use another one.
+python=${PRINTERFACE_PYTHON:-~/.venv311/bin/python}
 lock=~/printerface/lock
 pidfile=~/printerface/run
 work=~/repos/printerface/
@@ -47,9 +52,16 @@ then
 fi
 
 # Check that binary exists
-if ! [ -f  $printerface ] 
+if ! [ -f  $printerface ]
 then
   echo "printerface binary not found"
+  exit 0
+fi
+
+# Check that the interpreter exists
+if ! [ -x $python ]
+then
+  echo "python interpreter $python not found"
   exit 0
 fi
 
@@ -77,7 +89,7 @@ case "$1" in
 	errors=0
 	successes=0
 	export TZ=:/etc/localtime
-	daemonize -a -E PATH=$PATH -c $work -e $logfile.err -o $logfile.out -p $pidfile $printerface
+	daemonize -a -E PATH=$PATH -c $work -e $logfile.err -o $logfile.out -p $pidfile $python $printerface
 
 	if [ $? = 0 ]; then
 	  successes=1
