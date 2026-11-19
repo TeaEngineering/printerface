@@ -57,6 +57,22 @@
 		<a class="btn" href="/plaintext?name=${job['name'] | u}"><i class="icon-font"></i> Plain text</a>
 	</p>
 
+	% if sent_from_this_job:
+	<h4>Sent from this job</h4>
+	<table class="table table-condensed">
+		<tr><th>Sent</th><th>Document</th><th>To</th><th>Subject</th><th></th></tr>
+		% for (item, item_key) in sent_from_this_job:
+		<tr class="${'error' if item['error'] else ''}">
+			<td>${item['added']}</td>
+			<td><a href="/pdf?name=${job['name'] | u}&amp;key=${item_key | u}">${item_key | h}</a></td>
+			<td>${', '.join(item['to']) | h}</td>
+			<td>${item['subject'] | h}</td>
+			<td>${item['error'] or '' | h}</td>
+		</tr>
+		% endfor
+	</table>
+	% endif
+
 	<form class="form-horizontal" method="get" action="">
 		<input type="hidden" name="name" value="${job['name'] | u}"/>
 		<input type="hidden" name="key" value="${key}"/>

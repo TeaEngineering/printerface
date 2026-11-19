@@ -507,6 +507,67 @@ class TestPrinterface(unittest.TestCase):
 		finally:
 			mailer_results()[:] = original
 
+	def fake_sent(self, attachment, subject, to=('a@x.com',), error=None):
+		import datetime
+		now = datetime.datetime(2026, 11, 19, 12, 0, 0)
+		return dict(to=list(to), subject=subject, added=now, completed=now, error=error, status=None, body='', attachment=attachment)
+
+	def test_sent_items_link_to_the_job_and_the_job_lists_them(self):
+		j = self.send_invoice(doc_num='777')
+		other = self.send_invoice(doc_num='888')
+		name = j['name']
+		made_here = main.pdfdir + '2026/ACC001/%s-ACC001.pdf' % name
+		long_gone = '/home/printerface/printerface/data/pdf/2015/OLD001/job-20150715-101010-OLD001.pdf'
+		original = list(mailer_results())
+		try:
+			mailer_results()[:] = [                                        # newest first
+				self.fake_sent(long_gone, 'sent long ago'),
+				self.fake_sent(made_here, 'second mail', to=['ann@x.com', 'bob@x.com'], error='boom <b>'),
+				self.fake_sent(made_here, 'first mail'),
+				self.fake_sent('', 'no attachment'),
+			]
+			r, body = self.get('/sent')
+			self.assertEqual(200, r.status)
+			self.assertNotIn(b'Mako Runtime Error', body)
+			self.assertEqual(2, body.count(('href="/pdf?name=%s&amp;key=ACC001"' % name).encode()))     # one link per email from the loaded job
+			self.assertIn(b'job-20150715-101010', body)                                                # the old job is named...
+			self.assertNotIn(b'name=job-20150715-101010', body)                                        # ...but not linked
+
+			# the job page lists the emails made from it, and only those
+			r, body = self.get('/pdf?name=%s&key=ACC001' % name)
+			self.assertNotIn(b'Mako Runtime Error', body)
+			self.assertIn(b'<h4>Sent from this job</h4>', body)
+			self.assertIn(b'first mail', body)
+			self.assertIn(b'second mail', body)
+			self.assertLess(body.index(b'second mail'), body.index(b'first mail'))                      # newest first
+			self.assertIn(b'ann@x.com, bob@x.com', body)
+			self.assertIn(b'boom &lt;b&gt;', body)                                                      # escaped
+			self.assertNotIn(b'sent long ago', body)
+			# a job nothing was sent from has no such section
+			r, body = self.get('/pdf?name=%s&key=ACC001' % other['name'])
+			self.assertNotIn(b'Sent from this job', body)
+		finally:
+			mailer_results()[:] = original
+
+	def test_pdf_page_for_a_job_that_is_not_loaded_is_a_message_not_an_error(self):
+		self.send_invoice()
+		r, body = self.get('/pdf?name=job-19990101-000000')
+		self.assertEqual(200, r.status)
+		self.assertNotIn(b'Mako Runtime Error', body)
+		self.assertNotIn(b'Traceback', body)
+		self.assertIn(b'There is no job job-19990101-000000 loaded', body)
+		self.assertIn(b'href="/recent"', body)
+		r, body = self.get('/pdf?name=%3Cb%3Ex%3C/b%3E')                                                # the name is echoed back, escaped
+		self.assertEqual(200, r.status)
+		self.assertIn(b'&lt;b&gt;x&lt;/b&gt;', body)
+		self.assertNotIn(b'<b>x</b>', body)
+		r, body = self.get('/pdf')
+		self.assertEqual(200, r.status)
+		self.assertIn(b'(none given)', body)
+		main.jobs.clear()
+		r, body = self.get('/pdf?name=job-19990101-000000')                                              # even with nothing loaded at all
+		self.assertEqual(200, r.status)
+
 	def test_keepalive_two_requests_one_connection(self):
 		self.send_invoice()
 		conn = http.client.HTTPConnection('127.0.0.1', self.http_port, timeout=10)
