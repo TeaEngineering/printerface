@@ -14,10 +14,12 @@ import urllib.parse
 import threading
 import time
 import unittest
+from datetime import datetime
 from unittest import mock
 
 import main
 import mailer
+import printing
 import printstatus
 import emailtemplates
 from stationary import DocFormatter
@@ -90,6 +92,7 @@ class TestPrinterface(unittest.TestCase):
 		main.pdfdir = os.path.join(cls.home, 'data', 'pdf') + os.sep
 		main.formatter = DocFormatter(main.pdfdir)
 		mailer.pickle_file = os.path.join(cls.home, 'mailer.pickle')
+		cls.old_printlog, printing.printlog = printing.printlog, printing.PrintLog(os.path.join(cls.home, 'printer.pickle'))
 		cls.old_user_dir, emailtemplates.USER_DIR = emailtemplates.USER_DIR, os.path.join(cls.home, 'templates')
 		for x in [main.jobdir, main.pdfdir]:
 			os.makedirs(x, exist_ok=True)
@@ -115,6 +118,7 @@ class TestPrinterface(unittest.TestCase):
 		cls.http.close()
 		cls.print_patch.stop()
 		cls.lpstat_patch.stop()
+		printing.printlog = cls.old_printlog
 		emailtemplates.USER_DIR = cls.old_user_dir
 		shutil.rmtree(cls.home, ignore_errors=True)
 
@@ -713,6 +717,28 @@ class TestPrinterface(unittest.TestCase):
 			r, data = self.post('/print', name='job-19990101-000000', printer='default')
 			self.assertEqual(200, r.status)
 			printed.assert_called_once()
+
+	def test_print_history_is_listed_on_the_job_page(self):
+		j = self.send_invoice()
+		self.assertNotIn(b'Printed from this job', self.get('/pdf?name=%s&key=ACC001' % j['name'])[1])
+		printing.printlog.add({'job': j['name'], 'key': 'ACC001', 'file': 'x', 'printer': 'OFFICE_MFP',
+			'request_id': 'OFFICE_MFP-777', 'added': datetime.now(), 'error': None})
+		printing.printlog.add({'job': j['name'], 'key': 'accounts', 'file': 'x', 'printer': 'OFFICE_MFP',
+			'request_id': None, 'added': datetime.now(), 'error': 'lp: <bad>'})
+		printing.printlog.add({'job': 'job-19990101-000000', 'key': 'ACC001', 'file': 'x', 'printer': 'OTHER',
+			'request_id': 'OTHER-1', 'added': datetime.now(), 'error': None})
+		body = self.get('/pdf?name=%s&key=ACC001' % j['name'])[1]
+		self.assertIn(b'Printed from this job', body)
+		self.assertIn(b'OFFICE_MFP-777', body)
+		self.assertIn(b'lp: &lt;bad&gt;', body)
+		self.assertNotIn(b'OTHER-1', body)
+
+	def test_a_refused_print_says_why(self):
+		j = self.send_invoice()
+		with mock.patch.object(main, 'printFile', side_effect=printing.PrintError('lp: no such queue <x>')):
+			r, body = self.post('/print', name=j['name'], key='ACC001', printer='nope')
+		self.assertEqual(200, r.status)
+		self.assertIn(b'was not printed: lp: no such queue &lt;x&gt;', body)
 
 	def test_the_address_book_only_changes_on_a_post(self):
 		self.send_invoice()
