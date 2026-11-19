@@ -41,6 +41,25 @@ Jobs, rendered PDFs, the email address book and `email.cfg` overrides live in `~
 `PRINTERFACE_HOME` environment variable to use a different directory, for example to run a second instance
 against a copy of the data on other ports (`lpd_port` and `http_port` in `defaults.cfg`/`email.cfg`).
 
+### Email templates
+
+The text offered when emailing a document comes from a template per document type: `invoice`, `purchase` and
+`statement` (other types use the single "Default Email Text" under Settings). Templates are Mako files.
+`~/printerface/templates/<type>.mako` is used if it exists, otherwise the copy shipped in `templates/` in the
+source, so an install that never customises a template follows the repository. Edit them under
+Settings > Email Templates, which previews the result against a real document (leave the filter blank for the
+newest, or enter a document number or account).
+
+Variables: `${doc.<field>}` (the document: `doc.ourref`, `doc.doc_num`, `doc.accno`, `doc.tot_due`,
+`doc.customer`, ... - the editor lists them), `${email.name}`, `${email.address}`, `${job.name}`,
+`${company.name}`. If an account has several documents in one print run `doc` is the last; use
+`% for d in docs:` ... `% endfor` to visit each. `% if doc.field:` / `% else:` / `% endif` and `##` comments work too.
+
+The web interface has no authentication and Mako can run arbitrary python, so the editor only accepts that
+subset (no calls, operators, `<% %>` blocks or names starting with an underscore; see `emailtemplates.validate`).
+Files placed in `~/printerface/templates` by hand are trusted, but one that no longer renders falls back to the
+shipped template with a warning.
+
 `tools/compare_corpus.py` and `tools/replay_corpus.py` check a port or upgrade against real data: given a copy of
 `data/pickle` and `data/pdf` from a running system, the first re-renders every job and compares the PDF text
 with the PDFs the previous release produced, the second replays every stored payload through the LPD server.

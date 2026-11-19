@@ -1,0 +1,99 @@
+<%inherit file="bootstrap.html"/>
+<%block name="title">- Email Templates</%block>
+
+<h3>Email Templates</h3>
+<p class="muted">The text offered when you email a document, one template per type of document. Other documents use the
+<a href="/settings/template">default email text</a>.</p>
+
+<ul class="nav nav-tabs">
+% for k, label in kinds.items():
+	<li class="${'active' if k == kind else ''}"><a href="/settings/templates?kind=${k}">${label}</a></li>
+% endfor
+</ul>
+
+% if message:
+<div class="alert alert-success">
+	<button type="button" class="close" data-dismiss="alert">&times;</button>
+	${message | h}
+</div>
+% endif
+
+% if errors:
+<div class="alert alert-error">
+	<strong>This template can't be used:</strong>
+	<ul>
+	% for e in errors:
+		<li>${e | h}</li>
+	% endfor
+	</ul>
+	Only plain text, <code>${'${doc.field}'}</code>, <code>% for d in docs:</code>, <code>% if doc.field:</code> and <code>##</code> comments are allowed.
+</div>
+% endif
+
+<form method="post" action="/settings/templates">
+<input type="hidden" name="kind" value="${kind}">
+
+<div class="row-fluid">
+	<div class="span7">
+		<p>
+		% if source == 'custom':
+			Using your customised template, saved as <code>${user_path | h}</code>.
+		% else:
+			Using the default template shipped with printerface. Saving creates <code>${user_path | h}</code>.
+		% endif
+		</p>
+		<textarea rows="16" class="span12" name="template" spellcheck="false" style="font-family: monospace;">${text | h}</textarea>
+		<p>
+			<button class="btn btn-primary" name="action" value="save">Save</button>
+			<button class="btn" name="action" value="preview">Preview</button>
+			% if source == 'custom':
+			<button class="btn btn-danger pull-right" name="action" value="revert"
+				onclick="return confirm('Discard your customised template and go back to the default?')">Revert to default</button>
+			% endif
+		</p>
+	</div>
+
+	<div class="span5">
+		<div class="input-prepend">
+			<span class="add-on">Preview with</span>
+			<input class="span8" type="text" name="docnum" value="${term | h}" placeholder="document no. or account (blank = latest)">
+		</div>
+
+		% if preview_note:
+			<div class="alert alert-info">${preview_note | h}</div>
+		% else:
+			<p class="muted">
+				${preview_job['name'] | h}, account <strong>${preview_acc | h}</strong>
+				&ndash; <a href="/pdf?name=${preview_job['name'] | u}&amp;key=${preview_acc | u}">open document</a><br>
+				% if names:
+					Contacts: ${', '.join(names) | h}
+				% else:
+					No contacts are set for this account, so the name reads &ldquo;Sir or Madam&rdquo;.
+				% endif
+			</p>
+			% if preview is not None:
+				<pre style="white-space: pre-wrap;">${preview | h}</pre>
+			% endif
+		% endif
+	</div>
+</div>
+</form>
+
+<h4>Available fields</h4>
+<p>
+	<code>${'${email.name}'}</code> <code>${'${email.address}'}</code>
+	<code>${'${job.name}'}</code> <code>${'${job.doctype}'}</code> <code>${'${job.host}'}</code>
+	<code>${'${company.name}'}</code> <code>${'${company.email}'}</code> <code>${'${company.website}'}</code>
+</p>
+% if fields:
+<p>From this document:
+	% for f in fields:
+		% if not f.startswith(('prod_', 'summ_')):
+	<code>${'${doc.' + f + '}'}</code>
+		% endif
+	% endfor
+</p>
+% endif
+<p class="muted">If an account has several documents in one print run, <code>doc</code> is the last of them; use
+<code>% for d in docs:</code> &hellip; <code>% endfor</code> with <code>${'${d.field}'}</code> to visit each one.
+Add <code>| trim</code> to remove surrounding spaces.</p>
