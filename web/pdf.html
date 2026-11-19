@@ -21,12 +21,18 @@
 	</div>
 	% endfor
 
+	<form id="printForm" method="post" action="/print" style="display: none;">
+		<input type="hidden" name="name" value="${job['name'] | h}"/>
+		<input type="hidden" name="key" value="${key | h}"/>
+		<input type="hidden" name="printer" value=""/>
+	</form>
+
 	<label class="inline" style="padding-bottom: 10px;">
 		<div class="btn-group">
 			<a class="btn dropdown-toggle" data-toggle="dropdown" href="#"><i class="icon-print"></i> Print <span class="caret"></span></a>
 			<ul class="dropdown-menu">
 			% for p in printers:
-				<li><a tabindex="-1" href="/print?file=${docf}&printer=${p}&name=${job['name'] | u}&key=${key}">${p}</a></li>
+				<li><a tabindex="-1" href="#" class="print-item" data-printer="${p | h}">${p | h}</a></li>
 			% endfor
 			</ul>
 		</div>
@@ -73,9 +79,9 @@
 	</table>
 	% endif
 
-	<form class="form-horizontal" method="get" action="">
-		<input type="hidden" name="name" value="${job['name'] | u}"/>
-		<input type="hidden" name="key" value="${key}"/>
+	<form id="composeForm" class="form-horizontal" method="post" action="/pdf">
+		<input type="hidden" name="name" value="${job['name'] | h}"/>
+		<input type="hidden" name="key" value="${key | h}"/>
 		<input type="hidden" name="action" value="send"/>
 
 		<div id="emailModal" class="modal hide fade" tabIndex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true">
@@ -96,7 +102,7 @@
 					<label class="control-label" for="inputTo">To</label>
 					<div class="controls">
 						% for (em,cn) in email_dest.items():
-						<label><input type="checkbox" name="em" value="${em | h}" checked> ${cn | h} <em>${em | h}</em></label>
+						<label><input type="checkbox" name="em" value="${em | h}" ${'checked' if ticked is None or em in ticked else ''}> ${cn | h} <em>${em | h}</em></label>
 						% endfor
 					</div>
 				</div>
@@ -130,7 +136,7 @@ ${email_templ | h}
 
 			<div class="modal-footer">
 				<button class="btn" data-dismiss="modal" aria-hidden="true">Close</button>
-				<button class="btn btn-primary">Send Email</button>
+				<button id="sendEmail" class="btn btn-primary">Send Email</button>
 			</div>
 		</div>
 	</form>

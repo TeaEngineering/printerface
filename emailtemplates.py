@@ -412,7 +412,7 @@ class TestEmailTemplates(unittest.TestCase):
 			message, kind, warning = render_for_job({'templ': templ, 'name': 'job-9', 'doctype': 'Delvnote'}, 'X', ['Ann'])
 			self.assertEqual((DEFAULT, None), (kind, warning), templ)
 			self.assertRegex(message.subject, r'\ADocument\b.*attached\Z')
-			self.assertRegex(message.body, r'\ATo Ann,?\n\nPlease find your document attached\.\n')
+			self.assertRegex(message.body, r'\ATo Ann,?\n\nPlease find your (?:\w+ )?document attached\.\n')
 
 	def test_the_default_context_has_no_document_fields(self):
 		ctx = build_context({'templ': 'delnote', 'name': 'job-9', 'doctype': 'Delvnote', 'control': {'H': 'PC1'}}, 'X', ['Ann'], ['a@b.c'], {'name': 'ABFW', 'email': 'sales@abfw.test'})

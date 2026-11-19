@@ -7,7 +7,7 @@ from mako import exceptions
 import asynchat, asyncore, socket, os, re
 from datetime import datetime
 from lpdserver import LpdServer
-from httpserver import ToyHttpServer
+from httpserver import ToyHttpServer, Redirect
 import mailer
 from mailer import JobMailer
 from docparser import DocParser
@@ -284,45 +284,46 @@ def sent(query_string='', resp=None):
 	return ( template_lookup.get_template("/sent.html").render(rows=rows, total=len(results)), 'text/html')
 
 def settings_email(query_string='', postreq=None, resp=None):
-	warning=None
-	print('query_string=%s' % query_string)
-	try:
-		acc = query_string['account'][0]
-		email = query_string['email'][0]
-		contact = query_string['contact'][0]
-		try:
-			email_accounts[acc]
-			if not email.strip() in email_addresses[acc]:
-				email_addresses[acc][email.strip()] = contact
+	"""The address book. Adding and removing a contact change it, so they only happen on a POST, which then
+	redirects back here: a refresh (or a bookmarked URL) shows the list and never repeats the change."""
+	if postreq is not None:
+		account = postreq.get('account', [''])[0]
+		warning = None
+		if 'delete' in postreq:
+			if email_addresses[account].pop(postreq['delete'][0], None):
 				saveEmails()
-		except KeyError:
-			warning='Unknown account %s' % acc
-	except KeyError:
-		pass
+		elif 'email' in postreq and 'contact' in postreq:
+			email = postreq['email'][0].strip()
+			if account not in email_accounts:
+				warning = 'Unknown account %s' % account
+			elif email not in email_addresses[account]:
+				email_addresses[account][email] = postreq['contact'][0]
+				saveEmails()
+		return Redirect('/settings/email' + ('?' + urllib.parse.urlencode({'warning': warning}) if warning else ''))
 
-	try:
-		acc = query_string['account'][0]
-		delete_email = query_string['delete'][0]
-		if email_addresses[acc].pop(delete_email, None):
-			saveEmails()
-	except KeyError:
-		pass
-
+	warning = html.escape(query_string.get('warning', [''])[0]) or None
 	email_list = []
 	for key in sorted(email_accounts):
 		email_list.append( (key, email_accounts[key], list(email_addresses[key].items())) )
 
 	return ( template_lookup.get_template("/settings_email.html").render(emails=email_list, warning=warning), 'text/html')
 
-def printfn(query_string='', resp=None):
-	docf = getJobFile(query_string)
-	if docf:
+def printfn(query_string='', postreq=None, resp=None):
+	"""Print a document on one of the printers. Paper comes out, so only a POST does it, and it redirects back
+	to the job page so that a refresh doesn't print it again."""
+	if postreq is None:
+		return doMessage(title='Printing', message='Documents are printed from their <a href="/recent">job page</a>.')
+	job = getJob(postreq)
+	docf = getJobFile(postreq, job)
+	printer = postreq.get('printer', [''])[0]
+	if docf and printer:
 		try:
-			printFile(pdfdir + docf, ''.join(query_string['printer']) )
-			return doMessage(title='Printing', message='Document %s sent to printer %s<br>' % (docf, query_string['printer']))
-		except:
+			printFile(pdfdir + docf, printer)
+			key = postreq.get('key', [next(iter(job['groupfiles']))[0]])[0]
+			return Redirect('/pdf?' + urllib.parse.urlencode({'name': job['name'], 'key': key, 'printed': printer}))
+		except Exception:
 			traceback.print_exc(file=sys.stdout)
-	return doMessage(title='Printing', message='Could not find document, problem printing! Source: %s sent to printer %s<br>' % (docf, query_string['printer']))
+	return doMessage(title='Printing', message='Could not find the document, or a problem printing it! Source: %s sent to printer %s<br>' % (html.escape(str(docf)), html.escape(printer)))
 
 def company_info():
 	printing = lambda k: config.get('Printing', k, fallback='')
@@ -340,20 +341,29 @@ def settings_templates(query_string='', postreq=None, resp=None):
 	term = params.get('docnum', '').strip()
 	action = params.get('action', '') if posted else ''
 
+	def back(**flash):
+		return Redirect('/settings/templates?' + urllib.parse.urlencode(dict(kind=kind, docnum=term, **flash)))
+
 	text, source = emailtemplates.load(kind)
 	message, errors = None, []
 	if action == 'revert':
-		message = 'Reverted to the shipped %s template.' % emailtemplates.KINDS[kind].lower() if emailtemplates.revert(kind) else 'Already using the shipped template.'
-		text, source = emailtemplates.load(kind)
+		return back(reverted='1' if emailtemplates.revert(kind) else '0')
 	elif action in ('preview', 'save'):
 		text = params.get('template', '').replace('\r\n', '\n').replace('\r', '\n')
 		if action == 'save':
 			try:
 				emailtemplates.save(kind, text)
-				text, source = emailtemplates.load(kind)
-				message = 'Saved the %s template.' % emailtemplates.KINDS[kind].lower()
+				return back(saved='1')
 			except emailtemplates.TemplateError as e:
 				errors = e.errors
+	elif not posted:
+		# back from a save or revert: the redirect only says which
+		if params.get('saved'):
+			message = 'Saved the %s template.' % emailtemplates.KINDS[kind].lower()
+		elif params.get('reverted') == '1':
+			message = 'Reverted to the shipped %s template.' % emailtemplates.KINDS[kind].lower()
+		elif params.get('reverted') == '0':
+			message = 'Already using the shipped template.'
 
 	# preview: the newest document of this type, or the one whose document number / account matches the filter
 	# (for the default template: the newest other document, or the job name / document type that matches)
@@ -395,40 +405,49 @@ def email_body(query_string=dict(), resp=None):
 		job, key, names=[known[a] for a in ticked if a in known], addresses=ticked, company=company_info())
 	return json.dumps({'subject': message.subject, 'body': message.body, 'warning': warning}), 'text/json'
 
-def pdf(query_string=dict(), resp=None):
-	job = getJob(query_string)
+def pdf(query_string=dict(), postreq=None, resp=None):
+	"""A job's document page. Sending the email is a POST (the form); it redirects back here, so a refresh of
+	the page never sends it again. A GET only ever shows the page."""
+	params = dict(query_string)
+	if postreq is not None:
+		params.update(postreq)
+	job = getJob(params)
 	if not job.get('groupfiles'):
-		name = query_string.get('name', [''])[0]
+		name = params.get('name', [''])[0]
 		return doMessage(title='Job not found', message='There is no job %s loaded. Only the most recent jobs are kept in memory, so older ones '
 			'can\'t be opened here. <a href="/recent">Recent jobs</a>' % (html.escape(name) or '(none given)'))
 	default_key = next(iter(job['groupfiles']))[0]
-	key = query_string.get('key', [default_key])[0]
+	key = params.get('key', [default_key])[0]
 	email_dest = email_addresses.get(key, {})
 	email_outcome, email_error = None, None
+	typed = None      # what the user typed, kept if the send is refused so that nothing has to be retyped
 
-	# test if callback from email form
-	try:
-		addresses = query_string.get('em', [])
-		email_body = ''.join(query_string.get('emailbody', ['']))
-		email_subject = ''.join(query_string.get('subject', ['no subject']))
-		action = query_string.get('action', None)
-
-		docf = getJobFile(query_string)
-
+	if postreq is not None and params.get('action', [''])[0] == 'send':
+		addresses = params.get('em', [])
+		email_subject = ''.join(params.get('subject', ['']))
+		email_body = ''.join(params.get('emailbody', ['']))
+		docf = getJobFile(params, job)
 		if len(addresses) > 0 and docf and len(email_subject) > 1:
-			email_outcome = "Queueing email to " + ','.join(addresses) + ' - check the result later!';
-			print(email_outcome)
 			try:
-				mailqueue.append(dict(
-					to=addresses, body=email_body, subject=email_subject,
-					attachment=pdfdir + docf))
-			except:
+				mailqueue.append(dict(to=addresses, body=email_body, subject=email_subject, attachment=pdfdir + docf))
+				print('Queueing email to ' + ','.join(addresses))
+				return Redirect('/pdf?' + urllib.parse.urlencode({'name': job['name'], 'key': key, 'queued': len(addresses)}))
+			except Exception:
 				traceback.print_exc(file=sys.stdout)
 				email_error = "<strong>Problem!</strong> unable to queue email!"
-		elif action:
+		else:
 			email_error = "<strong>Oh snap!</strong> Some fields missing or incomplete!"
-	except:
-		raise
+		typed = dict(subject=email_subject, body=email_body, ticked=addresses)
+	elif postreq is None:
+		# a redirect from a send or a print lands here; the note only says what happened
+		try:
+			queued = int(query_string.get('queued', ['0'])[0])
+		except ValueError:
+			queued = 0
+		if queued:
+			email_outcome = 'Queued the email to %d recipient%s. It is listed under "Sent from this job" once it has gone.' % (queued, '' if queued == 1 else 's')
+		elif query_string.get('printed'):
+			email_outcome = 'Sent the document to printer %s.' % html.escape(query_string['printed'][0])
 
 	# the suggested subject and body come from the template for this type of document (or the default template)
 	email_subject_default, email_body_default = '', ''
@@ -440,6 +459,9 @@ def pdf(query_string=dict(), resp=None):
 	except Exception:
 		traceback.print_exc(file=sys.stdout)
 		template_warning = 'The email template for this document could not be used.'
+	if typed:
+		email_subject_default, email_body_default = typed['subject'], typed['body']
+
 	# emails made from this job that are still in the sent history, newest first
 	sent_from_this_job = mailer.sent_from_job(mailqueue.results, job['name'])
 
@@ -451,7 +473,7 @@ def pdf(query_string=dict(), resp=None):
 		pages = parsed.get(emailtemplates.account_for_key(parsed, key)) or [{}]
 		template_docnum = pages[0].get('doc_num', '').strip()
 
-	return ( template_lookup.get_template("/pdf.html").render(printers=getPrinters(), job=job, key=key, email_templ=email_body_default, email_subject_default=email_subject_default,
+	return ( template_lookup.get_template("/pdf.html").render(printers=getPrinters(), job=job, key=key, email_templ=email_body_default, email_subject_default=email_subject_default, ticked=typed['ticked'] if typed else None,
 		template_kind=template_kind, template_warning=template_warning, template_docnum=template_docnum, sent_from_this_job=sent_from_this_job,
 		email_body_url='/email_body?' + urllib.parse.urlencode({'name': job['name'], 'key': key}),
 		email_dest=email_dest, email_outcome=email_outcome, email_error=email_error), 'text/html')

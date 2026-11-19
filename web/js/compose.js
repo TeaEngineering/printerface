@@ -85,12 +85,42 @@
 		return {refresh: refresh};
 	}
 
+	// Printing changes something, so the printers in the Print menu submit a POST form instead of being links.
+	function initPrint(doc) {
+		var form = doc.getElementById('printForm');
+		var items = doc.querySelectorAll('.print-item');
+		if (!form || !items.length) {
+			return;
+		}
+		Array.prototype.forEach.call(items, function (item) {
+			item.addEventListener('click', function (event) {
+				event.preventDefault();
+				form.elements['printer'].value = item.getAttribute('data-printer');
+				form.submit();
+			});
+		});
+	}
+
+	// A double click on Send Email must not queue the email twice.
+	function initSend(doc) {
+		var form = doc.getElementById('composeForm');
+		var button = doc.getElementById('sendEmail');
+		if (!form || !button) {
+			return;
+		}
+		form.addEventListener('submit', function () {
+			button.disabled = true;
+		});
+	}
+
 	if (typeof window !== 'undefined') {
 		window.addEventListener('DOMContentLoaded', function () {
 			init(document, window.fetch.bind(window));
+			initPrint(document);
+			initSend(document);
 		});
 	}
 	if (typeof module !== 'undefined') {
-		module.exports = {init: init};
+		module.exports = {init: init, initPrint: initPrint, initSend: initSend};
 	}
 })();

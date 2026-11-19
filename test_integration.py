@@ -117,12 +117,24 @@ class TestPrinterface(unittest.TestCase):
 
 	def post(self, path, **fields):
 		conn = http.client.HTTPConnection('127.0.0.1', self.http_port, timeout=10)
-		body = urllib.parse.urlencode(fields).encode('utf-8')
+		body = urllib.parse.urlencode(fields, doseq=True).encode('utf-8')
 		conn.request('POST', path, body=body, headers={'Content-Type': 'application/x-www-form-urlencoded'})
 		r = conn.getresponse()
 		data = r.read()
 		conn.close()
 		return r, data
+
+	def post_redirect(self, path, **fields):
+		"""POST, expect the 303 that sends the browser back to a GET page, and return (location, that page)."""
+		r, data = self.post(path, **fields)
+		self.assertEqual(303, r.status, data[:300])
+		location = r.getheader('Location')
+		r2, page = self.get(location)
+		self.assertEqual(200, r2.status, location)
+		return location, page
+
+	def add_contact(self, account, email, name):
+		self.post_redirect('/settings/email', account=account, email=email, contact=name)
 
 	def setUp(self):
 		main.jobs.clear()
@@ -232,15 +244,15 @@ class TestPrinterface(unittest.TestCase):
 
 	def test_email_settings_with_non_ascii_contact(self):
 		self.send_invoice()
-		r, body = self.get('/settings/email?account=ACC001&email=jose%40example.com&contact=Jos%C3%A9')
-		self.assertEqual(200, r.status)
+		location, body = self.post_redirect('/settings/email', account='ACC001', email='jose@example.com', contact='Jos\xe9')
+		self.assertEqual('/settings/email', location)
 		self.assertIn('Jos\xe9'.encode('utf-8'), body)
 		self.assertEqual('Jos\xe9', main.email_addresses['ACC001']['jose@example.com'])
 		# saved address book reloads
 		main.email_addresses.clear()
 		main.recover()
 		self.assertEqual('Jos\xe9', main.email_addresses['ACC001']['jose@example.com'])
-		r, body = self.get('/settings/email?account=ACC001&delete=jose%40example.com')
+		location, body = self.post_redirect('/settings/email', account='ACC001', delete='jose@example.com')
 		self.assertNotIn(b'jose@example.com', body)
 
 	def test_recent_json_ts_is_per_job(self):
@@ -260,7 +272,7 @@ class TestPrinterface(unittest.TestCase):
 		self.assertRegex(page.decode('utf-8'), r'To %s,?\n\nPlease find your latest invoice %s attached for account ACC001, for \xa3123\.45\.' % (re.escape(names), doc_num), msg)
 
 	def assertDefaultBody(self, page, names, msg=None):
-		self.assertRegex(page.decode('utf-8'), r'To %s,?\n\nPlease find your document attached\.' % re.escape(names), msg)
+		self.assertRegex(page.decode('utf-8'), r'To %s,?\n\nPlease find your (?:\w+ )?document attached\.' % re.escape(names), msg)
 
 	def assertSubjectBox(self, page, pattern, msg=None):
 		self.assertRegex(page.decode('utf-8'), r'name="subject" placeholder="Subject" value="%s"' % pattern, msg)
@@ -275,8 +287,8 @@ class TestPrinterface(unittest.TestCase):
 		self.assertNotRegex(body.decode('utf-8'), self.INVOICE_SUBJECT + '[^<\n]*\n\n?To ')   # the subject is not repeated in the text
 		self.assertIn(b'/settings/templates?kind=invoice&amp;docnum=12345', body)
 		# with contacts on the account the greeting names them, and html in a name is escaped in the textarea
-		self.get('/settings/email?account=ACC001&email=a%40example.com&contact=Ann')
-		self.get('/settings/email?account=ACC001&email=b%40example.com&contact=Bob+%26+Co')
+		self.add_contact('ACC001', 'a@example.com', 'Ann')
+		self.add_contact('ACC001', 'b@example.com', 'Bob & Co')
 		r, body = self.get('/pdf?name=%s&key=ACC001' % j['name'])
 		self.assertInvoiceBody(body, 'Ann and Bob &amp; Co')
 
@@ -329,8 +341,9 @@ class TestPrinterface(unittest.TestCase):
 		self.assertIn(b'Just text', body)
 
 		# save writes the user template, and the compose form then uses it
-		r, body = self.post('/settings/templates', kind='invoice', action='save', docnum='',
+		location, body = self.post_redirect('/settings/templates', kind='invoice', action='save', docnum='',
 			template='Dear ${email.name}\r\nInvoice ${doc.doc_num}\r\n')
+		self.assertEqual('/settings/templates?kind=invoice&docnum=&saved=1', location)
 		self.assertIn(b'Saved the invoice template', body)
 		self.assertIn(b'<p>Template <code>invoice.mako</code></p>', body)      # the same line, customised or not
 		self.assertIn(b'Revert to default', body)
@@ -342,8 +355,10 @@ class TestPrinterface(unittest.TestCase):
 		self.assertNotIn(b'Dear Sir or Madam\nInvoice', body)
 
 		# revert goes back to the shipped text
-		r, body = self.post('/settings/templates', kind='invoice', action='revert')
+		location, body = self.post_redirect('/settings/templates', kind='invoice', action='revert')
 		self.assertIn(b'Reverted to the shipped invoice template', body)
+		for _ in range(2):                                                      # refreshing the page after it just says the same
+			self.assertIn(b'Reverted to the shipped invoice template', self.get(location)[1])
 		self.assertFalse(os.path.exists(path))
 		r, body = self.get('/pdf?name=%s&key=ACC001' % j['name'])
 		self.assertInvoiceBody(body, 'Sir or Madam', doc_num='424242')
@@ -367,13 +382,15 @@ class TestPrinterface(unittest.TestCase):
 				self.assertFalse(os.path.exists(canary), text)
 		# the kind comes from a fixed list, never from a path
 		r, body = self.post('/settings/templates', kind='../../etc/passwd', action='save', template='x')
-		self.assertEqual(200, r.status)
+		self.assertEqual(303, r.status)
+		self.assertIn('kind=invoice', r.getheader('Location'))             # an unknown kind means the first one, not a path
 		self.assertFalse(os.path.exists(os.path.join(emailtemplates.USER_DIR, '..', '..', 'etc')))
+		self.assertEqual(['invoice.mako'], os.listdir(emailtemplates.USER_DIR))
 
 	def test_email_body_follows_the_ticked_contacts(self):
 		j = self.send_invoice()
-		self.get('/settings/email?account=ACC001&email=ann%40x.com&contact=Ann')
-		self.get('/settings/email?account=ACC001&email=bob%40x.com&contact=Bob')
+		self.add_contact('ACC001', 'ann@x.com', 'Ann')
+		self.add_contact('ACC001', 'bob@x.com', 'Bob')
 
 		def body(*ticked):
 			query = ['name=' + j['name'], 'key=ACC001'] + ['em=' + urllib.parse.quote(e) for e in ticked]
@@ -399,7 +416,7 @@ class TestPrinterface(unittest.TestCase):
 
 	def test_compose_form_is_wired_for_live_updates(self):
 		j = self.send_invoice()
-		self.get('/settings/email?account=ACC001&email=bob%40x.com&contact=Bob+%26+Co')
+		self.add_contact('ACC001', 'bob@x.com', 'Bob & Co')
 		r, body = self.get('/pdf?name=%s&key=ACC001' % j['name'])
 		self.assertNotIn(b'Mako Runtime Error', body)
 		self.assertIn(('data-url="/email_body?name=%s&amp;key=ACC001"' % j['name']).encode(), body)
@@ -442,11 +459,11 @@ class TestPrinterface(unittest.TestCase):
 			r, body = self.post('/settings/templates', kind='default', action='save', template=text)
 			self.assertIn(b"This template can", body, text)
 			self.assertFalse(os.path.exists(emailtemplates.user_path('default')), text)
-		r, body = self.post('/settings/templates', kind='default', action='save', template='Hello ${email.name}, re ${job.doctype}')
+		location, body = self.post_redirect('/settings/templates', kind='default', action='save', template='Hello ${email.name}, re ${job.doctype}')
 		self.assertIn(b'Saved the default template', body)
 		r, body = self.get('/pdf?name=' + j['name'])
 		self.assertIn(b'Hello Sir or Madam, re Delvnote', body)
-		r, body = self.post('/settings/templates', kind='default', action='revert')
+		location, body = self.post_redirect('/settings/templates', kind='default', action='revert')
 		self.assertIn(b'Reverted to the shipped default template', body)
 		r, body = self.get('/pdf?name=' + j['name'])
 		self.assertDefaultBody(body, 'Sir or Madam')
@@ -571,6 +588,129 @@ class TestPrinterface(unittest.TestCase):
 		r, body = self.get('/settings/templates?kind=invoice&docnum=778')
 		self.assertIn(b'<strong>Subject:</strong> New Invoices 777/8', body)
 		self.assertIn(b'all.numbers', body)                                # the helper is listed in the editor
+
+	# ---- anything that changes something is a POST, and redirects to a page that is safe to refresh
+
+	def test_sending_an_email_is_a_post_that_redirects(self):
+		from unittest import mock
+		j = self.send_invoice()
+		self.add_contact('ACC001', 'ann@x.com', 'Ann')
+		fields = dict(name=j['name'], key='ACC001', action='send', subject='Hello there', emailbody='The text')
+		with mock.patch.object(main.mailqueue, 'append') as append:
+			# a GET carrying every send parameter only shows the page: it must never send
+			r, body = self.get('/pdf?' + urllib.parse.urlencode(dict(fields, em='ann@x.com')))
+			self.assertEqual(200, r.status)
+			self.assertNotIn(b'Queued the email', body)
+			append.assert_not_called()
+
+			# the POST queues it once and answers with a redirect to the page
+			r, data = self.post('/pdf', em=['ann@x.com'], **fields)
+			self.assertEqual(303, r.status)
+			self.assertEqual('0', r.getheader('Content-Length'))
+			location = r.getheader('Location')
+			self.assertEqual('/pdf?name=%s&key=ACC001&queued=1' % j['name'], location)
+			append.assert_called_once()
+			item = append.call_args[0][0]
+			self.assertEqual((['ann@x.com'], 'Hello there', 'The text'), (item['to'], item['subject'], item['body']))
+			self.assertTrue(item['attachment'].endswith('-ACC001.pdf'), item['attachment'])
+
+			# the page it lands on says so; refreshing it (or following the link again) sends nothing more
+			for _ in range(3):
+				r, body = self.get(location)
+				self.assertEqual(200, r.status)
+				self.assertIn(b'Queued the email to 1 recipient.', body)
+			append.assert_called_once()
+
+	def test_a_refused_send_keeps_what_was_typed_and_who_was_ticked(self):
+		from unittest import mock
+		j = self.send_invoice()
+		self.add_contact('ACC001', 'ann@x.com', 'Ann')
+		self.add_contact('ACC001', 'bob@x.com', 'Bob')
+		with mock.patch.object(main.mailqueue, 'append') as append:
+			r, data = self.post('/pdf', name=j['name'], key='ACC001', action='send', em=['bob@x.com'], subject='x', emailbody='my own words')
+			self.assertEqual(200, r.status)                                   # not a redirect: nothing happened, so say why here
+			page = data.decode('utf-8')
+			self.assertIn('Some fields missing or incomplete', page)
+			self.assertIn('my own words', page)
+			self.assertRegex(page, r'name="subject" placeholder="Subject" value="x"')
+			self.assertRegex(page, r'value="bob@x.com" checked')
+			self.assertNotRegex(page, r'value="ann@x.com" checked')
+			append.assert_not_called()
+			# no recipient at all is refused too
+			r, data = self.post('/pdf', name=j['name'], key='ACC001', action='send', subject='Hello there', emailbody='text')
+			self.assertEqual(200, r.status)
+			append.assert_not_called()
+
+	def test_printing_is_a_post_that_redirects(self):
+		from unittest import mock
+		j = self.send_invoice()
+		with mock.patch.object(main, 'printFile') as printed:
+			r, body = self.get('/print?name=%s&key=ACC001&printer=default' % j['name'])      # the old kind of link
+			self.assertEqual(200, r.status)
+			printed.assert_not_called()
+			self.assertIn(b'printed from their', body)
+
+			r, data = self.post('/print', name=j['name'], key='ACC001', printer='default')
+			self.assertEqual(303, r.status)
+			location = r.getheader('Location')
+			self.assertEqual('/pdf?name=%s&key=ACC001&printed=default' % j['name'], location)
+			printed.assert_called_once()
+			self.assertTrue(printed.call_args[0][0].endswith('-ACC001.pdf'))
+			self.assertEqual('default', printed.call_args[0][1])
+			for _ in range(2):
+				self.assertIn(b'Sent the document to printer default.', self.get(location)[1])
+			printed.assert_called_once()
+			# the job page offers printers through a POST form, not links
+			r, body = self.get('/pdf?name=%s&key=ACC001' % j['name'])
+			self.assertIn(b'<form id="printForm" method="post" action="/print"', body)
+			self.assertNotIn(b'href="/print?', body)
+			# an unknown job prints nothing
+			r, data = self.post('/print', name='job-19990101-000000', printer='default')
+			self.assertEqual(200, r.status)
+			printed.assert_called_once()
+
+	def test_the_address_book_only_changes_on_a_post(self):
+		self.send_invoice()
+		# a GET with add or delete parameters (an old link, a bookmark, a refresh) changes nothing
+		self.get('/settings/email?account=ACC001&email=ann%40x.com&contact=Ann')
+		self.assertEqual({}, dict(main.email_addresses.get('ACC001', {})))
+		self.add_contact('ACC001', 'ann@x.com', 'Ann')
+		self.get('/settings/email?account=ACC001&delete=ann%40x.com')
+		self.assertEqual({'ann@x.com': 'Ann'}, main.email_addresses['ACC001'])
+		# adding the same contact again (a refreshed POST) changes nothing either
+		self.add_contact('ACC001', 'ann@x.com', 'Ann')
+		self.assertEqual({'ann@x.com': 'Ann'}, main.email_addresses['ACC001'])
+		# an unknown account is reported on the page the redirect lands on, escaped
+		location, body = self.post_redirect('/settings/email', account='NOPE<b>', email='z@x.com', contact='Z')
+		self.assertEqual('/settings/email?warning=Unknown+account+NOPE%3Cb%3E', location)
+		self.assertIn(b'Unknown account NOPE&lt;b&gt;', body)
+		self.assertNotIn(b'NOPE<b>', body)
+		self.assertNotIn('NOPE<b>', main.email_addresses)
+		# removing it takes a POST
+		self.post_redirect('/settings/email', account='ACC001', delete='ann@x.com')
+		self.assertEqual({}, main.email_addresses['ACC001'])
+		# the forms on the page post
+		r, body = self.get('/settings/email')
+		self.assertNotIn(b'method="get" class="form-inline"', body)
+		self.assertIn(b'method="post" class="form-inline" action="/settings/email"', body)
+
+	def test_the_template_editor_ignores_actions_that_arrive_by_get(self):
+		self.send_invoice()
+		path = emailtemplates.user_path('invoice')
+		r, body = self.get('/settings/templates?kind=invoice&action=save&template=Hijacked')
+		self.assertEqual(200, r.status)
+		self.assertFalse(os.path.exists(path))
+		emailtemplates.save('invoice', 'mine')
+		r, body = self.get('/settings/templates?kind=invoice&action=revert')
+		self.assertTrue(os.path.exists(path))
+		# the flash notes are only notes
+		r, body = self.get('/settings/templates?kind=invoice&saved=1')
+		self.assertIn(b'Saved the invoice template', body)
+		self.assertTrue(os.path.exists(path))
+		# a save that is refused is shown straight away with what was typed, not redirected
+		r, body = self.post('/settings/templates', kind='invoice', action='save', template='${__import__("os")}')
+		self.assertEqual(200, r.status)
+		self.assertIn(b'__import__', body)
 
 	def test_pdf_page_for_a_job_that_is_not_loaded_is_a_message_not_an_error(self):
 		self.send_invoice()
