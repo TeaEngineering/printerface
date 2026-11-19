@@ -64,6 +64,9 @@ def lpr(port, queue, control, data):
 	finally:
 		s.close()
 
+def mailer_results():
+	return main.mailqueue.results
+
 class ServerThread(threading.Thread):
 	def __init__(self):
 		threading.Thread.__init__(self)
@@ -479,6 +482,30 @@ class TestPrinterface(unittest.TestCase):
 		r, body = self.get('/home')
 		self.assertNotIn(b'Default Email Text', body)
 		self.assertIn(b'/settings/templates', body)
+
+	def test_sent_items_shows_only_the_latest_100(self):
+		import datetime
+		def fake(i):
+			now = datetime.datetime(2026, 11, 19, 12, 0, 0)
+			return dict(to=['a%d@x.com' % i], subject='subject-%d' % i, added=now, completed=now, error=None, status=None, body='', attachment='')
+		original = list(mailer_results())
+		try:
+			mailer_results()[:] = [fake(i) for i in range(250)]                  # newest first, as the mail thread keeps it
+			r, body = self.get('/sent')
+			self.assertEqual(200, r.status)
+			self.assertNotIn(b'Mako Runtime Error', body)
+			self.assertEqual(100, len(re.findall(rb'<tr class="(?:success|error)">', body)))
+			self.assertIn(b'subject-0<', body)
+			self.assertIn(b'subject-99<', body)
+			self.assertNotIn(b'subject-100<', body)
+			self.assertIn(b'Showing the latest 100 of 250 sent emails.', body)
+			# a history that fits is shown whole, with no note
+			mailer_results()[:] = [fake(i) for i in range(3)]
+			r, body = self.get('/sent')
+			self.assertEqual(3, len(re.findall(rb'<tr class="(?:success|error)">', body)))
+			self.assertNotIn(b'Showing the latest', body)
+		finally:
+			mailer_results()[:] = original
 
 	def test_keepalive_two_requests_one_connection(self):
 		self.send_invoice()
