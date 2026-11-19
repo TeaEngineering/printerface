@@ -1,5 +1,8 @@
-Document attached
+Document ${job.doctype} attached
 
-To ${email.name}
+To ${email.name},
 
-Please find your document attached.
+Please find your ${job.doctype} document attached.
+
+Kind regards
+${company.name}
