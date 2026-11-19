@@ -4,19 +4,29 @@
 
 	<h3>Sent Items</h3>
 
-	% if total > len(shown):
-	<p class="muted">Showing the latest ${len(shown)} of ${total} sent emails.</p>
+	% if total > len(rows):
+	<p class="muted">Showing the latest ${len(rows)} of ${total} sent emails.</p>
 	% endif
 
 	<table class="table table-striped">
-		<tr><th>To</th><th>Subject</th><th>Added</th><th>Finished</th><th>Problems?</th></tr>
-	% for p in shown:
+		<tr><th>To</th><th>Subject</th><th>Document</th><th>Added</th><th>Finished</th><th>Problems?</th></tr>
+	% for row in rows:
+	  <% p = row['p'] %>
 	  % if p['error']:
 	  <tr class="error">
 	  % else:
 	  <tr class="success">
 	  % endif
-		<td>${'<br>'.join(p['to'])}</td><td>${p['subject']}</td><td>${p['added']}</td><td>${p['completed']}</td><td>${p['error']}</td>
+		<td>${'<br>'.join(p['to'])}</td><td>${p['subject']}</td>
+		<td>
+		% if row['loaded']:
+			<a href="/pdf?name=${row['job'] | u}&amp;key=${row['key'] | u}" title="Open the job this was sent from">${row['key'] | h}</a>
+			<span class="muted">${row['job'] | h}</span>
+		% elif row['job']:
+			${row['key'] | h} <span class="muted" title="This job is no longer loaded">${row['job'] | h}</span>
+		% endif
+		</td>
+		<td>${p['added']}</td><td>${p['completed']}</td><td>${p['error']}</td>
 	  </tr>
 	% endfor
 	</table>

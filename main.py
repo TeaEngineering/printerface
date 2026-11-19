@@ -8,12 +8,14 @@ import asynchat, asyncore, socket, os, re
 from datetime import datetime
 from lpdserver import LpdServer
 from httpserver import ToyHttpServer
+import mailer
 from mailer import JobMailer
 from docparser import DocParser
 from stationary import DocFormatter
 from printing import getPrinters, printFile
 
 import sys, pickle
+import html
 import urllib.parse
 from io import StringIO
 import collections
@@ -273,7 +275,13 @@ SENT_SHOWN = 100
 
 def sent(query_string='', resp=None):
 	results = mailqueue.results            # newest first; the mail thread inserts at the front
-	return ( template_lookup.get_template("/sent.html").render(shown=results[:SENT_SHOWN], total=len(results)), 'text/html')
+	loaded = set(j['name'] for j in jobs)
+	rows = []
+	for p in results[:SENT_SHOWN]:
+		ref = mailer.job_ref(p.get('attachment'))
+		# only jobs still in memory can be opened; for older ones the name is shown without a link
+		rows.append(dict(p=p, job=ref[0] if ref else None, key=ref[1] if ref else None, loaded=bool(ref and ref[0] in loaded)))
+	return ( template_lookup.get_template("/sent.html").render(rows=rows, total=len(results)), 'text/html')
 
 def settings_email(query_string='', postreq=None, resp=None):
 	warning=None
@@ -388,6 +396,10 @@ def email_body(query_string=dict(), resp=None):
 
 def pdf(query_string=dict(), resp=None):
 	job = getJob(query_string)
+	if not job.get('groupfiles'):
+		name = query_string.get('name', [''])[0]
+		return doMessage(title='Job not found', message='There is no job %s loaded. Only the most recent jobs are kept in memory, so older ones '
+			'can\'t be opened here. <a href="/recent">Recent jobs</a>' % (html.escape(name) or '(none given)'))
 	default_key = next(iter(job['groupfiles']))[0]
 	key = query_string.get('key', [default_key])[0]
 	email_dest = email_addresses.get(key, {})
@@ -427,6 +439,9 @@ def pdf(query_string=dict(), resp=None):
 	except Exception:
 		traceback.print_exc(file=sys.stdout)
 		template_warning = 'The email template for this document could not be used.'
+	# emails made from this job that are still in the sent history, newest first
+	sent_from_this_job = mailer.sent_from_job(mailqueue.results, job['name'])
+
 	# what the editor's preview filter should be set to so that it shows this document
 	if template_kind == emailtemplates.DEFAULT:
 		template_docnum = job.get('name', '')
@@ -436,7 +451,7 @@ def pdf(query_string=dict(), resp=None):
 		template_docnum = pages[0].get('doc_num', '').strip()
 
 	return ( template_lookup.get_template("/pdf.html").render(printers=getPrinters(), job=job, key=key, email_templ=email_body_default, email_subject_default=email_subject_default,
-		template_kind=template_kind, template_warning=template_warning, template_docnum=template_docnum,
+		template_kind=template_kind, template_warning=template_warning, template_docnum=template_docnum, sent_from_this_job=sent_from_this_job,
 		email_body_url='/email_body?' + urllib.parse.urlencode({'name': job['name'], 'key': key}),
 		email_dest=email_dest, email_outcome=email_outcome, email_error=email_error), 'text/html')
 
@@ -472,6 +487,8 @@ def getJob(query_string, returnLast=False):
 def getJobFile(query_string, job=None):
 	if not job:
 		job = getJob(query_string)
+	if not job.get('groupfiles'):
+		return None
 	default_key = next(iter(job['groupfiles']))[0]
 	key = query_string.get('key', [default_key])[0]
 
