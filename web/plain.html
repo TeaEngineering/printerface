@@ -8,7 +8,7 @@
 		<a class="btn hidden-print" type="button" href="/pdf?name=${job['name']}"><i class="icon-share"></i> Document Pages</a>		
 	% endif
 		
-	% for part in filter(None, job['plain'].strip().split("\f")):
+	% for part in [p for p in job['plain'].strip().split("\f") if p]:
 	% if loop.last:
 	<pre style="font-size:10px;line-height: 13px; page-break-after:auto;">${part.rstrip() | h}</pre>
 	% else:

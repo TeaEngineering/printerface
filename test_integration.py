@@ -193,6 +193,14 @@ class TestPrinterface(unittest.TestCase):
 			r, body = self.get(path)
 			self.assertEqual(200, r.status, path)
 			self.assertTrue(body.strip(), path)
+			# mako (format_exceptions=True) renders a template failure as a normal 200 page
+			self.assertNotIn(b'Mako Runtime Error', body, path)
+			self.assertNotIn(b'Traceback', body, path)
+
+		# one <pre> per printed page: the two invoice pages are separated by form feeds
+		r, body = self.get('/plaintext?name=' + name)
+		self.assertEqual(2, body.count(b'<pre '))
+		self.assertIn(b'INVOICE', body)
 
 		r, body = self.get('/css/print.css')
 		self.assertEqual(200, r.status)
