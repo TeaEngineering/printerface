@@ -232,7 +232,7 @@ def recent(query_string=dict(), resp=None):
 	if fmt == 'json':
 		nextQry = base_uri + '/recent?query={query}&templ={templ}&doctype={doctype}&page={page}&fmt={fmt}'.format(query=query, templ=templ, doctype=doctype, page=page+1, fmt=fmt)
 		output = { 'results': [
-				{ 'name': p['name'], 'host': p['control'].get('H'), 'doctype': p['doctype'], 'ts': j['ts'].isoformat(), 'details':
+				{ 'name': p['name'], 'host': p['control'].get('H'), 'doctype': p['doctype'], 'ts': p['ts'].isoformat(), 'details':
 					('' if not p['templ'] else '{base}/job?name={name}'.format(base=base_uri, name=p['name'])) }
 				for p in pagejobs[page]
 			], 'next': '' if page >= len(pagejobs)-1 else nextQry }

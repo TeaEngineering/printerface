@@ -221,6 +221,16 @@ class TestPrinterface(unittest.TestCase):
 		r, body = self.get('/settings/email?account=ACC001&delete=jose%40example.com')
 		self.assertNotIn(b'jose@example.com', body)
 
+	def test_recent_json_ts_is_per_job(self):
+		first = self.send_invoice(doc_num='111')
+		second = self.send_invoice(doc_num='222')
+		self.assertNotEqual(first['ts'], second['ts'])
+		r, body = self.get('/recent?fmt=json')
+		rows = {x['name']: x for x in json.loads(body.decode('utf-8'))['results']}
+		# ts is the job's own (naive, utc) receive time; it used to be the oldest loaded job's for every row
+		self.assertEqual(first['ts'].isoformat(), rows[first['name']]['ts'])
+		self.assertEqual(second['ts'].isoformat(), rows[second['name']]['ts'])
+
 	def test_keepalive_two_requests_one_connection(self):
 		self.send_invoice()
 		conn = http.client.HTTPConnection('127.0.0.1', self.http_port, timeout=10)
