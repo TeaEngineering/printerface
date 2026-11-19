@@ -68,7 +68,12 @@ def saveJob(queue, local, remote, control, data):
 		pickle.dump(d, f, protocol=PICKLE_PROTOCOL)
 
 	cleanJob(d)
-	autoPrint(d)
+	try:
+		autoPrint(d)
+	except Exception:
+		# a printing problem (no lpr, no CUPS...) must not lose the job: it is already saved to disk, and
+		# not registering it here would hide it from the web interface until the next restart
+		traceback.print_exc(file=sys.stdout)
 
 	jobs.insert(0, d)
 	if len(jobs) > loadQty: jobs.pop()

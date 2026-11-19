@@ -14,6 +14,7 @@ import urllib.parse
 import threading
 import time
 import unittest
+from unittest import mock
 
 import main
 import mailer
@@ -91,6 +92,10 @@ class TestPrinterface(unittest.TestCase):
 		cls.old_user_dir, emailtemplates.USER_DIR = emailtemplates.USER_DIR, os.path.join(cls.home, 'templates')
 		for x in [main.jobdir, main.pdfdir]:
 			os.makedirs(x, exist_ok=True)
+		# Nothing in these tests may print. Delivery notes and pick lists are auto-printed (defaults.cfg), which
+		# would run lpr: on a machine without CUPS that fails, and on one with a printer called HP_TONY it would print.
+		cls.print_patch = mock.patch.object(main, 'printFile')
+		cls.printed = cls.print_patch.start()
 		cls.lpd = LpdServer(main.saveJob, ip='127.0.0.1', port=0)
 		cls.http = ToyHttpServer(ip='127.0.0.1', port=0, pathhandlers=main.path_handlers, webroot=main.web_dir)
 		cls.lpd_port = cls.lpd.socket.getsockname()[1]
@@ -104,6 +109,7 @@ class TestPrinterface(unittest.TestCase):
 		cls.thread.join()
 		cls.lpd.close()
 		cls.http.close()
+		cls.print_patch.stop()
 		emailtemplates.USER_DIR = cls.old_user_dir
 		shutil.rmtree(cls.home, ignore_errors=True)
 
@@ -137,6 +143,7 @@ class TestPrinterface(unittest.TestCase):
 		self.post_redirect('/settings/email', account=account, email=email, contact=name)
 
 	def setUp(self):
+		self.printed.reset_mock()
 		main.jobs.clear()
 		main.email_addresses.clear()
 		shutil.rmtree(emailtemplates.USER_DIR, ignore_errors=True)
@@ -713,6 +720,36 @@ class TestPrinterface(unittest.TestCase):
 		r, body = self.post('/settings/templates', kind='invoice', action='save', template='${__import__("os")}')
 		self.assertEqual(200, r.status)
 		self.assertIn(b'__import__', body)
+
+	def test_delivery_notes_are_auto_printed(self):
+		j = self.send_invoice('Delvnote')
+		self.assertEqual(main.config.get('Robot', 'auto_printer'), j['autoprint'])
+		self.printed.assert_called_once()
+		path, printer = self.printed.call_args[0]
+		self.assertEqual(main.config.get('Robot', 'auto_printer'), printer)
+		self.assertTrue(path.startswith(main.pdfdir) and path.endswith('.pdf'), path)
+		# an invoice is not an auto-print type
+		self.printed.reset_mock()
+		self.send_invoice('Invoice')
+		self.printed.assert_not_called()
+
+	def test_a_printing_failure_does_not_lose_the_job(self):
+		# without lpr (a container, a CI runner) or with CUPS down, printing raises; the job must still be there
+		self.printed.side_effect = FileNotFoundError(2, 'No such file or directory', 'lpr')
+		try:
+			j = self.send_invoice('Delvnote')
+		finally:
+			self.printed.side_effect = None
+		self.assertEqual(1, len(main.jobs))
+		self.assertEqual(j['name'], main.jobs[0]['name'])
+		self.printed.assert_called_once()
+		r, body = self.get('/pdf?name=' + j['name'])                          # it can be opened, emailed and so on
+		self.assertEqual(200, r.status)
+		self.assertNotIn(b'Mako Runtime Error', body)
+		r, body = self.get('/recent?fmt=json')
+		self.assertIn(j['name'], body.decode())
+		with open(os.path.join(main.jobdir, j['name'][4:10], j['name']), 'rb') as f:          # and it was saved to disk
+			self.assertTrue(f.read(2) == b'\x80\x02')
 
 	def test_pdf_page_for_a_job_that_is_not_loaded_is_a_message_not_an_error(self):
 		self.send_invoice()
