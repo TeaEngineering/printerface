@@ -44,6 +44,8 @@ against a copy of the data on other ports (`lpd_port` and `http_port` in `defaul
 `tools/compare_corpus.py` and `tools/replay_corpus.py` check a port or upgrade against real data: given a copy of
 `data/pickle` and `data/pdf` from a running system, the first re-renders every job and compares the PDF text
 with the PDFs the previous release produced, the second replays every stored payload through the LPD server.
+`tools/compare_http.py` compares the read-only `/recent`, `/job` and `/raw` API of two running instances over the
+jobs they both hold, for checking a candidate against the live release.
 
 Jobs and the address book are stored as pickles. They are written with pickle protocol 2 (see
 `PICKLE_PROTOCOL` in `textutil.py`) so that python 2.7 can still read them, and python 2 pickles from earlier
