@@ -39,6 +39,8 @@ mailqueue = JobMailer(100)
 # seed some 'system' accounts
 email_accounts = { 'accounts': 'Accounts', 'plain': 'printerface', 'transport': 'Transport'}
 email_addresses = collections.defaultdict(dict)
+# the single email text from before there were templates. Kept (and written back) so email.pickle keeps its
+# layout, but only used to migrate it to templates/default.mako, see emailtemplates.migrate_legacy_default
 email_template = ''
 
 mainparser = DocParser()
@@ -100,6 +102,10 @@ def recover():
 		print('recovered accounts: %s' % email_accounts)
 	except IOError:
 		print('[control] email pickle load failed')
+
+	migrated = emailtemplates.migrate_legacy_default(email_template)
+	if migrated:
+		print('[control] ' + migrated)
 
 	# jobdir structured /YYYYMM/job-blah-blah.pickle. We want to avoid stating
 	# more dated directories than necessary, so load the
@@ -294,21 +300,6 @@ def settings_email(query_string='', postreq=None, resp=None):
 
 	return ( template_lookup.get_template("/settings_email.html").render(emails=email_list, warning=warning), 'text/html')
 
-def settings_template(query_string='', postreq=None, resp=None):
-	global email_template
-
-	print('query_string=%s' % query_string)
-	message = None
-	try:
-		template = query_string.get('template', None)
-		if template:
-			email_template = template[0]
-			saveEmails()
-			message = '<strong>Thanks!</strong> Template updated'
-	except:
-		message = '<strong>Ohno!</strong> Template failed'
-	return ( template_lookup.get_template("/settings_template.html").render(template=email_template, message=message), 'text/html')
-
 def printfn(query_string='', resp=None):
 	docf = getJobFile(query_string)
 	if docf:
@@ -338,7 +329,7 @@ def settings_templates(query_string='', postreq=None, resp=None):
 	text, source = emailtemplates.load(kind)
 	message, errors = None, []
 	if action == 'revert':
-		message = 'Reverted to the default %s template.' % emailtemplates.KINDS[kind].lower() if emailtemplates.revert(kind) else 'Already using the default template.'
+		message = 'Reverted to the shipped %s template.' % emailtemplates.KINDS[kind].lower() if emailtemplates.revert(kind) else 'Already using the shipped template.'
 		text, source = emailtemplates.load(kind)
 	elif action in ('preview', 'save'):
 		text = params.get('template', '').replace('\r\n', '\n').replace('\r', '\n')
@@ -351,26 +342,29 @@ def settings_templates(query_string='', postreq=None, resp=None):
 				errors = e.errors
 
 	# preview: the newest document of this type, or the one whose document number / account matches the filter
+	# (for the default template: the newest other document, or the job name / document type that matches)
 	found = emailtemplates.find_document(jobs, kind, term)
+	is_default = kind == emailtemplates.DEFAULT
 	preview, preview_job, preview_acc, fields, names = None, None, None, [], []
 	if not found:
-		preview_note = 'No %s document found%s.' % (emailtemplates.KINDS[kind].lower(), (' matching "%s"' % term) if term else '')
+		what = 'document' if is_default else '%s document' % emailtemplates.KINDS[kind].lower()
+		preview_note = 'No %s found%s.' % (what, (' matching "%s"' % term) if term else '')
 	else:
 		preview_job, preview_acc = found
 		contacts = email_addresses.get(preview_acc, {})
 		names = list(contacts.values())
 		ctx = emailtemplates.build_context(preview_job, preview_acc, names=names, addresses=list(contacts.keys()), company=company_info())
-		fields = emailtemplates.field_names(ctx['doc'])
+		fields = emailtemplates.field_names(ctx['doc']) if 'doc' in ctx else []
 		preview_note = None
 		try:
-			preview = emailtemplates.render(text, ctx)
+			preview = emailtemplates.render(text, ctx, kind)
 		except emailtemplates.TemplateError as e:
 			errors = errors or e.errors
 
 	return ( template_lookup.get_template("/settings_templates.html").render(
 		kinds=emailtemplates.KINDS, kind=kind, text=text, source=source, user_path=emailtemplates.user_path(kind),
 		term=term, message=message, errors=errors, preview=preview, preview_note=preview_note,
-		preview_job=preview_job, preview_acc=preview_acc, names=names, fields=fields), 'text/html')
+		preview_job=preview_job, preview_acc=preview_acc, names=names, fields=fields, is_default=is_default), 'text/html')
 
 def pdf(query_string=dict(), resp=None):
 	job = getJob(query_string)
@@ -403,19 +397,24 @@ def pdf(query_string=dict(), resp=None):
 	except:
 		raise
 
-	# the suggested body comes from the template for this type of document, or the single default text
-	email_body_default, template_kind, template_warning = email_template, None, None
+	# the suggested body comes from the template for this type of document (or the default template)
+	email_body_default, template_kind, template_warning, template_docnum = '', emailtemplates.DEFAULT, None, ''
 	try:
-		rendered, template_kind, template_warning = emailtemplates.render_for_job(
+		email_body_default, template_kind, template_warning = emailtemplates.render_for_job(
 			job, key, names=list(email_dest.values()), addresses=list(email_dest.keys()), company=company_info())
-		if rendered is not None:
-			email_body_default = rendered
 	except Exception:
 		traceback.print_exc(file=sys.stdout)
-		template_warning = 'The email template for this document could not be used; showing the default text.'
+		template_warning = 'The email template for this document could not be used.'
+	# what the editor's preview filter should be set to so that it shows this document
+	if template_kind == emailtemplates.DEFAULT:
+		template_docnum = job.get('name', '')
+	else:
+		parsed = job.get('parsed') or {}
+		pages = parsed.get(emailtemplates.account_for_key(parsed, key)) or [{}]
+		template_docnum = pages[0].get('doc_num', '').strip()
 
 	return ( template_lookup.get_template("/pdf.html").render(printers=getPrinters(), job=job, key=key, email_templ=email_body_default,
-		template_kind=template_kind, template_warning=template_warning,
+		template_kind=template_kind, template_warning=template_warning, template_docnum=template_docnum,
 		email_dest=email_dest, email_outcome=email_outcome, email_error=email_error), 'text/html')
 
 
@@ -530,7 +529,6 @@ path_handlers = {
 	'/print' : printfn,
 	'/plaintext':plain,
 	'/settings/email':settings_email,
-	'/settings/template':settings_template,
 	'/settings/templates':settings_templates
 	}
 

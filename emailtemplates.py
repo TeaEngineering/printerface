@@ -1,7 +1,8 @@
 # Email body templates, one per document type.
 #
 # The text offered when emailing a document is rendered from a Mako template chosen by the type of the
-# job (invoice, purchase order, statement). Templates are looked up in USER_DIR (~/printerface/templates)
+# job: invoice, purchase order or statement, and 'default' for every other kind of document (credit notes,
+# delivery notes, reports...). Templates are looked up in USER_DIR (~/printerface/templates)
 # first and fall back to the copies shipped with the source in SEED_DIR, so an install that has never
 # customised a template keeps following the repository. The web editor saves into USER_DIR.
 #
@@ -19,10 +20,10 @@ from mako.template import Template
 
 from settings import BASE_DIR, HOME
 
-KINDS = collections.OrderedDict([('invoice', 'Invoice'), ('purchase', 'Purchase order'), ('statement', 'Statement')])
-# job['templ'] -> template kind. Other document types (credit notes, delivery notes...) have no template of
-# their own and keep using the single default email text.
+KINDS = collections.OrderedDict([('invoice', 'Invoice'), ('purchase', 'Purchase order'), ('statement', 'Statement'), ('default', 'Default')])
+# job['templ'] -> template kind. Anything else uses 'default', which can only see the recipients and the job.
 KIND_FOR_TEMPL = {'invoice': 'invoice', 'purchase': 'purchase', 'statement': 'statement'}
+DEFAULT = 'default'
 
 SEED_DIR = os.path.join(BASE_DIR, 'templates')
 USER_DIR = os.path.join(HOME, 'templates')
@@ -84,7 +85,7 @@ def join_names(names):
 	return ', '.join(names[:-1]) + ' and ' + names[-1]
 
 def kind_for_job(job):
-	return KIND_FOR_TEMPL.get(job.get('templ'))
+	return KIND_FOR_TEMPL.get(job.get('templ'), DEFAULT)
 
 def build_context(job, key, names=(), addresses=(), company=None):
 	"""The variables a template sees:
@@ -92,26 +93,34 @@ def build_context(job, key, names=(), addresses=(), company=None):
 	  docs     every document for the account in this print run, for '% for d in docs:'
 	  email    the recipients: email.name ('Ann and Bob', or 'Sir or Madam' with none), email.address
 	  job      job.name, job.doctype, job.host
-	  company  company.name, company.email, company.website, from the [Printing] settings"""
+	  company  company.name, company.email, company.website, from the [Printing] settings
+	The default template sees only email and job: the other document types have no fields we know of."""
+	addresses = [a for a in addresses if a]
+	context = dict(
+		email=Fields({'name': join_names(names), 'address': addresses[0] if addresses else ''}),
+		job=Fields({'name': job.get('name', ''), 'doctype': job.get('doctype', ''), 'host': (job.get('control') or {}).get('H', '')}))
+	if kind_for_job(job) == DEFAULT:
+		return context
 	parsed = job.get('parsed') or {}
 	acc = account_for_key(parsed, key)
 	docs = merge_documents(parsed[acc]) if acc else []
-	addresses = [a for a in addresses if a]
-	return dict(
-		doc=Fields(docs[-1] if docs else {}),
-		docs=[Fields(d) for d in docs],
-		email=Fields({'name': join_names(names), 'address': addresses[0] if addresses else ''}),
-		job=Fields({'name': job.get('name', ''), 'doctype': job.get('doctype', ''), 'host': (job.get('control') or {}).get('H', '')}),
-		company=Fields(company or {}))
+	context.update(doc=Fields(docs[-1] if docs else {}), docs=[Fields(d) for d in docs], company=Fields(company or {}))
+	return context
 
 def find_document(jobs, kind, term=''):
-	"""The filter behind the editor's preview. jobs is newest first. Returns (job, account) for the newest
+	"""The filter behind the editor's preview. jobs is newest first. Returns (job, key) for the newest
 	document of this kind whose document number, or account code, equals term (ignoring case and spaces),
-	or for the newest document of this kind if term is empty. None if there isn't one."""
+	or for the newest document of this kind if term is empty. None if there isn't one.
+	For the default kind there are no document numbers: term matches the job name or the document type
+	(for example 'Delvnote'), and key is the job's first PDF group, as the compose form would use."""
 	norm = lambda s: re.sub(r'\s+', '', s or '').lower()
 	want = norm(term)
 	for job in jobs:
 		if kind_for_job(job) != kind:
+			continue
+		if kind == DEFAULT:
+			if not want or want in (norm(job.get('name')), norm(job.get('doctype'))):
+				return job, next(iter(job.get('groupfiles') or {}), ('',))[0]
 			continue
 		for acc, pages in (job.get('parsed') or {}).items():
 			for d in merge_documents(pages):
@@ -129,9 +138,11 @@ _IF = re.compile(r'^\s*%%\s*if\s+(?:not\s+)?(%s)\s*:\s*$' % _PATH)
 _ELSE = re.compile(r'^\s*%\s*else\s*:\s*$')
 _END = re.compile(r'^\s*%\s*(?:endif|endfor)\s*$')
 _ROOTS = frozenset(['doc', 'email', 'job', 'company'])
+_DEFAULT_ROOTS = frozenset(['email', 'job'])
 
-def validate(text):
-	"""Returns a list of 'line N: problem' strings; empty if the template is safe to render."""
+def validate(text, kind=None):
+	"""Returns a list of 'line N: problem' strings; empty if the template is safe to render as this kind
+	of template (the default template can only use email and job)."""
 	errors = []
 	loop_vars = set()
 	lines = text.replace('\r\n', '\n').replace('\r', '\n').split('\n')
@@ -139,7 +150,7 @@ def validate(text):
 		m = _FOR.match(line)
 		if m:
 			loop_vars.add(m.group(1))
-	roots = _ROOTS | loop_vars
+	roots = (_DEFAULT_ROOTS if kind == DEFAULT else _ROOTS) | loop_vars
 
 	def check_path(n, path, where):
 		root = path.split('.')[0]
@@ -159,6 +170,8 @@ def validate(text):
 			m = _IF.match(line)
 			if m:
 				check_path(n, m.group(1), 'the condition')
+			elif _FOR.match(line) and kind == DEFAULT:
+				errors.append('line %d: there are no documents to loop over in the default template' % n)
 			elif not (_FOR.match(line) or _ELSE.match(line) or _END.match(line)):
 				errors.append('line %d: only "%% for x in docs:", "%% if field:", "%% if not field:", "%% else:", "%% endif" and "%% endfor" are allowed' % n)
 			continue
@@ -179,8 +192,8 @@ def validate(text):
 			errors.append('template structure: %s' % (str(e).splitlines() or ['invalid'])[0])
 	return errors
 
-def render(text, context):
-	errors = validate(text)
+def render(text, context, kind=None):
+	errors = validate(text, kind)
 	if errors:
 		raise TemplateError(errors)
 	try:
@@ -215,7 +228,7 @@ def save(kind, text):
 	text = text.replace('\r\n', '\n').replace('\r', '\n')
 	if not text.endswith('\n'):
 		text += '\n'
-	errors = validate(text)
+	errors = validate(text, kind)
 	if errors:
 		raise TemplateError(errors)
 	path = user_path(kind)
@@ -233,20 +246,36 @@ def revert(kind):
 		return True
 	return False
 
+MIGRATED_MARKER = '.legacy-default-text-migrated'
+
+def migrate_legacy_default(text):
+	"""Before there were per type templates a single email text was kept in email.pickle. Offer that text as
+	the default template, once, unless the user already has a default.mako. A marker file stops it coming back
+	if they later revert to the shipped default. Returns a message to log, or None if there was nothing to do."""
+	marker = os.path.join(USER_DIR, MIGRATED_MARKER)
+	if not (text or '').strip() or os.path.exists(marker) or os.path.exists(user_path(DEFAULT)):
+		return None
+	try:
+		save(DEFAULT, text)
+		message = 'migrated the old email text to %s' % user_path(DEFAULT)
+	except TemplateError as e:
+		message = 'could not migrate the old email text (%s); it is still in email.pickle' % e
+	os.makedirs(USER_DIR, exist_ok=True)
+	open(marker, 'w').close()
+	return message
+
 def render_for_job(job, key, names=(), addresses=(), company=None):
-	"""(body, kind, warning) for the compose form, or (None, None, None) for a document type without its
-	own template. A user template that no longer renders falls back to the shipped one, with a warning."""
+	"""(body, kind, warning) for the compose form. A user template that no longer renders falls back to
+	the shipped one, with a warning."""
 	kind = kind_for_job(job)
-	if not kind:
-		return None, None, None
 	context = build_context(job, key, names, addresses, company)
 	text, source = load(kind)
 	try:
-		return render(text, context), kind, None
+		return render(text, context, kind), kind, None
 	except TemplateError as e:
 		if source != 'custom':
 			raise
-		body = render(open(seed_path(kind), encoding=ENCODING).read(), context)
+		body = render(open(seed_path(kind), encoding=ENCODING).read(), context, kind)
 		return body, kind, 'Your %s template could not be used (%s); showing the default.' % (KINDS[kind].lower(), e)
 
 # ----------------------------------------------------------------------------------------------- tests
@@ -291,19 +320,65 @@ class TestEmailTemplates(unittest.TestCase):
 	def test_shipped_templates_are_valid_and_the_invoice_text_is_as_specified(self):
 		for kind in KINDS:
 			text = open(seed_path(kind), encoding=ENCODING).read()
-			self.assertEqual([], validate(text), kind)
+			self.assertEqual([], validate(text, kind), kind)
 		ctx = build_context(self.job(), 'HAR108', names=['Ann'])
 		body = render(open(seed_path('invoice'), encoding=ENCODING).read(), ctx)
 		self.assertEqual('To Ann\n\nPlease find your latest invoice 289099 attached for account HAR108, for \xa310.00.\n', body)
 
 	def test_shipped_templates_render_with_no_data_at_all(self):
 		for kind in KINDS:
-			body = render(open(seed_path(kind), encoding=ENCODING).read(), build_context({}, 'nothing'))
+			body = render(open(seed_path(kind), encoding=ENCODING).read(), build_context({'templ': kind}, 'nothing'), kind)
 			self.assertTrue(body.startswith('To ' + NO_NAME), kind)
 
-	def test_other_document_types_have_no_template(self):
-		self.assertIsNone(render_for_job({'templ': 'delnote'}, 'X')[0])
-		self.assertIsNone(render_for_job({'templ': None}, 'X')[0])
+	def test_other_document_types_use_the_default_template(self):
+		for templ in ('delnote', 'crednote', 'picklist', None):
+			body, kind, warning = render_for_job({'templ': templ, 'name': 'job-9', 'doctype': 'Delvnote'}, 'X', ['Ann'])
+			self.assertEqual(('To Ann\n\nPlease find your document attached.\n', DEFAULT, None), (body, kind, warning), templ)
+
+	def test_the_default_context_is_only_email_and_job(self):
+		ctx = build_context({'templ': 'delnote', 'name': 'job-9', 'doctype': 'Delvnote', 'control': {'H': 'PC1'}}, 'X', ['Ann'], ['a@b.c'], {'name': 'ABFW'})
+		self.assertEqual(['email', 'job'], sorted(ctx))
+		self.assertEqual(('Ann', 'a@b.c', 'job-9', 'Delvnote', 'PC1'), (ctx['email'].name, ctx['email'].address, ctx['job'].name, ctx['job'].doctype, ctx['job'].host))
+		self.assertEqual([], validate('${email.name} ${job.doctype | trim}\n% if job.host:\nx\n% endif', DEFAULT))
+		for text in ('${doc.ourref}', '${company.name}', '% for d in docs:\n% endfor', '% if doc.x:\n% endif'):
+			self.assertTrue(validate(text, DEFAULT), text)
+			if 'docs' not in text:
+				self.assertEqual([], validate(text, 'invoice'), text)       # fine for a document type that has them
+
+	def test_migrate_legacy_default_text_once(self):
+		import tempfile
+		global USER_DIR
+		old, USER_DIR = USER_DIR, os.path.join(tempfile.mkdtemp(prefix='printerface-test-'), 'templates')
+		try:
+			self.assertIsNone(migrate_legacy_default(''))
+			self.assertIsNone(migrate_legacy_default('   \r\n'))
+			self.assertFalse(os.path.exists(user_path(DEFAULT)))
+			self.assertIn('migrated', migrate_legacy_default('Please find it attached.\r\n\r\nRegards,\r\nTony'))
+			self.assertEqual(('Please find it attached.\n\nRegards,\nTony\n', 'custom'), load(DEFAULT))
+			# a user who reverts to the shipped text does not get the old text back at the next start
+			revert(DEFAULT)
+			self.assertIsNone(migrate_legacy_default('Please find it attached.'))
+			self.assertEqual('default', load(DEFAULT)[1])
+		finally:
+			import shutil
+			shutil.rmtree(os.path.dirname(USER_DIR), ignore_errors=True)
+			USER_DIR = old
+
+	def test_migrate_never_overwrites_or_imports_unsafe_text(self):
+		import tempfile
+		global USER_DIR
+		old, USER_DIR = USER_DIR, os.path.join(tempfile.mkdtemp(prefix='printerface-test-'), 'templates')
+		try:
+			save(DEFAULT, 'mine')
+			self.assertIsNone(migrate_legacy_default('legacy'))
+			self.assertEqual('mine\n', load(DEFAULT)[0])
+			revert(DEFAULT)
+			self.assertIn('could not migrate', migrate_legacy_default("${__import__('os')}"))
+			self.assertEqual('default', load(DEFAULT)[1])
+		finally:
+			import shutil
+			shutil.rmtree(os.path.dirname(USER_DIR), ignore_errors=True)
+			USER_DIR = old
 
 	def test_validate_accepts_the_safe_subset(self):
 		ok = '''## a comment ${anything()}
@@ -406,6 +481,15 @@ x
 		self.assertEqual('job-old', find_document(jobs, 'invoice', 'zzz999')[0]['name'])
 		self.assertIsNone(find_document(jobs, 'invoice', 'nope'))
 		self.assertIsNone(find_document(jobs, 'statement'))
+
+	def test_find_document_for_the_default_kind_matches_job_name_or_type(self):
+		d1 = {'name': 'job-2', 'templ': 'delnote', 'doctype': 'Delvnote', 'groupfiles': {('accounts',): 'x.pdf'}}
+		d2 = {'name': 'job-1', 'templ': None, 'doctype': 'Batch', 'groupfiles': {('plain',): 'y.pdf'}}
+		jobs = [self.job('invoice', 'job-3'), d1, d2]
+		self.assertEqual(('job-2', 'accounts'), (lambda r: (r[0]['name'], r[1]))(find_document(jobs, DEFAULT)))
+		self.assertEqual(('job-1', 'plain'), (lambda r: (r[0]['name'], r[1]))(find_document(jobs, DEFAULT, 'batch')))
+		self.assertEqual('job-1', find_document(jobs, DEFAULT, 'JOB-1')[0]['name'])
+		self.assertIsNone(find_document(jobs, DEFAULT, 'nope'))
 
 if __name__ == "__main__":
 	unittest.main()

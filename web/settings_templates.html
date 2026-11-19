@@ -2,8 +2,8 @@
 <%block name="title">- Email Templates</%block>
 
 <h3>Email Templates</h3>
-<p class="muted">The text offered when you email a document, one template per type of document. Other documents use the
-<a href="/settings/template">default email text</a>.</p>
+<p class="muted">The text offered when you email a document. Invoices, purchase orders and statements have a template each;
+every other document (delivery notes, credit notes, reports&hellip;) uses the Default one.</p>
 
 <ul class="nav nav-tabs">
 % for k, label in kinds.items():
@@ -26,7 +26,11 @@
 		<li>${e | h}</li>
 	% endfor
 	</ul>
+	% if is_default:
+	Only plain text, <code>${'${email.name}'}</code>, <code>${'${job.name}'}</code>, <code>% if job.host:</code> and <code>##</code> comments are allowed.
+	% else:
 	Only plain text, <code>${'${doc.field}'}</code>, <code>% for d in docs:</code>, <code>% if doc.field:</code> and <code>##</code> comments are allowed.
+	% endif
 </div>
 % endif
 
@@ -56,15 +60,20 @@
 	<div class="span5">
 		<div class="input-prepend">
 			<span class="add-on">Preview with</span>
-			<input class="span8" type="text" name="docnum" value="${term | h}" placeholder="document no. or account (blank = latest)">
+			<input class="span8" type="text" name="docnum" value="${term | h}" placeholder="${'job name or document type (blank = latest)' if is_default else 'document no. or account (blank = latest)'}">
 		</div>
 
 		% if preview_note:
 			<div class="alert alert-info">${preview_note | h}</div>
 		% else:
 			<p class="muted">
+				% if is_default:
+				${preview_job['name'] | h}, <strong>${preview_job['doctype'] | h}</strong>
+				&ndash; <a href="/pdf?name=${preview_job['name'] | u}">open document</a><br>
+				% else:
 				${preview_job['name'] | h}, account <strong>${preview_acc | h}</strong>
 				&ndash; <a href="/pdf?name=${preview_job['name'] | u}&amp;key=${preview_acc | u}">open document</a><br>
+				% endif
 				% if names:
 					Contacts: ${', '.join(names) | h}
 				% else:
@@ -83,7 +92,9 @@
 <p>
 	<code>${'${email.name}'}</code> <code>${'${email.address}'}</code>
 	<code>${'${job.name}'}</code> <code>${'${job.doctype}'}</code> <code>${'${job.host}'}</code>
+	% if not is_default:
 	<code>${'${company.name}'}</code> <code>${'${company.email}'}</code> <code>${'${company.website}'}</code>
+	% endif
 </p>
 % if fields:
 <p>From this document:
@@ -94,6 +105,11 @@
 	% endfor
 </p>
 % endif
+% if is_default:
+<p class="muted">The default template is used for documents whose contents printerface doesn't read, so only the recipients
+and the job are available. Add <code>| trim</code> to remove surrounding spaces.</p>
+% else:
 <p class="muted">If an account has several documents in one print run, <code>doc</code> is the last of them; use
 <code>% for d in docs:</code> &hellip; <code>% endfor</code> with <code>${'${d.field}'}</code> to visit each one.
 Add <code>| trim</code> to remove surrounding spaces.</p>
+% endif
