@@ -96,8 +96,14 @@
 				<div class="row-fluid">
 					<div class="span1">&nbsp;</div>
 					<textarea rows="12" class="span10" id="inputBody" name="emailbody">
-${email_templ}
+${email_templ | h}
 </textarea>
+					% if template_warning:
+					<div class="span10 alert alert-error">${template_warning | h}</div>
+					% endif
+					% if template_kind:
+					<div class="span10"><small><a href="/settings/templates?kind=${template_kind | u}&amp;docnum=${(job.get('parsed') or {}).get(key, [{}])[0].get('doc_num', '') | u}">Edit the ${template_kind | h} email template</a></small></div>
+					% endif
 				<!-- <div class="span1">&nbsp;</div> -->
 				</div>
 

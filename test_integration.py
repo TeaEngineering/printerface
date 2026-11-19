@@ -8,12 +8,14 @@ import pickle
 import shutil
 import socket
 import tempfile
+import urllib.parse
 import threading
 import time
 import unittest
 
 import main
 import mailer
+import emailtemplates
 from stationary import DocFormatter
 from lpdserver import LpdServer
 from httpserver import ToyHttpServer
@@ -37,6 +39,7 @@ def make_invoice(doc_num='12345', acc='ACC001', pages=2):
 		put(lines, base + 8, 12, 'ACME WINES LTD\n1 HIGH STREET\nLONDON')
 		put(lines, base + 16, 0, acc)
 		put(lines, base + 16, 9, 'PO-7')
+		put(lines, base + 16, 20, '289073')
 		put(lines, base + 19, 0, 'B0321021\nB0308206')
 		put(lines, base + 19, 19, 'BAUCHET Customer Label\nDRAPPIER Carte D\'Or')
 		put(lines, base + 19, 55, '12\n6')
@@ -79,6 +82,7 @@ class TestPrinterface(unittest.TestCase):
 		main.pdfdir = os.path.join(cls.home, 'data', 'pdf') + os.sep
 		main.formatter = DocFormatter(main.pdfdir)
 		mailer.pickle_file = os.path.join(cls.home, 'mailer.pickle')
+		cls.old_user_dir, emailtemplates.USER_DIR = emailtemplates.USER_DIR, os.path.join(cls.home, 'templates')
 		for x in [main.jobdir, main.pdfdir]:
 			os.makedirs(x, exist_ok=True)
 		cls.lpd = LpdServer(main.saveJob, ip='127.0.0.1', port=0)
@@ -94,6 +98,7 @@ class TestPrinterface(unittest.TestCase):
 		cls.thread.join()
 		cls.lpd.close()
 		cls.http.close()
+		emailtemplates.USER_DIR = cls.old_user_dir
 		shutil.rmtree(cls.home, ignore_errors=True)
 
 	def get(self, path, headers=None):
@@ -104,8 +109,19 @@ class TestPrinterface(unittest.TestCase):
 		conn.close()
 		return r, body
 
+	def post(self, path, **fields):
+		conn = http.client.HTTPConnection('127.0.0.1', self.http_port, timeout=10)
+		body = urllib.parse.urlencode(fields).encode('utf-8')
+		conn.request('POST', path, body=body, headers={'Content-Type': 'application/x-www-form-urlencoded'})
+		r = conn.getresponse()
+		data = r.read()
+		conn.close()
+		return r, data
+
 	def setUp(self):
 		main.jobs.clear()
+		main.email_addresses.clear()
+		shutil.rmtree(emailtemplates.USER_DIR, ignore_errors=True)
 
 	def send_invoice(self, **kw):
 		before = len(main.jobs)
@@ -230,6 +246,102 @@ class TestPrinterface(unittest.TestCase):
 		# ts is the job's own (naive, utc) receive time; it used to be the oldest loaded job's for every row
 		self.assertEqual(first['ts'].isoformat(), rows[first['name']]['ts'])
 		self.assertEqual(second['ts'].isoformat(), rows[second['name']]['ts'])
+
+	INVOICE_TEXT = 'To %s\n\nPlease find your latest invoice 289073 attached for account ACC001, for \xa3123.45.'
+
+	def test_compose_form_is_prefilled_from_the_invoice_template(self):
+		j = self.send_invoice()
+		r, body = self.get('/pdf?name=%s&key=ACC001' % j['name'])
+		self.assertEqual(200, r.status)
+		self.assertNotIn(b'Mako Runtime Error', body)
+		self.assertIn((self.INVOICE_TEXT % 'Sir or Madam').encode('utf-8'), body)
+		self.assertIn(b'/settings/templates?kind=invoice&amp;docnum=12345', body)
+		# with contacts on the account the greeting names them, and html in a name is escaped in the textarea
+		self.get('/settings/email?account=ACC001&email=a%40example.com&contact=Ann')
+		self.get('/settings/email?account=ACC001&email=b%40example.com&contact=Bob+%26+Co')
+		r, body = self.get('/pdf?name=%s&key=ACC001' % j['name'])
+		self.assertIn((self.INVOICE_TEXT % 'Ann and Bob &amp; Co').encode('utf-8'), body)
+
+	def test_documents_without_a_template_keep_the_default_text(self):
+		main.email_template = 'DEFAULT TEXT'
+		try:
+			lpr(self.lpd_port, 'RAW', 'Hlocalhost\nPtester\nJDelvnote\nldfA001testhost\n', make_invoice().encode('latin-1'))
+			deadline = time.time() + 20
+			while not main.jobs and time.time() < deadline:
+				time.sleep(0.05)
+			r, body = self.get('/pdf?name=%s' % main.jobs[0]['name'])
+			self.assertEqual('delnote', main.jobs[0]['templ'])
+			self.assertIn(b'DEFAULT TEXT', body)
+			self.assertNotIn(b'/settings/templates?kind', body)
+		finally:
+			main.email_template = ''
+
+	def test_template_editor_preview_save_and_revert(self):
+		j = self.send_invoice(doc_num='424242')
+		path = emailtemplates.user_path('invoice')
+
+		r, body = self.get('/settings/templates?kind=invoice')
+		self.assertEqual(200, r.status)
+		self.assertNotIn(b'Mako Runtime Error', body)
+		self.assertIn(b'default template shipped with printerface', body)
+		self.assertIn(b'Please find your latest invoice 289073 attached', body)       # preview of the newest invoice
+		for kind in ('purchase', 'statement'):
+			r, body = self.get('/settings/templates?kind=' + kind)
+			self.assertEqual(200, r.status)
+			self.assertNotIn(b'Mako Runtime Error', body)
+			self.assertIn(b'No ' + emailtemplates.KINDS[kind].lower().encode() + b' document found', body)
+
+		# the filter picks the document; unknown numbers say so
+		r, body = self.get('/settings/templates?kind=invoice&docnum=424242')
+		self.assertIn(j['name'].encode(), body)
+		r, body = self.get('/settings/templates?kind=invoice&docnum=nope')
+		self.assertIn(b'No invoice document found matching', body)
+		self.assertIn(b'nope', body)
+
+		# preview renders what is typed without saving it
+		r, body = self.post('/settings/templates', kind='invoice', action='preview', docnum='424242',
+			template='Hi ${email.name}, invoice ${doc.doc_num} for \xa3${doc.tot_due}.')
+		self.assertEqual(200, r.status)
+		self.assertIn('Hi Sir or Madam, invoice 424242 for \xa3123.45.'.encode('utf-8'), body)
+		self.assertFalse(os.path.exists(path))
+
+		# save writes the user template, and the compose form then uses it
+		r, body = self.post('/settings/templates', kind='invoice', action='save', docnum='',
+			template='Dear ${email.name}\r\nInvoice ${doc.doc_num}\r\n')
+		self.assertIn(b'Saved the invoice template', body)
+		self.assertIn(b'Using your customised template', body)
+		with open(path, encoding='utf-8') as f:
+			self.assertEqual('Dear ${email.name}\nInvoice ${doc.doc_num}\n', f.read())
+		r, body = self.get('/pdf?name=%s&key=ACC001' % j['name'])
+		self.assertIn(b'Dear Sir or Madam\nInvoice 424242', body)
+
+		# revert goes back to the shipped text
+		r, body = self.post('/settings/templates', kind='invoice', action='revert')
+		self.assertIn(b'Reverted to the default invoice template', body)
+		self.assertFalse(os.path.exists(path))
+		r, body = self.get('/pdf?name=%s&key=ACC001' % j['name'])
+		self.assertIn((self.INVOICE_TEXT.replace('289073', '289073') % 'Sir or Madam').encode('utf-8'), body)
+
+	def test_template_editor_refuses_templates_that_could_run_code(self):
+		self.send_invoice()
+		canary = os.path.join(emailtemplates.USER_DIR, '..', 'canary')
+		evil = [
+			"${__import__('os').makedirs(%r)}" % canary,
+			"<%% import os; os.makedirs(%r) %%>" % canary,
+			"% import os",
+			"${doc.__class__}",
+		]
+		for text in evil:
+			for action in ('preview', 'save'):
+				r, body = self.post('/settings/templates', kind='invoice', action=action, template=text)
+				self.assertEqual(200, r.status)
+				self.assertIn(b"This template can", body, text)
+				self.assertFalse(os.path.exists(emailtemplates.user_path('invoice')), text)
+				self.assertFalse(os.path.exists(canary), text)
+		# the kind comes from a fixed list, never from a path
+		r, body = self.post('/settings/templates', kind='../../etc/passwd', action='save', template='x')
+		self.assertEqual(200, r.status)
+		self.assertFalse(os.path.exists(os.path.join(emailtemplates.USER_DIR, '..', '..', 'etc')))
 
 	def test_keepalive_two_requests_one_connection(self):
 		self.send_invoice()

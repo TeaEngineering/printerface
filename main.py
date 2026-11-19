@@ -21,6 +21,7 @@ import json
 import time
 import pytz
 from settings import config, HOME
+import emailtemplates
 from textutil import split_lines, load_job_pickle, load_user_pickles, PICKLE_PROTOCOL
 
 email_pickle = os.path.join(HOME, 'email.pickle')
@@ -318,6 +319,59 @@ def printfn(query_string='', resp=None):
 			traceback.print_exc(file=sys.stdout)
 	return doMessage(title='Printing', message='Could not find document, problem printing! Source: %s sent to printer %s<br>' % (docf, query_string['printer']))
 
+def company_info():
+	printing = lambda k: config.get('Printing', k, fallback='')
+	return {'name': printing('address').split('\\n')[0].strip(), 'email': printing('email'), 'website': printing('website')}
+
+def settings_templates(query_string='', postreq=None, resp=None):
+	"""Editor for the per document type email templates, with a preview against a real document. A POST
+	(postreq is not None) carries the edited text and one of the actions preview, save or revert."""
+	params = dict((k, v[0]) for k, v in query_string.items())
+	posted = postreq is not None
+	params.update(dict((k, v[0]) for k, v in (postreq or {}).items()))
+	kind = params.get('kind', 'invoice')
+	if kind not in emailtemplates.KINDS:
+		kind = 'invoice'
+	term = params.get('docnum', '').strip()
+	action = params.get('action', '') if posted else ''
+
+	text, source = emailtemplates.load(kind)
+	message, errors = None, []
+	if action == 'revert':
+		message = 'Reverted to the default %s template.' % emailtemplates.KINDS[kind].lower() if emailtemplates.revert(kind) else 'Already using the default template.'
+		text, source = emailtemplates.load(kind)
+	elif action in ('preview', 'save'):
+		text = params.get('template', '').replace('\r\n', '\n').replace('\r', '\n')
+		if action == 'save':
+			try:
+				emailtemplates.save(kind, text)
+				text, source = emailtemplates.load(kind)
+				message = 'Saved the %s template.' % emailtemplates.KINDS[kind].lower()
+			except emailtemplates.TemplateError as e:
+				errors = e.errors
+
+	# preview: the newest document of this type, or the one whose document number / account matches the filter
+	found = emailtemplates.find_document(jobs, kind, term)
+	preview, preview_job, preview_acc, fields, names = None, None, None, [], []
+	if not found:
+		preview_note = 'No %s document found%s.' % (emailtemplates.KINDS[kind].lower(), (' matching "%s"' % term) if term else '')
+	else:
+		preview_job, preview_acc = found
+		contacts = email_addresses.get(preview_acc, {})
+		names = list(contacts.values())
+		ctx = emailtemplates.build_context(preview_job, preview_acc, names=names, addresses=list(contacts.keys()), company=company_info())
+		fields = emailtemplates.field_names(ctx['doc'])
+		preview_note = None
+		try:
+			preview = emailtemplates.render(text, ctx)
+		except emailtemplates.TemplateError as e:
+			errors = errors or e.errors
+
+	return ( template_lookup.get_template("/settings_templates.html").render(
+		kinds=emailtemplates.KINDS, kind=kind, text=text, source=source, user_path=emailtemplates.user_path(kind),
+		term=term, message=message, errors=errors, preview=preview, preview_note=preview_note,
+		preview_job=preview_job, preview_acc=preview_acc, names=names, fields=fields), 'text/html')
+
 def pdf(query_string=dict(), resp=None):
 	job = getJob(query_string)
 	default_key = next(iter(job['groupfiles']))[0]
@@ -349,7 +403,20 @@ def pdf(query_string=dict(), resp=None):
 	except:
 		raise
 
-	return ( template_lookup.get_template("/pdf.html").render(printers=getPrinters(), job=job, key=key, email_templ=email_template, email_dest=email_dest, email_outcome=email_outcome, email_error=email_error), 'text/html')
+	# the suggested body comes from the template for this type of document, or the single default text
+	email_body_default, template_kind, template_warning = email_template, None, None
+	try:
+		rendered, template_kind, template_warning = emailtemplates.render_for_job(
+			job, key, names=list(email_dest.values()), addresses=list(email_dest.keys()), company=company_info())
+		if rendered is not None:
+			email_body_default = rendered
+	except Exception:
+		traceback.print_exc(file=sys.stdout)
+		template_warning = 'The email template for this document could not be used; showing the default text.'
+
+	return ( template_lookup.get_template("/pdf.html").render(printers=getPrinters(), job=job, key=key, email_templ=email_body_default,
+		template_kind=template_kind, template_warning=template_warning,
+		email_dest=email_dest, email_outcome=email_outcome, email_error=email_error), 'text/html')
 
 
 def pdf_file(query_string='', resp=None):
@@ -463,7 +530,8 @@ path_handlers = {
 	'/print' : printfn,
 	'/plaintext':plain,
 	'/settings/email':settings_email,
-	'/settings/template':settings_template
+	'/settings/template':settings_template,
+	'/settings/templates':settings_templates
 	}
 
 if __name__=="__main__":
