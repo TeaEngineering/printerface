@@ -3,6 +3,7 @@
 import asyncore
 import http.client
 import io
+import re
 import json
 import os
 import pickle
@@ -248,26 +249,34 @@ class TestPrinterface(unittest.TestCase):
 		self.assertEqual(first['ts'].isoformat(), rows[first['name']]['ts'])
 		self.assertEqual(second['ts'].isoformat(), rows[second['name']]['ts'])
 
-	INVOICE_SUBJECT = 'Invoice 289073 from YOUR DOMAIN LTD.'
-	INVOICE_TEXT = 'To %s\n\nPlease find your latest invoice 289073 attached for account ACC001, for \xa3123.45.'
+	# The wording of the shipped templates is theirs to change, so these check the facts rather than every word
+	INVOICE_SUBJECT_START = 'Invoice 289073 from'
+
+	def assertInvoiceBody(self, page, names, msg=None):
+		self.assertRegex(page.decode('utf-8'), r'To %s,?\n\nPlease find your latest invoice 289073 attached for account ACC001, for \xa3123\.45\.' % re.escape(names), msg)
+
+	def assertDefaultBody(self, page, names, msg=None):
+		self.assertRegex(page.decode('utf-8'), r'To %s,?\n\nPlease find your document attached\.' % re.escape(names), msg)
+
+	def assertSubjectBox(self, page, pattern, msg=None):
+		self.assertRegex(page.decode('utf-8'), r'name="subject" placeholder="Subject" value="%s"' % pattern, msg)
 
 	def test_compose_form_is_prefilled_from_the_invoice_template(self):
 		j = self.send_invoice()
 		r, body = self.get('/pdf?name=%s&key=ACC001' % j['name'])
 		self.assertEqual(200, r.status)
 		self.assertNotIn(b'Mako Runtime Error', body)
-		self.assertIn((self.INVOICE_TEXT % 'Sir or Madam').encode('utf-8'), body)
-		self.assertIn(('name="subject" placeholder="Subject" value="%s"' % self.INVOICE_SUBJECT).encode(), body)
-		self.assertNotIn(self.INVOICE_SUBJECT.encode() + b'\n', body)               # the subject is not repeated in the text
+		self.assertInvoiceBody(body, 'Sir or Madam')
+		self.assertSubjectBox(body, re.escape(self.INVOICE_SUBJECT_START) + '[^"]*')
+		self.assertNotRegex(body.decode('utf-8'), re.escape(self.INVOICE_SUBJECT_START) + '[^<\n]*\n\n?To ')   # the subject is not repeated in the text
 		self.assertIn(b'/settings/templates?kind=invoice&amp;docnum=12345', body)
 		# with contacts on the account the greeting names them, and html in a name is escaped in the textarea
 		self.get('/settings/email?account=ACC001&email=a%40example.com&contact=Ann')
 		self.get('/settings/email?account=ACC001&email=b%40example.com&contact=Bob+%26+Co')
 		r, body = self.get('/pdf?name=%s&key=ACC001' % j['name'])
-		self.assertIn((self.INVOICE_TEXT % 'Ann and Bob &amp; Co').encode('utf-8'), body)
+		self.assertInvoiceBody(body, 'Ann and Bob &amp; Co')
 
-	DEFAULT_SUBJECT = 'Document attached'
-	DEFAULT_TEXT = 'To %s\n\nPlease find your document attached.'
+	DEFAULT_SUBJECT_PATTERN = 'Document[^"]*attached'
 
 	def test_other_documents_use_the_default_template(self):
 		j = self.send_invoice('Delvnote')
@@ -275,8 +284,8 @@ class TestPrinterface(unittest.TestCase):
 		r, body = self.get('/pdf?name=' + j['name'])
 		self.assertEqual(200, r.status)
 		self.assertNotIn(b'Mako Runtime Error', body)
-		self.assertIn((self.DEFAULT_TEXT % 'Sir or Madam').encode('utf-8'), body)
-		self.assertIn(('value="%s"' % self.DEFAULT_SUBJECT).encode(), body)
+		self.assertDefaultBody(body, 'Sir or Madam')
+		self.assertSubjectBox(body, self.DEFAULT_SUBJECT_PATTERN)
 		self.assertIn(('/settings/templates?kind=default&amp;docnum=' + j['name']).encode(), body)
 		self.assertIn(b'Edit the default email template', body)
 
@@ -331,8 +340,8 @@ class TestPrinterface(unittest.TestCase):
 		self.assertIn(b'Reverted to the shipped invoice template', body)
 		self.assertFalse(os.path.exists(path))
 		r, body = self.get('/pdf?name=%s&key=ACC001' % j['name'])
-		self.assertIn((self.INVOICE_TEXT % 'Sir or Madam').encode('utf-8'), body)
-		self.assertIn(('value="%s"' % self.INVOICE_SUBJECT).encode(), body)
+		self.assertInvoiceBody(body, 'Sir or Madam')
+		self.assertSubjectBox(body, re.escape(self.INVOICE_SUBJECT_START) + '[^"]*')
 
 	def test_template_editor_refuses_templates_that_could_run_code(self):
 		self.send_invoice()
@@ -369,12 +378,12 @@ class TestPrinterface(unittest.TestCase):
 			self.assertIsNone(answer['warning'])
 			return answer['body']
 
-		self.assertTrue(body('ann@x.com', 'bob@x.com').startswith('To Ann and Bob\n\nPlease find your latest invoice 289073'))
-		self.assertTrue(body('bob@x.com').startswith('To Bob\n\nPlease find'))
-		self.assertTrue(body().startswith('To Sir or Madam\n\nPlease find'))          # nobody ticked
-		self.assertTrue(body('stranger@x.com').startswith('To Sir or Madam\n'))        # not in the address book: no name to use
+		self.assertRegex(body('ann@x.com', 'bob@x.com'), r'\ATo Ann and Bob,?\n\nPlease find your latest invoice 289073')
+		self.assertRegex(body('bob@x.com'), r'\ATo Bob,?\n\nPlease find')
+		self.assertRegex(body(), r'\ATo Sir or Madam,?\n\nPlease find')              # nobody ticked
+		self.assertRegex(body('stranger@x.com'), r'\ATo Sir or Madam,?\n')            # not in the address book: no name to use
 		query = 'name=%s&key=ACC001&em=bob%%40x.com&em=ann%%40x.com' % j['name']
-		self.assertEqual(self.INVOICE_SUBJECT, json.loads(self.get('/email_body?' + query)[1].decode())['subject'])
+		self.assertTrue(json.loads(self.get('/email_body?' + query)[1].decode())['subject'].startswith(self.INVOICE_SUBJECT_START))
 		# subject and body both follow the recipients: first line is the subject, the rest the body
 		self.post('/settings/templates', kind='invoice', action='save', template='For ${email.name}\n\n${email.name} <${email.address}>')
 		answer = json.loads(self.get('/email_body?' + query)[1].decode())
@@ -408,7 +417,7 @@ class TestPrinterface(unittest.TestCase):
 		self.assertIn(j['name'].encode(), body)
 		self.assertIn(b'<strong>Delvnote</strong>', body)
 		self.assertIn(b'job name or document type', body)
-		self.assertNotIn(b'${company.name}', body)        # not available to the default template
+		self.assertIn(b'${company.name}', body)           # the company details are available here too
 		self.assertNotIn(b'${doc.', body)
 		self.assertIn(b'Default</a>', body)               # the tab
 		# the filter takes a job name or a document type
@@ -420,8 +429,10 @@ class TestPrinterface(unittest.TestCase):
 
 		r, body = self.post('/settings/templates', kind='default', action='preview', docnum='', template='${job.doctype} for ${email.name}')
 		self.assertIn(b'Delvnote for Sir or Madam', body)
+		r, body = self.post('/settings/templates', kind='default', action='preview', docnum='', template='From ${company.name} <${company.email}>\n\nHi ${email.name}')
+		self.assertIn(b'From YOUR DOMAIN LTD. &lt;sales@yourdomain.com&gt;', body)      # the placeholder company in defaults.cfg
 		# only email and job exist here
-		for text in ('${doc.ourref}', '${company.name}', '% for d in docs:\n% endfor'):
+		for text in ('${doc.ourref}', '% for d in docs:\n% endfor'):
 			r, body = self.post('/settings/templates', kind='default', action='save', template=text)
 			self.assertIn(b"This template can", body, text)
 			self.assertFalse(os.path.exists(emailtemplates.user_path('default')), text)
@@ -432,7 +443,7 @@ class TestPrinterface(unittest.TestCase):
 		r, body = self.post('/settings/templates', kind='default', action='revert')
 		self.assertIn(b'Reverted to the shipped default template', body)
 		r, body = self.get('/pdf?name=' + j['name'])
-		self.assertIn((self.DEFAULT_TEXT % 'Sir or Madam').encode('utf-8'), body)
+		self.assertDefaultBody(body, 'Sir or Madam')
 
 	def test_the_old_single_email_text_is_migrated_once_at_startup(self):
 		import contextlib
@@ -445,9 +456,11 @@ class TestPrinterface(unittest.TestCase):
 				main.jobs.clear(); main.recover()
 			r, body = self.get('/pdf?name=' + j['name'])
 			self.assertIn(b'Please find it attached.\n\nRegards,\nTony Page', body)
-			self.assertIn(('value="%s"' % self.DEFAULT_SUBJECT).encode(), body)
+			self.assertSubjectBox(body, self.DEFAULT_SUBJECT_PATTERN)
+			with open(emailtemplates.seed_path('default'), encoding='utf-8') as f:
+				shipped_subject_line = f.readline().rstrip('\n')
 			with open(emailtemplates.user_path('default'), encoding='utf-8') as f:
-				self.assertEqual('Document attached\n\nPlease find it attached.\n\nRegards,\nTony Page\n', f.read())
+				self.assertEqual(shipped_subject_line + '\n\nPlease find it attached.\n\nRegards,\nTony Page\n', f.read())
 			# reverting is not undone by the next restart
 			self.post('/settings/templates', kind='default', action='revert')
 			with contextlib.redirect_stdout(io.StringIO()):

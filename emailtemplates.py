@@ -97,17 +97,19 @@ def build_context(job, key, names=(), addresses=(), company=None):
 	  email    the recipients: email.name ('Ann and Bob', or 'Sir or Madam' with none), email.address
 	  job      job.name, job.doctype, job.host
 	  company  company.name, company.email, company.website, from the [Printing] settings
-	The default template sees only email and job: the other document types have no fields we know of."""
+	The default template has email, job and company but no doc or docs: for the other document types there
+	are no fields we know of."""
 	addresses = [a for a in addresses if a]
 	context = dict(
 		email=Fields({'name': join_names(names), 'address': addresses[0] if addresses else ''}),
-		job=Fields({'name': job.get('name', ''), 'doctype': job.get('doctype', ''), 'host': (job.get('control') or {}).get('H', '')}))
+		job=Fields({'name': job.get('name', ''), 'doctype': job.get('doctype', ''), 'host': (job.get('control') or {}).get('H', '')}),
+		company=Fields(company or {}))
 	if kind_for_job(job) == DEFAULT:
 		return context
 	parsed = job.get('parsed') or {}
 	acc = account_for_key(parsed, key)
 	docs = merge_documents(parsed[acc]) if acc else []
-	context.update(doc=Fields(docs[-1] if docs else {}), docs=[Fields(d) for d in docs], company=Fields(company or {}))
+	context.update(doc=Fields(docs[-1] if docs else {}), docs=[Fields(d) for d in docs])
 	return context
 
 def find_document(jobs, kind, term=''):
@@ -141,11 +143,11 @@ _IF = re.compile(r'^\s*%%\s*if\s+(?:not\s+)?(%s)\s*:\s*$' % _PATH)
 _ELSE = re.compile(r'^\s*%\s*else\s*:\s*$')
 _END = re.compile(r'^\s*%\s*(?:endif|endfor)\s*$')
 _ROOTS = frozenset(['doc', 'email', 'job', 'company'])
-_DEFAULT_ROOTS = frozenset(['email', 'job'])
+_DEFAULT_ROOTS = frozenset(['email', 'job', 'company'])
 
 def validate(text, kind=None):
 	"""Returns a list of 'line N: problem' strings; empty if the template is safe to render as this kind
-	of template (the default template can only use email and job)."""
+	of template (the default template has no doc or docs)."""
 	errors = []
 	loop_vars = set()
 	lines = text.replace('\r\n', '\n').replace('\r', '\n').split('\n')
@@ -335,14 +337,15 @@ class TestEmailTemplates(unittest.TestCase):
 		self.assertEqual('Ann and Bob', join_names(['Ann', 'Bob']))
 		self.assertEqual('Ann, Bob and Cy', join_names(['Ann', 'Bob', 'Cy']))
 
-	def test_shipped_templates_are_valid_and_the_invoice_text_is_as_specified(self):
+	def test_shipped_templates_are_valid_and_the_invoice_says_what_it_should(self):
 		for kind in KINDS:
 			text = open(seed_path(kind), encoding=ENCODING).read()
 			self.assertEqual([], validate(text, kind), kind)
 		ctx = build_context(self.job(), 'HAR108', names=['Ann'], company={'name': 'ABFW'})
 		message = render_message(open(seed_path('invoice'), encoding=ENCODING).read(), ctx)
-		self.assertEqual('Invoice 289099 from ABFW', message.subject)
-		self.assertEqual('To Ann\n\nPlease find your latest invoice 289099 attached for account HAR108, for \xa310.00.\n', message.body)
+		# the wording of the shipped templates is theirs to change; these are the facts they must keep stating
+		self.assertTrue(message.subject.startswith('Invoice 289099 from ABFW'), message.subject)
+		self.assertRegex(message.body, r'\ATo Ann,?\n\nPlease find your latest invoice 289099 attached for account HAR108, for \xa310\.00\.\n')
 
 	def test_shipped_templates_render_with_no_data_at_all(self):
 		for kind in KINDS:
@@ -353,14 +356,19 @@ class TestEmailTemplates(unittest.TestCase):
 	def test_other_document_types_use_the_default_template(self):
 		for templ in ('delnote', 'crednote', 'picklist', None):
 			message, kind, warning = render_for_job({'templ': templ, 'name': 'job-9', 'doctype': 'Delvnote'}, 'X', ['Ann'])
-			self.assertEqual((('Document attached', 'To Ann\n\nPlease find your document attached.\n'), DEFAULT, None), (tuple(message), kind, warning), templ)
+			self.assertEqual((DEFAULT, None), (kind, warning), templ)
+			self.assertRegex(message.subject, r'\ADocument\b.*attached\Z')
+			self.assertRegex(message.body, r'\ATo Ann,?\n\nPlease find your document attached\.\n')
 
-	def test_the_default_context_is_only_email_and_job(self):
-		ctx = build_context({'templ': 'delnote', 'name': 'job-9', 'doctype': 'Delvnote', 'control': {'H': 'PC1'}}, 'X', ['Ann'], ['a@b.c'], {'name': 'ABFW'})
-		self.assertEqual(['email', 'job'], sorted(ctx))
+	def test_the_default_context_has_no_document_fields(self):
+		ctx = build_context({'templ': 'delnote', 'name': 'job-9', 'doctype': 'Delvnote', 'control': {'H': 'PC1'}}, 'X', ['Ann'], ['a@b.c'], {'name': 'ABFW', 'email': 'sales@abfw.test'})
+		self.assertEqual(['company', 'email', 'job'], sorted(ctx))
 		self.assertEqual(('Ann', 'a@b.c', 'job-9', 'Delvnote', 'PC1'), (ctx['email'].name, ctx['email'].address, ctx['job'].name, ctx['job'].doctype, ctx['job'].host))
-		self.assertEqual([], validate('${email.name} ${job.doctype | trim}\n% if job.host:\nx\n% endif', DEFAULT))
-		for text in ('${doc.ourref}', '${company.name}', '% for d in docs:\n% endfor', '% if doc.x:\n% endif'):
+		self.assertEqual(('ABFW', 'sales@abfw.test', ''), (ctx['company'].name, ctx['company'].email, ctx['company'].website))
+		self.assertEqual([], validate('${email.name} ${job.doctype | trim} ${company.name}\n% if company.website:\nx\n% endif\n% if job.host:\nx\n% endif', DEFAULT))
+		message = render_message('From ${company.name}\n\nHi ${email.name}\n', ctx, DEFAULT)
+		self.assertEqual(('From ABFW', 'Hi Ann\n'), tuple(message))
+		for text in ('${doc.ourref}', '% for d in docs:\n% endfor', '% if doc.x:\n% endif'):
 			self.assertTrue(validate(text, DEFAULT), text)
 			if 'docs' not in text:
 				self.assertEqual([], validate(text, 'invoice'), text)       # fine for a document type that has them
@@ -375,8 +383,12 @@ class TestEmailTemplates(unittest.TestCase):
 			self.assertFalse(os.path.exists(user_path(DEFAULT)))
 			self.assertIn('migrated', migrate_legacy_default('Please find it attached.\r\n\r\nRegards,\r\nTony'))
 			# the old text had no subject, so it gets the shipped default's, and the old text stays the body
-			self.assertEqual(('Document attached\n\nPlease find it attached.\n\nRegards,\nTony\n', 'custom'), load(DEFAULT))
-			self.assertEqual(('Document attached', 'Please find it attached.\n\nRegards,\nTony\n'), tuple(render_message(load(DEFAULT)[0], build_context({}, 'x'), DEFAULT)))
+			with open(seed_path(DEFAULT), encoding=ENCODING) as f:
+				shipped_subject = f.readline().rstrip('\n')
+			self.assertEqual((shipped_subject + '\n\nPlease find it attached.\n\nRegards,\nTony\n', 'custom'), load(DEFAULT))
+			message = render_message(load(DEFAULT)[0], build_context({}, 'x'), DEFAULT)
+			self.assertEqual('Please find it attached.\n\nRegards,\nTony\n', message.body)
+			self.assertTrue(message.subject.startswith('Document'), message.subject)
 			# a user who reverts to the shipped text does not get the old text back at the next start
 			revert(DEFAULT)
 			self.assertIsNone(migrate_legacy_default('Please find it attached.'))
@@ -506,7 +518,7 @@ x
 			with open(user_path('invoice'), 'w') as f:
 				f.write('${__import__("os")}')       # written to disk behind the editor's back
 			message, kind, warning = render_for_job(self.job(), 'HAR108', ['Ann'])
-			self.assertTrue(message.body.startswith('To Ann\n\nPlease find your latest invoice'))
+			self.assertRegex(message.body, r'\ATo Ann,?\n\nPlease find your latest invoice')
 			self.assertTrue(message.subject.startswith('Invoice 289099'))
 			self.assertIn('could not be used', warning)
 		finally:
