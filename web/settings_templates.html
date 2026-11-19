@@ -28,7 +28,7 @@ every other document (delivery notes, credit notes, reports&hellip;) uses the De
 	% endfor
 	</ul>
 	% if is_default:
-	Only plain text, <code>${'${email.name}'}</code>, <code>${'${job.name}'}</code>, <code>% if job.host:</code> and <code>##</code> comments are allowed.
+	Only plain text, <code>${'${email.name}'}</code>, <code>${'${job.name}'}</code>, <code>${'${company.name}'}</code>, <code>% if job.host:</code> and <code>##</code> comments are allowed.
 	% else:
 	Only plain text, <code>${'${doc.field}'}</code>, <code>% for d in docs:</code>, <code>% if doc.field:</code> and <code>##</code> comments are allowed.
 	% endif
@@ -99,9 +99,7 @@ every other document (delivery notes, credit notes, reports&hellip;) uses the De
 <p>
 	<code>${'${email.name}'}</code> <code>${'${email.address}'}</code>
 	<code>${'${job.name}'}</code> <code>${'${job.doctype}'}</code> <code>${'${job.host}'}</code>
-	% if not is_default:
 	<code>${'${company.name}'}</code> <code>${'${company.email}'}</code> <code>${'${company.website}'}</code>
-	% endif
 </p>
 % if fields:
 <p>From this document:
@@ -113,8 +111,8 @@ every other document (delivery notes, credit notes, reports&hellip;) uses the De
 </p>
 % endif
 % if is_default:
-<p class="muted">The default template is used for documents whose contents printerface doesn't read, so only the recipients
-and the job are available. Add <code>| trim</code> to remove surrounding spaces.</p>
+<p class="muted">The default template is used for documents whose contents printerface doesn't read, so only the recipients,
+the job and the company details are available. Add <code>| trim</code> to remove surrounding spaces.</p>
 % else:
 <p class="muted">If an account has several documents in one print run, <code>doc</code> is the last of them; use
 <code>% for d in docs:</code> &hellip; <code>% endfor</code> with <code>${'${d.field}'}</code> to visit each one.
