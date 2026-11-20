@@ -52,7 +52,10 @@ def mask_uri(uri):
 def parse_date(text):
 	"""'Wed Sep  9 15:02:14 2026' (C locale) as a naive local datetime, else None."""
 	text = ' '.join(text.split())
-	for fmt in ('%a %b %d %H:%M:%S %Y', '%a %d %b %Y %I:%M:%S %p %Z', '%a %d %b %Y %H:%M:%S %Z'):
+	# a trailing zone name ("BST") is dropped: strptime's %Z only knows UTC, GMT and the local zone's names, so
+	# it would parse on one machine and not another
+	text = re.sub(r' [A-Z]{2,5}$', '', text)
+	for fmt in ('%a %b %d %H:%M:%S %Y', '%a %d %b %Y %I:%M:%S %p', '%a %d %b %Y %H:%M:%S'):
 		try:
 			return datetime.strptime(text, fmt)
 		except ValueError:
