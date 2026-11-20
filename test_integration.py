@@ -745,7 +745,7 @@ class TestPrinterface(unittest.TestCase):
 		self.assertIn(b'OFFICE_MFP-778', body)
 		self.assertIn(b'lp: &lt;bad&gt;', body)
 		self.assertNotIn(b'name=job-19990101-000000', body)                                  # no longer loaded: not linked
-		self.assertIn(b'<a href="/printed">Printed Items</a>', body)
+		self.assertIn(b'<a href="/printed">Printed Documents</a>', body)
 
 	def test_a_refused_print_says_why(self):
 		j = self.send_invoice()

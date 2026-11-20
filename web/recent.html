@@ -1,11 +1,11 @@
 
 <%inherit file="bootstrap.html"/>
-<%block name="title">- Recent</%block>
+<%block name="title">- Recent Documents</%block>
 <%block name="query_block">
     <input type="text" name="query" class="search-query span2" placeholder="Search" value="${query}"/>
 </%block>
 
-	<h3>Recent Jobs</h3>
+	<h3>Recent Documents</h3>
 
 % if len(jobs) == 0:
 	<h4>No Jobs found!</h4>
