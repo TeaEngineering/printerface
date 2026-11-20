@@ -8,7 +8,7 @@ CORPUS is laid out like ~/printerface (data/pickle/YYYYMM/job-*). Nothing is wri
 side is a recording callback rather than main.saveJob.
 """
 import argparse
-import asyncore
+import asyncio
 import os
 import sys
 import threading
@@ -23,13 +23,12 @@ ap.add_argument('--since', default='job-')
 args = ap.parse_args()
 
 received = []
-server = LpdServer(lambda queue, local, remote, control, data: received.append((queue, control, data)), ip='127.0.0.1', port=0)
-port = server.socket.getsockname()[1]
-running = True
-def loop():
-	while running:
-		asyncore.loop(timeout=0.02, count=1)
-threading.Thread(target=loop, daemon=True).start()
+loop = asyncio.new_event_loop()
+threading.Thread(target=lambda: (asyncio.set_event_loop(loop), loop.run_forever()), daemon=True).start()
+server = asyncio.run_coroutine_threadsafe(
+	LpdServer(lambda queue, local, remote, control, data: received.append((queue, control, data)), ip='127.0.0.1', port=0).start(),
+	loop).result(10)
+port = server.port
 
 import socket
 def send(queue, control, data, eof_by_close=False):
@@ -86,6 +85,5 @@ for yyyymm in sorted(os.listdir(root)):
 		if rdata != j['data'] or rcontrol != j['control'] or queue != j.get('queue', 'RAW'):
 			bad += 1; print('MISMATCH', name, len(rdata), len(j['data']), rcontrol == j['control'])
 
-running = False
 print('replayed=%d (%.1f MiB): sized transfers=%d, eof-by-close transfers=%d, mismatches=%d' % (sent, sizes / 1048576.0, nul_terminated, sent - nul_terminated, bad))
 sys.exit(1 if bad else 0)

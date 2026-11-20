@@ -1,4 +1,4 @@
-# asyncore/asynchat (used by lpdserver.py and httpserver.py) were removed in python 3.12
+# the LPD receiver and web server run on asyncio and aiohttp, so any python from 3.9 will do
 FROM python:3.11-slim
 MAINTAINER chris@shucksmith.co.uk
 

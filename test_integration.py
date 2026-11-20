@@ -1,6 +1,6 @@
 # End to end tests: a real RFC 1179 client -> LpdServer -> main.saveJob -> parse -> PDF, then read back
 # over HTTP. Runs against a throwaway PRINTERFACE_HOME, never ~/printerface.
-import asyncore
+import asyncio
 import http.client
 import io
 import re
@@ -24,7 +24,7 @@ import printstatus
 import emailtemplates
 from stationary import DocFormatter
 from lpdserver import LpdServer
-from httpserver import ToyHttpServer
+from httpserver import HttpServer
 from textutil import split_lines
 
 def put(lines, row, col, text):
@@ -73,13 +73,24 @@ def mailer_results():
 	return main.mailqueue.results
 
 class ServerThread(threading.Thread):
+	"""An event loop in a thread, so that the servers run as they do in main.py (handlers and the LPD receiver
+	on one loop thread) while the tests, in this thread, are their clients."""
 	def __init__(self):
 		threading.Thread.__init__(self)
 		self.daemon = True
-		self.running = True
+		self.loop = asyncio.new_event_loop()
+
 	def run(self):
-		while self.running:
-			asyncore.loop(timeout=0.05, count=1)
+		asyncio.set_event_loop(self.loop)
+		self.loop.run_forever()
+
+	def call(self, coro):
+		return asyncio.run_coroutine_threadsafe(coro, self.loop).result(30)
+
+	def stop(self):
+		self.loop.call_soon_threadsafe(self.loop.stop)
+		self.join()
+		self.loop.close()
 
 class TestPrinterface(unittest.TestCase):
 	@classmethod
@@ -103,19 +114,18 @@ class TestPrinterface(unittest.TestCase):
 		# likewise the Printers page: lpstat is only ever the canned text, never the machine's own CUPS
 		cls.lpstat_patch = mock.patch.object(printstatus, 'run_lpstat', return_value=printstatus.SAMPLE)
 		cls.lpstat_patch.start()
-		cls.lpd = LpdServer(main.saveJob, ip='127.0.0.1', port=0)
-		cls.http = ToyHttpServer(ip='127.0.0.1', port=0, pathhandlers=main.path_handlers, webroot=main.web_dir)
-		cls.lpd_port = cls.lpd.socket.getsockname()[1]
-		cls.http_port = cls.http.socket.getsockname()[1]
 		cls.thread = ServerThread()
 		cls.thread.start()
+		cls.lpd = cls.thread.call(LpdServer(main.saveJob, ip='127.0.0.1', port=0).start())
+		cls.http = cls.thread.call(HttpServer(main.path_handlers, main.web_dir, ip='127.0.0.1', port=0).start())
+		cls.lpd_port = cls.lpd.port
+		cls.http_port = cls.http.port
 
 	@classmethod
 	def tearDownClass(cls):
-		cls.thread.running = False
-		cls.thread.join()
-		cls.lpd.close()
-		cls.http.close()
+		cls.thread.call(cls.lpd.close())
+		cls.thread.call(cls.http.close())
+		cls.thread.stop()
 		cls.print_patch.stop()
 		cls.lpstat_patch.stop()
 		printing.printlog = cls.old_printlog

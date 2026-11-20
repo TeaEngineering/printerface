@@ -22,8 +22,8 @@ The following will checkout the source code, build a docker image and start an i
 
 ## Source code & implementation notes
 
-* `lpdserver.py` implements a UNIX LPD daemon for recieving print jobs
-* `httpserver.py` simple http server using asynchat
+* `lpdserver.py` implements a UNIX LPD daemon for recieving print jobs, on asyncio
+* `httpserver.py` the web server: path handlers and static files on aiohttp, handlers run on the event loop one at a time
 * `mailer.py` asynchronous mail queue to Gmail
 * `docparser` recognise and parse some plain-text formats from 1990 to JSON
 * `stationary.py` format JSON to nice PDF files
@@ -35,13 +35,13 @@ template are POSTs, and their handlers return `httpserver.Redirect(...)` (a 303)
 carrying at most a harmless note in the query string ("queued=1"). A POST that is refused re-renders the form
 instead, with what was typed. New actions should follow the same pattern.
 
-Requires **python 3.11** (3.9+ for the dependencies, but `asyncore`/`asynchat` were removed from the standard library in 3.12).
+Requires **python 3.11** or later. The LPD receiver and the web server share one asyncio event loop (so the job list needs no locking); mail is sent from a thread of its own.
 Requirements are specified in requirements.txt
 Unit tests run during `docker build` or with:
 
     $ python3.11 -m unittest discover --pattern=*.py
 
-Uses python asyncore/smtp, bootstrap web framework
+Uses python asyncio/aiohttp/smtplib, bootstrap web framework
 
 Jobs, rendered PDFs, the email address book and `email.cfg` overrides live in `~/printerface`. Set the
 `PRINTERFACE_HOME` environment variable to use a different directory, for example to run a second instance
