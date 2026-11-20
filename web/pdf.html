@@ -21,6 +21,14 @@
 	</div>
 	% endfor
 
+	% if can_upload:
+	<form id="uploadForm" method="post" action="/pdf" style="display: none;">
+		<input type="hidden" name="name" value="${job['name'] | h}"/>
+		<input type="hidden" name="key" value="${key | h}"/>
+		<input type="hidden" name="action" value="upload"/>
+	</form>
+	% endif
+
 	<form id="printForm" method="post" action="/print" style="display: none;">
 		<input type="hidden" name="name" value="${job['name'] | h}"/>
 		<input type="hidden" name="key" value="${key | h}"/>
@@ -38,6 +46,9 @@
 		</div>
 		<a class="btn" href="/pdf_file?name=${job['name'] | u}&key=${key}&attach=1" download><i class="icon-download"></i> Download</a>
 		<a class="btn" href="#emailModal" role="button" data-toggle="modal"><i class="icon-envelope"></i> Email</a>
+		% if can_upload:
+		<a class="btn" href="#" onclick="document.getElementById('uploadForm').submit(); return false;"><i class="icon-upload"></i> Upload to website</a>
+		% endif
 		&nbsp; ${docf}
 	</label>
 
@@ -89,6 +100,21 @@
 			<td><a href="/pdf?name=${job['name'] | u}&amp;key=${rec['key'] | u}">${rec['key'] | h}</a></td>
 			<td>${rec['printer'] | h}</td>
 			<td>${rec['request_id'] or '' | h}</td>
+			<td>${rec['error'] or '' | h}</td>
+		</tr>
+		% endfor
+	</table>
+	% endif
+
+	% if uploaded_from_this_job:
+	<h4>Uploaded from this job</h4>
+	<table class="table table-condensed">
+		<tr><th>Sent</th><th>Document</th><th>Result</th><th></th></tr>
+		% for rec in uploaded_from_this_job:
+		<tr class="${'error' if rec['error'] else ''}">
+			<td>${rec['added'].strftime('%d %b %Y %H:%M:%S') | h}</td>
+			<td><a href="/pdf?name=${job['name'] | u}&amp;key=${rec['key'] | u}">${rec['kind'] | h} ${rec['docnum'] | h}</a></td>
+			<td>${rec['outcome'] | h}</td>
 			<td>${rec['error'] or '' | h}</td>
 		</tr>
 		% endfor

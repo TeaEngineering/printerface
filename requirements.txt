@@ -4,3 +4,4 @@ reportlab>=4.0,<6
 pillow>=9.0
 aiohttp>=3.9,<4
 pytz>=2023.3
+pypdf>=4,<7
