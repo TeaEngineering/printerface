@@ -29,7 +29,7 @@
 
 # Location of printerface binary
 printerface=~/repos/printerface/main.py
-# Interpreter to run it with. Needs python 3.11 (asyncore was removed in 3.12) plus the packages from
+# Interpreter to run it with. Needs python 3.11 or later plus the packages from
 # requirements.txt, so default to a venv made from /opt/python311/bin/python3.11:
 #   /opt/python311/bin/python3.11 -m venv ~/.venv311 && ~/.venv311/bin/pip install -r requirements.txt
 # Set PRINTERFACE_PYTHON to use another one.

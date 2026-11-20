@@ -4,10 +4,10 @@ from mako.template import Template
 from mako.lookup import TemplateLookup
 from mako import exceptions
 
-import asynchat, asyncore, socket, os, re
+import asyncio, os, re, signal
 from datetime import datetime
 from lpdserver import LpdServer
-from httpserver import ToyHttpServer, Redirect
+from httpserver import HttpServer, Redirect
 import mailer
 from mailer import JobMailer
 from docparser import DocParser
@@ -628,6 +628,35 @@ path_handlers = {
 	'/email_body':email_body
 	}
 
+async def serve():
+	"""Run the LPD receiver and the web server on one event loop until interrupted."""
+	lpd = await LpdServer(saveJob, ip='', port=int(config.get('Main', 'lpd_port'))).start()
+	http = await HttpServer(path_handlers, web_dir, port=int(config.get('Main', 'http_port'))).start()
+	stopping = asyncio.Event()
+	for sig in (signal.SIGINT, signal.SIGTERM):
+		try:
+			asyncio.get_running_loop().add_signal_handler(sig, stopping.set)
+		except NotImplementedError:
+			pass  # windows: Ctrl+C is raised as KeyboardInterrupt instead
+	try:
+		while not stopping.is_set():
+			try:
+				await asyncio.wait_for(stopping.wait(), 10)
+			except asyncio.TimeoutError:
+				pass
+			print('[control] poll %s' % str(datetime.now()))
+			printing.printlog.flush()
+			sys.stdout.flush()
+		print("Shutting down.")
+	except BaseException as e:
+		print("Terminating: Unexpected error: %s" % repr(e))
+		sys.stdout.flush()
+		raise
+	finally:
+		printing.printlog.flush()
+		await lpd.close()
+		await http.close()
+
 if __name__=="__main__":
 	# launch the server on the specified port
 	for x in [jobdir, pdfdir]:
@@ -635,20 +664,7 @@ if __name__=="__main__":
 
 	recover()
 
-	s = LpdServer(saveJob, ip='', port=int(config.get('Main', 'lpd_port')))
-	ToyHttpServer(port=int(config.get('Main', 'http_port')), pathhandlers=path_handlers, webroot=web_dir)
 	try:
-		while True:
-			asyncore.loop(timeout=1, count=10)
-			print('[control] poll %s' % str(datetime.now()))
-			printing.printlog.flush()
-			sys.stdout.flush()
-
+		asyncio.run(serve())
 	except KeyboardInterrupt:
 		print("Crtl+C pressed. Shutting down.")
-		printing.printlog.flush()
-	except:
-		print("Terminating: Unexpected error: %s" % sys.exc_info()[0])
-		sys.stdout.flush()
-		raise
-
