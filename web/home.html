@@ -44,6 +44,10 @@
         </p>
         <p><strong>${email_fails}</strong> recent failure(s) sending email
         </p>
+        % if upload_fails is not None:
+        <p><strong>${upload_fails}</strong> recent failure(s) uploading to the website
+        </p>
+        % endif
         <p><a class="btn" href="/settings/email">Email Addresses &raquo;</a> <a class="btn" href="/sent">Sent Emails &raquo;</a></p>
       </div>
     </div>

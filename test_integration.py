@@ -21,6 +21,7 @@ import main
 import mailer
 import printing
 import printstatus
+import uploader
 import emailtemplates
 from stationary import DocFormatter
 from lpdserver import LpdServer
@@ -32,7 +33,7 @@ def put(lines, row, col, text):
 		line = lines[row + i]
 		lines[row + i] = line[:col] + part + line[col + len(part):]
 
-def make_invoice(doc_num='12345', acc='ACC001', pages=2, doc_nums=None, totals=None):
+def make_invoice(doc_num='12345', acc='ACC001', pages=2, doc_nums=None, totals=None, net=None, vat=None):
 	"""A synthetic Invoice print: 48 blank lines, then 48 lines per page. Each page ends in a form feed,
 	and the totals carry an 8-bit pound sign as the Windows print driver sends it. By default every page is
 	part of invoice doc_num; doc_nums gives each page its own invoice (and totals its own amount)."""
@@ -51,6 +52,9 @@ def make_invoice(doc_num='12345', acc='ACC001', pages=2, doc_nums=None, totals=N
 		put(lines, base + 19, 19, 'BAUCHET Customer Label\nDRAPPIER Carte D\'Or')
 		put(lines, base + 19, 55, '12\n6')
 		put(lines, base + 42, 89, totals[p] if totals else '\xa3123.45')
+		if net:
+			put(lines, base + 37, 89, net)
+			put(lines, base + 39, 89, vat)
 		lines[base + 47] = lines[base + 47][:100] + '\x0c'
 	return '\r\n'.join(lines) + '\r\n'
 
@@ -103,6 +107,7 @@ class TestPrinterface(unittest.TestCase):
 		main.pdfdir = os.path.join(cls.home, 'data', 'pdf') + os.sep
 		main.formatter = DocFormatter(main.pdfdir)
 		mailer.pickle_file = os.path.join(cls.home, 'mailer.pickle')
+		cls.old_uploadlog, main.uploadqueue.log = main.uploadqueue.log, uploader.UploadLog(os.path.join(cls.home, 'upload.pickle'))
 		cls.old_printlog, printing.printlog = printing.printlog, printing.PrintLog(os.path.join(cls.home, 'printer.pickle'))
 		cls.old_user_dir, emailtemplates.USER_DIR = emailtemplates.USER_DIR, os.path.join(cls.home, 'templates')
 		for x in [main.jobdir, main.pdfdir]:
@@ -129,6 +134,7 @@ class TestPrinterface(unittest.TestCase):
 		cls.print_patch.stop()
 		cls.lpstat_patch.stop()
 		printing.printlog = cls.old_printlog
+		main.uploadqueue.log = cls.old_uploadlog
 		emailtemplates.USER_DIR = cls.old_user_dir
 		shutil.rmtree(cls.home, ignore_errors=True)
 
@@ -727,6 +733,42 @@ class TestPrinterface(unittest.TestCase):
 			r, data = self.post('/print', name='job-19990101-000000', printer='default')
 			self.assertEqual(200, r.status)
 			printed.assert_called_once()
+
+	def test_uploading_to_the_website_is_a_post_that_queues_every_document_in_the_pdf(self):
+		sent = []
+		async def start():
+			main.uploadqueue.transport = lambda item, base, key: (sent.append((item, base, key)) or (201, '{}'))
+			main.uploadqueue.start()
+		j = self.send_invoice(pages=2, doc_nums=['501', '502'], totals=['72.00', '48.00'], net='60.00', vat='12.00')
+		# not configured: no button, and a POST is refused with a reason
+		self.assertNotIn(b'Upload to website', self.get('/pdf?name=%s&key=ACC001' % j['name'])[1])
+		r, body = self.post('/pdf', name=j['name'], key='ACC001', action='upload')
+		self.assertEqual(200, r.status)
+		self.assertIn(b'not set up', body)
+		with mock.patch.object(uploader, 'settings', lambda: ('https://stage.example/', 'tok')):
+			self.thread.call(start())
+			try:
+				self.assertIn(b'Upload to website', self.get('/pdf?name=%s&key=ACC001' % j['name'])[1])
+				r, data = self.post('/pdf', name=j['name'], key='ACC001', action='upload')
+				self.assertEqual(303, r.status)
+				self.assertEqual('/pdf?name=%s&key=ACC001&uploading=2' % j['name'], r.getheader('Location'))
+				deadline = time.time() + 10
+				while len(main.uploadqueue.log.for_job(j['name'])) < 2 and time.time() < deadline:
+					time.sleep(0.05)
+				self.assertEqual(['502', '501'], [rec['docnum'] for rec in main.uploadqueue.log.for_job(j['name'])])
+				self.assertEqual({('https://stage.example/', 'tok')}, {(b, k) for _, b, k in sent})
+				first = json.loads(sent[0][0]['payload'])
+				self.assertEqual(('501', '60.00', '72.00'), (first['docnum'], first['total_net'], first['total_gross']))
+				from pypdf import PdfReader
+				self.assertEqual([1, 1], [len(PdfReader(io.BytesIO(i['pdf'])).pages) for i, _, _ in sent])    # one page each
+				body = self.get('/pdf?name=%s&key=ACC001&uploading=2' % j['name'])[1]
+				self.assertIn(b'Uploaded from this job', body)
+				self.assertIn(b'Queued 2 documents for the website', body)
+				# other types of document have no button
+				d = self.send_invoice(jtype='Delvnote')
+				self.assertNotIn(b'Upload to website', self.get('/pdf?name=%s&key=ACC001' % d['name'])[1])
+			finally:
+				self.thread.call(main.uploadqueue.close())
 
 	def test_print_history_is_listed_on_the_job_page(self):
 		j = self.send_invoice()

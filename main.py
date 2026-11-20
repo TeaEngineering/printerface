@@ -15,6 +15,8 @@ from stationary import DocFormatter
 from printing import getPrinters, printFile
 import printing
 import printstatus
+import uploader
+import webupload
 
 import sys, pickle
 import html
@@ -40,6 +42,7 @@ print('base_dir = ' + base_dir)
 web_dir = os.path.join(base_dir, 'web')
 jobs = []
 mailqueue = JobMailer(100)
+uploadqueue = uploader.WebUploader()
 
 # seed some 'system' accounts
 email_accounts = { 'accounts': 'Accounts', 'plain': 'printerface', 'transport': 'Transport'}
@@ -228,8 +231,9 @@ def identify(j):
 
 def home(query_string='', resp=None):
 	email_fails = sum([1 for x in mailqueue.results if x['error']])
+	upload_fails = sum([1 for x in uploadqueue.log.records if x['error']]) if uploader.enabled() else None
 	account = sum([ 1 for k in email_accounts if len(email_addresses[k]) > 0 ]), len(email_accounts.keys())
-	return template_lookup.get_template("/home.html").render(email_fails=email_fails, account=account), 'text/html'
+	return template_lookup.get_template("/home.html").render(email_fails=email_fails, upload_fails=upload_fails, account=account), 'text/html'
 
 def getrows_byslice(seq, rowlen):
 	for start in range(0, len(seq), rowlen):
@@ -467,13 +471,33 @@ def pdf(query_string=dict(), postreq=None, resp=None):
 		else:
 			email_error = "<strong>Oh snap!</strong> Some fields missing or incomplete!"
 		typed = dict(subject=email_subject, body=email_body, ticked=addresses)
+	elif postreq is not None and params.get('action', [''])[0] == 'upload':
+		try:
+			if not uploader.enabled():
+				raise webupload.UploadError('Uploading to the website is not set up: see [Web] in email.cfg')
+			items = uploader.prepare(job, key, pdfdir)
+			if not items:
+				raise webupload.UploadError('There is nothing to upload for %s' % key)
+			for item in items:
+				uploadqueue.append(item)
+			return Redirect('/pdf?' + urllib.parse.urlencode({'name': job['name'], 'key': key, 'uploading': len(items)}))
+		except Exception as e:
+			if not isinstance(e, webupload.UploadError):
+				traceback.print_exc(file=sys.stdout)
+			email_error = '<strong>Not uploaded.</strong> %s' % html.escape(str(e) or 'The upload queue is full.')
 	elif postreq is None:
 		# a redirect from a send or a print lands here; the note only says what happened
 		try:
 			queued = int(query_string.get('queued', ['0'])[0])
 		except ValueError:
 			queued = 0
-		if queued:
+		try:
+			uploading = int(query_string.get('uploading', ['0'])[0])
+		except ValueError:
+			uploading = 0
+		if uploading:
+			email_outcome = 'Queued %d document%s for the website. %s listed under "Uploaded from this job" once done.' % (uploading, '' if uploading == 1 else 's', 'It is' if uploading == 1 else 'They are')
+		elif queued:
 			email_outcome = 'Queued the email to %d recipient%s. It is listed under "Sent from this job" once it has gone.' % (queued, '' if queued == 1 else 's')
 		elif query_string.get('printed'):
 			email_outcome = 'Sent the document to printer %s.' % html.escape(query_string['printed'][0])
@@ -495,6 +519,9 @@ def pdf(query_string=dict(), postreq=None, resp=None):
 	sent_from_this_job = mailer.sent_from_job(mailqueue.results, job['name'])
 	# and what was sent to a printer from it, with the CUPS request ids
 	printed_from_this_job = printing.printlog.for_job(job['name'])
+	# and what was uploaded to the website
+	uploaded_from_this_job = uploadqueue.log.for_job(job['name'])
+	can_upload = uploader.enabled() and job.get('templ') in ('invoice', 'crednote', 'statement')
 
 	# what the editor's preview filter should be set to so that it shows this document
 	if template_kind == emailtemplates.DEFAULT:
@@ -505,7 +532,7 @@ def pdf(query_string=dict(), postreq=None, resp=None):
 		template_docnum = pages[0].get('doc_num', '').strip()
 
 	return ( template_lookup.get_template("/pdf.html").render(printers=getPrinters(), job=job, key=key, email_templ=email_body_default, email_subject_default=email_subject_default, ticked=typed['ticked'] if typed else None,
-		template_kind=template_kind, template_warning=template_warning, template_docnum=template_docnum, sent_from_this_job=sent_from_this_job, printed_from_this_job=printed_from_this_job,
+		template_kind=template_kind, template_warning=template_warning, template_docnum=template_docnum, sent_from_this_job=sent_from_this_job, printed_from_this_job=printed_from_this_job, uploaded_from_this_job=uploaded_from_this_job, can_upload=can_upload,
 		email_body_url='/email_body?' + urllib.parse.urlencode({'name': job['name'], 'key': key}),
 		email_dest=email_dest, email_outcome=email_outcome, email_error=email_error), 'text/html')
 
@@ -631,6 +658,7 @@ path_handlers = {
 async def serve():
 	"""Run the LPD receiver and the web server on one event loop until interrupted."""
 	mailqueue.start()
+	uploadqueue.start()
 	lpd = await LpdServer(saveJob, ip='', port=int(config.get('Main', 'lpd_port'))).start()
 	http = await HttpServer(path_handlers, web_dir, port=int(config.get('Main', 'http_port'))).start()
 	stopping = asyncio.Event()
@@ -647,6 +675,7 @@ async def serve():
 				pass
 			print('[control] poll %s' % str(datetime.now()))
 			printing.printlog.flush()
+			uploadqueue.log.flush()
 			sys.stdout.flush()
 		print("Shutting down.")
 	except BaseException as e:
@@ -655,6 +684,8 @@ async def serve():
 		raise
 	finally:
 		printing.printlog.flush()
+		await uploadqueue.close()
+		uploadqueue.log.flush()
 		await lpd.close()
 		await http.close()
 		await mailqueue.close()
