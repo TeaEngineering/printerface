@@ -266,7 +266,7 @@ class TestPrinterface(unittest.TestCase):
 		r, body = self.get('/pdf_file?name=%s&key=ACC001&attach=1' % name)
 		self.assertIn('attachment', r.getheader('Content-Disposition'))
 
-		for path in ['/home', '/sent', '/printers', '/settings/email', '/settings/templates',
+		for path in ['/home', '/sent', '/printed', '/printers', '/settings/email', '/settings/templates',
 				'/pdf?name=' + name, '/debug?name=' + name, '/plaintext?name=' + name, '/']:
 			r, body = self.get(path)
 			self.assertEqual(200, r.status, path)
@@ -732,6 +732,20 @@ class TestPrinterface(unittest.TestCase):
 		self.assertIn(b'OFFICE_MFP-777', body)
 		self.assertIn(b'lp: &lt;bad&gt;', body)
 		self.assertNotIn(b'OTHER-1', body)
+
+	def test_printed_items_page(self):
+		j = self.send_invoice()
+		for job, req, err in [(j['name'], 'OFFICE_MFP-778', None), ('job-19990101-000000', None, 'lp: <bad>')]:
+			printing.printlog.add({'job': job, 'key': 'ACC001', 'file': 'x', 'printer': 'OFFICE_MFP',
+				'request_id': req, 'added': datetime.now(), 'error': err})
+		r, body = self.get('/printed')
+		self.assertEqual(200, r.status)
+		self.assertIn(b'<th>Document</th><th>Printer</th><th>ID</th><th>Problems?</th>', body)
+		self.assertIn(('href="/pdf?name=%s&amp;key=ACC001"' % j['name']).encode(), body)    # loaded: linked
+		self.assertIn(b'OFFICE_MFP-778', body)
+		self.assertIn(b'lp: &lt;bad&gt;', body)
+		self.assertNotIn(b'name=job-19990101-000000', body)                                  # no longer loaded: not linked
+		self.assertIn(b'<a href="/printed">Printed Items</a>', body)
 
 	def test_a_refused_print_says_why(self):
 		j = self.send_invoice()

@@ -305,6 +305,12 @@ def sent(query_string='', resp=None):
 		rows.append(dict(p=p, job=ref[0] if ref else None, key=ref[1] if ref else None, loaded=bool(ref and ref[0] in loaded)))
 	return ( template_lookup.get_template("/sent.html").render(rows=rows, total=len(results)), 'text/html')
 
+def printed(query_string='', resp=None):
+	results = printing.printlog.records    # newest first
+	loaded = set(j['name'] for j in jobs)
+	rows = [dict(p=p, loaded=p.get('job') in loaded) for p in results[:SENT_SHOWN]]
+	return ( template_lookup.get_template("/printed.html").render(rows=rows, total=len(results)), 'text/html')
+
 def settings_email(query_string='', postreq=None, resp=None):
 	"""The address book. Adding and removing a contact change it, so they only happen on a POST, which then
 	redirects back here: a refresh (or a bookmarked URL) shows the list and never repeats the change."""
@@ -614,6 +620,7 @@ path_handlers = {
 	'/pdf':pdf,
 	'/pdf_file': pdf_file,
 	'/sent':sent,
+	'/printed':printed,
 	'/print' : printfn,
 	'/plaintext':plain,
 	'/settings/email':settings_email,

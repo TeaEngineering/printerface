@@ -1,0 +1,32 @@
+
+<%inherit file="bootstrap.html"/>
+<%block name="title">- Printed Items</%block>
+
+	<h3>Printed Items</h3>
+
+	% if total > len(rows):
+	<p class="muted">Showing the latest ${len(rows)} of ${total} printed documents.</p>
+	% endif
+
+	<table class="table table-striped table-condensed" style="font-size: 11px; line-height: 15px;">
+		<tr><th>Document</th><th>Printer</th><th>ID</th><th>Problems?</th></tr>
+	% for row in rows:
+	  <% p = row['p'] %>
+	  % if p['error']:
+	  <tr class="error">
+	  % else:
+	  <tr class="success">
+	  % endif
+		<td style="white-space: nowrap;" title="${p['added'].strftime('%d %b %Y %H:%M:%S') | h}">
+		% if row['loaded']:
+			<a href="/pdf?name=${p['job'] | u}&amp;key=${p['key'] | u}" title="Open the job this was printed from">${p['job'] | h} / ${p['key'] | h}</a>
+		% elif p['job']:
+			<span class="muted" title="This job is no longer loaded">${p['job'] | h} / ${p['key'] | h}</span>
+		% else:
+			<span class="muted">${p['file'] | h}</span>
+		% endif
+		</td>
+		<td>${p['printer'] | h}</td><td>${p['request_id'] or '' | h}</td><td>${p['error'] or '' | h}</td>
+	  </tr>
+	% endfor
+	</table>
