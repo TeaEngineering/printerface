@@ -35,7 +35,7 @@ template are POSTs, and their handlers return `httpserver.Redirect(...)` (a 303)
 carrying at most a harmless note in the query string ("queued=1"). A POST that is refused re-renders the form
 instead, with what was typed. New actions should follow the same pattern.
 
-Requires **python 3.11** or later. The LPD receiver and the web server share one asyncio event loop (so the job list needs no locking); mail is sent from a thread of its own.
+Requires **python 3.11** or later. The LPD receiver and the web server share one asyncio event loop (so the job list needs no locking); mail is queued on the loop and sent with smtplib in a worker thread.
 Requirements are specified in requirements.txt
 Unit tests run during `docker build` or with:
 
