@@ -630,6 +630,7 @@ path_handlers = {
 
 async def serve():
 	"""Run the LPD receiver and the web server on one event loop until interrupted."""
+	mailqueue.start()
 	lpd = await LpdServer(saveJob, ip='', port=int(config.get('Main', 'lpd_port'))).start()
 	http = await HttpServer(path_handlers, web_dir, port=int(config.get('Main', 'http_port'))).start()
 	stopping = asyncio.Event()
@@ -656,6 +657,7 @@ async def serve():
 		printing.printlog.flush()
 		await lpd.close()
 		await http.close()
+		await mailqueue.close()
 
 if __name__=="__main__":
 	# launch the server on the specified port

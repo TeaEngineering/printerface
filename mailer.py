@@ -1,6 +1,6 @@
 #
-# Asynchronous mail sender to Gmail, using a seperate thread.
-# Keeps the last 10 results around if you want to check results
+# Mail sender to Gmail: a queue worked by the event loop, with the blocking smtplib calls in a worker thread.
+# Keeps the last result_count results around if you want to check results
 
 # Import smtplib for the actual sending function
 import smtplib
@@ -13,8 +13,8 @@ from textutil import load_user_pickles, PICKLE_PROTOCOL
 
 # http://stackoverflow.com/questions/3362600/how-to-send-email-attachments-with-python
 import datetime 
-import os, re, threading
-import queue
+import asyncio
+import os, re
 import traceback
 import pickle
 
@@ -42,10 +42,17 @@ def sent_from_job(results, job_name):
 	return out
 
 class JobMailer(object):
+	"""Sends queued emails one at a time, in the order they were queued, and keeps the outcome of the last
+	`result_count` of them (newest first) in mailer.pickle.
+
+	The sending itself, smtplib, blocks, so it runs in a worker thread (asyncio.to_thread) while the event loop
+	carries on serving; everything else, the queue and the results list, is only touched on the loop. `append`
+	is called from page handlers and `start` / `close` from main.serve."""
 
 	def __init__(self, queuesz=10):
-		self.queue = queue.Queue(queuesz)
+		self.queue = asyncio.Queue(queuesz)
 		self.results = []
+		self.task = None
 		self.resultLimit = config.getint('Gmail', 'result_count')
 
 		try:
@@ -59,47 +66,58 @@ class JobMailer(object):
 		while len(self.results) > self.resultLimit:
 				self.results.pop()
 
-		self.thread = threading.Thread(target=self.run)
-		self.thread.daemon = True
-		self.thread.start()
+	def start(self):
+		"""Begin sending. Needs the running event loop."""
+		self.task = asyncio.get_running_loop().create_task(self.run())
+
+	async def close(self, timeout=30):
+		"""Stop after sending what is already queued, for up to `timeout` seconds."""
+		if self.task:
+			try:
+				await asyncio.wait_for(self.queue.join(), timeout)
+			except asyncio.TimeoutError:
+				print('mailq: %d emails still queued at shutdown' % self.queue.qsize())
+			self.task.cancel()
+			self.task = None
 
 	def append(self, job):
+		"""Queue an email. Raises asyncio.QueueFull if too many are waiting."""
 		job['added'] = datetime.datetime.now()
 		job['completed']=None
 		job['status']=None
-		self.queue.put( job )
+		self.queue.put_nowait( job )
 
-	def run(self):
+	def send(self, work):
+		"""Send one queued email (blocking: runs in a worker thread) and record the outcome on it."""
+		try:
+			filename = os.path.basename(work['attachment'])
+			with open(os.path.expanduser(work['attachment']), 'rb') as fileobj:
+				self.sendJobAttachment(work['body'], fileobj, filename, work['subject'], work['to'])
+			work['completed'] = datetime.datetime.now()
+			work['error'] = None
+		except Exception as e:
+			print('mailq: failed to send email: ' + repr(e))
+			work['completed'] = datetime.datetime.now()
+			work['error'] = repr(e)
+
+	async def run(self):
 		print("mailq: run is called")
 		while True:
+			work = await self.queue.get()
 			try:
-				work = self.queue.get(block=True, timeout=60)
 				print('mailq: Got work ' + repr(work))
-
-				try:
-					filename = os.path.basename(work['attachment'])
-					with open(os.path.expanduser(work['attachment']), 'rb') as fileobj:
-
-						x = self.sendJobAttachment(work['body'], fileobj, filename, work['subject'], work['to'])
-
-					work['completed'] = datetime.datetime.now()
-					work['error'] = None
-
-				except Exception as e:
-					print('mailq: failed to send email: ' + repr(e))
-					
-					work['completed'] = datetime.datetime.now()
-					work['error'] = repr(e)
-
+				await asyncio.to_thread(self.send, work)
 				print('mailq: finished ' + repr(work))
 				self.results.insert(0, work)
 				if len(self.results) > self.resultLimit:
 					self.results.pop()
-
 				self.pickleResults()
-
-			except queue.Empty:
-				print('mailq: idling for jobs')
+			except asyncio.CancelledError:
+				raise
+			except Exception:
+				traceback.print_exc()
+			finally:
+				self.queue.task_done()
 
 	def pickleResults(self):
 		try:
@@ -159,21 +177,130 @@ class TestSentItemLinks(unittest.TestCase):
 		self.assertEqual([('newest', 'B'), ('a', 'A')], [(r['subject'], key) for r, key in found])
 		self.assertEqual([], sent_from_job(results, 'job-20000101-000000'))
 
+class TestJobMailer(unittest.TestCase):
+	def setUp(self):
+		import tempfile
+		global pickle_file
+		self.dir = tempfile.TemporaryDirectory()
+		self.addCleanup(self.dir.cleanup)
+		old, pickle_file = pickle_file, os.path.join(self.dir.name, 'mailer.pickle')
+		self.addCleanup(lambda: globals().update(pickle_file=old))
+
+	def mailer(self, size=10, limit=3, sender=None):
+		m = JobMailer(size)
+		m.resultLimit = limit
+		self.sent = []
+		def fake(text, fileobj, filename, subject, email_to):
+			if sender:
+				sender(subject)
+			self.sent.append((subject, filename, fileobj.read(), list(email_to)))
+		m.sendJobAttachment = fake
+		return m
+
+	def attachment(self, name='a.pdf', data=b'%PDF'):
+		path = os.path.join(self.dir.name, name)
+		with open(path, 'wb') as f:
+			f.write(data)
+		return path
+
+	def job(self, subject, **kw):
+		return dict(to=['x@example.com'], body='b', subject=subject, attachment=kw.get('attachment') or self.attachment())
+
+	def test_sends_in_order_records_newest_first_and_persists(self):
+		async def go():
+			m = self.mailer()
+			m.start()
+			for n in 'abc':
+				m.append(self.job(n))
+			await m.close()
+			return m
+		m = asyncio.run(go())
+		self.assertEqual(['a', 'b', 'c'], [x[0] for x in self.sent])
+		self.assertEqual(('a.pdf', b'%PDF', ['x@example.com']), self.sent[0][1:])
+		self.assertEqual(['c', 'b', 'a'], [r['subject'] for r in m.results])
+		self.assertTrue(all(r['error'] is None and r['completed'] for r in m.results))
+		with open(pickle_file, 'rb') as f:
+			self.assertEqual(['c', 'b', 'a'], [r['subject'] for r in pickle.load(f)])
+
+	def test_a_failure_is_recorded_and_the_next_still_goes(self):
+		def sender(subject):
+			if subject == 'bad':
+				raise RuntimeError('smtp down')
+		async def go():
+			m = self.mailer(sender=sender)
+			m.start()
+			m.append(self.job('bad'))
+			m.append(self.job('good'))
+			m.append(dict(self.job('gone'), attachment=os.path.join(self.dir.name, 'missing.pdf')))
+			await m.close()
+			return m
+		m = asyncio.run(go())
+		by = {r['subject']: r['error'] for r in m.results}
+		self.assertIn('smtp down', by['bad'])
+		self.assertIsNone(by['good'])
+		self.assertIn('FileNotFoundError', by['gone'])
+
+	def test_keeps_only_the_newest_results(self):
+		async def go():
+			m = self.mailer(limit=2)
+			m.start()
+			for n in '1234':
+				m.append(self.job(n))
+			await m.close()
+			return m
+		self.assertEqual(['4', '3'], [r['subject'] for r in asyncio.run(go()).results])
+
+	def test_sending_does_not_block_the_event_loop(self):
+		import threading
+		gate = threading.Event()
+		async def go():
+			m = self.mailer(sender=lambda subject: gate.wait(5))
+			m.start()
+			m.append(self.job('slow'))
+			await asyncio.sleep(0.1)           # the worker thread is now stuck inside "smtplib"
+			ticks = 0
+			for _ in range(5):
+				await asyncio.sleep(0.01)
+				ticks += 1
+			gate.set()
+			await m.close()
+			return ticks, m
+		ticks, m = asyncio.run(go())
+		self.assertEqual(5, ticks)
+		self.assertEqual(['slow'], [r['subject'] for r in m.results])
+
+	def test_too_many_queued_is_an_error_not_a_stall(self):
+		async def go():
+			m = self.mailer(size=2)
+			m.append(self.job('1'))
+			m.append(self.job('2'))
+			with self.assertRaises(asyncio.QueueFull):
+				m.append(self.job('3'))
+		asyncio.run(go())
+
+	def test_results_survive_a_restart_and_a_smaller_limit_trims(self):
+		async def go():
+			m = self.mailer(limit=5)
+			m.start()
+			for n in '123':
+				m.append(self.job(n))
+			await m.close()
+		asyncio.run(go())
+		async def again():
+			return JobMailer(10)
+		m = asyncio.run(again())
+		self.assertEqual(['3', '2', '1'], [r['subject'] for r in m.results])
+
+
 if __name__=="__main__":
-	
-	import time
-	mailq = JobMailer(100)
 
-	for i in range(60):
-		time.sleep(1)
-
-		if i == 5:
-			mailq.append(dict(
-				to=['chris@shucksmith.co.uk'], body='body text here', subject='Statement for XX',
-				attachment="~/repos/printerface/web/pdf/job-20130404-145700%f-accounts.pdf"))
-
+	async def demo():
+		mailq = JobMailer(100)
+		mailq.start()
+		mailq.append(dict(
+			to=['chris@shucksmith.co.uk'], body='body text here', subject='Statement for XX',
+			attachment="~/repos/printerface/web/pdf/job-20130404-145700%f-accounts.pdf"))
+		await mailq.close()
 		print(mailq.results)
 
-	print('done')
-
-
+	asyncio.run(demo())
