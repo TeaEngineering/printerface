@@ -291,7 +291,7 @@ def printers(query_string='', resp=None):
 		auto_types=auto_types, auto_printer=auto_printer, humanise=printstatus.humanise,
 		now=datetime.now(), stale=printstatus.STALE_AFTER), 'text/html')
 
-# The Sent Items page only shows this many of the most recent emails, however long the history is: the
+# The Sent Emails page only shows this many of the most recent emails, however long the history is: the
 # history goes back years and the whole of it makes a page of many MB.
 SENT_SHOWN = 100
 
@@ -444,7 +444,7 @@ def pdf(query_string=dict(), postreq=None, resp=None):
 	if not job.get('groupfiles'):
 		name = params.get('name', [''])[0]
 		return doMessage(title='Job not found', message='There is no job %s loaded. Only the most recent jobs are kept in memory, so older ones '
-			'can\'t be opened here. <a href="/recent">Recent jobs</a>' % (html.escape(name) or '(none given)'))
+			'can\'t be opened here. <a href="/recent">Recent documents</a>' % (html.escape(name) or '(none given)'))
 	default_key = next(iter(job['groupfiles']))[0]
 	key = params.get('key', [default_key])[0]
 	email_dest = email_addresses.get(key, {})
