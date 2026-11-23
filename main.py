@@ -15,6 +15,7 @@ from stationary import DocFormatter
 from printing import getPrinters, printFile
 import printing
 import printstatus
+import derived
 import uploader
 import webupload
 
@@ -43,6 +44,7 @@ web_dir = os.path.join(base_dir, 'web')
 jobs = []
 mailqueue = JobMailer(100)
 uploadqueue = uploader.WebUploader()
+derivedcache = derived.DerivedCache()
 
 # seed some 'system' accounts
 email_accounts = { 'accounts': 'Accounts', 'plain': 'printerface', 'transport': 'Transport'}
@@ -71,6 +73,7 @@ def saveJob(queue, local, remote, control, data):
 
 	with open(os.path.join(jobdir, subdir, jobname), "wb") as f:
 		pickle.dump(d, f, protocol=PICKLE_PROTOCOL)
+	d['stat'] = file_stat(os.path.join(jobdir, subdir, jobname))
 
 	cleanJob(d)
 	try:
@@ -88,8 +91,14 @@ def saveJob(queue, local, remote, control, data):
 
 	jobs.insert(0, d)
 	if len(jobs) > loadQty: jobs.pop()
+	derivedcache.dirty = True
 
 	time.sleep(1) # hack for unique filenames - oh dear
+
+def file_stat(path):
+	"""What says a job file is the one a cache entry was made from."""
+	st = os.stat(path)
+	return (st.st_size, st.st_mtime_ns)
 
 def autoPrint(job):
 	if job['autoprint']:
@@ -155,20 +164,26 @@ def recover():
 				with open(p, "rb") as f:
 					s = load_job_pickle(f)
 					s['name'] = x;
+					s['stat'] = file_stat(p)
 					jobs.append(s)
 			except Exception as e:
 				print("Cannot load {} caught {}".format(p, e))
 			if len(jobs) > loadQty: break
 		if len(jobs) > loadQty: break
 
-	for j in jobs:
-		cleanJob(j)
+	outcomes = collections.Counter(cleanJob(j, derivedcache.lookup(j['name'], j['stat'])) for j in jobs)
+	print('[control] %d jobs: %d from the cache, %d redrawn, %d parsed' % (len(jobs), outcomes['hit'], outcomes['drawn'], outcomes['parsed']))
+	if outcomes['drawn'] or outcomes['parsed'] or set(derivedcache.entries) != set(j['name'] for j in jobs):
+		derivedcache.dirty = True
 
 # re.ASCII: python 2 str patterns only ever treated ASCII as word/space characters, so any 8-bit
 # character in the print data becomes a space. Without it \x85 etc. count as whitespace and survive.
 control_char_re = re.compile(r'[^\w\s%s_\'=/]' % re.escape('.*+()-\\;:,#?%$^&!<>|`"'), re.ASCII)
 
-def cleanJob(j):
+def cleanJob(j, entry=None):
+	"""Work out everything about a job that is not in its pickle. `entry` is what the derived cache holds for it, if
+	that is still good: then the parse is taken from it, and so are the PDFs if they are all still on disk. Returns
+	'hit', 'drawn' (parsed pages from the cache, PDFs drawn again) or 'parsed' (all of it worked out)."""
 	print(' recovering %s' % j['name'])
 
 	# crucial to preserve \f (formfeed) in 'plain', as some parsers need it to
@@ -196,8 +211,25 @@ def cleanJob(j):
 
 	# the parser also returns the fields it found, for the debug page to colour in; that is bulky and only wanted
 	# there, so it isn't kept: debug() parses again
-	j['parsed'] = mainparser.parse(j)[1]
+	outcome = 'hit' if entry else 'parsed'
+	j['parsed'] = entry['parsed'] if entry else mainparser.parse(j)[1]
 
+	register_accounts(j)
+
+	if entry and all(os.path.exists(pdfdir + f) for f in entry['groupfiles'].values() if f):
+		(j['groupfiles'], j['groupkey'], j['render_stamp']) = (entry['groupfiles'], entry['groupkey'], entry['render_stamp'])
+	else:
+		draw(j)
+		if outcome == 'hit': outcome = 'drawn'
+
+	# all done
+	j['autoprint'] = None
+	if j['doctype'] in config.get('Robot', 'auto_types').split(','):
+		j['autoprint'] = config.get('Robot', 'auto_printer')
+	return outcome
+
+def register_accounts(j):
+	"""Note the accounts a job is for, and a first line of their address, for the email address book."""
 	if j['parsed']:
 		for y in j['parsed'].values():
 			for x in y:
@@ -218,24 +250,16 @@ def cleanJob(j):
 					print("   got email %s -> %s" % (acc, addr))
 					email_accounts[acc] = (addr),
 
+def draw(j):
+	"""Make the PDFs for a job from its parsed pages (or, if nothing parsed, from the plain text)."""
 	# if parsing succeeded, might be able to generate docs
 	if j['parsed']:
 		# protocol: PDF file names are dict values. keys are document
 		# groups {('all'): p}, ('all')
 		(j['groupfiles'], j['groupkey']) = formatter.format(j)
-
-		#for f in j['groupfiles'].values():
-		#	from subprocess import call
-		#	proc = ['convert','-size','150x150','%s[0]' % f, '%s.png' % f]
-		#	print(proc)
-		#	call(proc)
 	else:
 		(j['groupfiles'], j['groupkey']) = formatter.plainFormat(j)
-
-	# all done
-	j['autoprint'] = None
-	if j['doctype'] in config.get('Robot', 'auto_types').split(','):
-		j['autoprint'] = config.get('Robot', 'auto_printer')
+	j['render_stamp'] = derivedcache.render_stamp
 
 def identify(j):
 	types = {
@@ -340,6 +364,29 @@ def uploads(query_string='', resp=None):
 	loaded = set(j['name'] for j in jobs)
 	rows = [dict(u=u, loaded=u.get('job') in loaded) for u in results[:SENT_SHOWN]]
 	return ( template_lookup.get_template("/uploads.html").render(rows=rows, total=len(results), waiting=uploadqueue.queue.qsize()), 'text/html')
+
+def regenerate_stationery():
+	"""Draw the PDFs again, under today's stationery, for every loaded job drawn under older stationery. The jobs
+	are not parsed again. Returns how many were redrawn."""
+	stale = derivedcache.stale(jobs)
+	for j in stale:
+		draw(j)
+	if stale:
+		derivedcache.dirty = True
+	return len(stale)
+
+def settings_stationery(query_string='', postreq=None, resp=None):
+	"""How many loaded jobs have PDFs drawn under older stationery (a change to stationary.py, or to the company
+	details or logos under [Printing]), with the button that draws them again. It blocks the server while it works,
+	about a second for every few hundred jobs, so it is an admin action rather than something done on its own."""
+	if postreq is not None:
+		n = regenerate_stationery() if 'regenerate' in postreq else 0
+		return Redirect('/settings/stationery?' + urllib.parse.urlencode({'redrawn': n}))
+	try:
+		redrawn = int(query_string.get('redrawn', [''])[0])
+	except ValueError:
+		redrawn = None
+	return ( template_lookup.get_template("/settings_stationery.html").render(stale=len(derivedcache.stale(jobs)), total=len(jobs), redrawn=redrawn), 'text/html')
 
 def settings_web(query_string='', resp=None):
 	"""Where documents are uploaded to. Read only: it is set under [Web] in email.cfg. The API key is never shown, only
@@ -687,6 +734,7 @@ path_handlers = {
 	'/settings/email':settings_email,
 	'/settings/templates':settings_templates,
 	'/settings/web':settings_web,
+	'/settings/stationery':settings_stationery,
 	'/email_body':email_body
 	}
 
@@ -711,6 +759,7 @@ async def serve():
 			print('[control] poll %s' % str(datetime.now()))
 			printing.printlog.flush()
 			uploadqueue.log.flush()
+			derivedcache.flush(jobs)
 			sys.stdout.flush()
 		print("Shutting down.")
 	except BaseException as e:
@@ -721,6 +770,7 @@ async def serve():
 		printing.printlog.flush()
 		await uploadqueue.close()
 		uploadqueue.log.flush()
+		derivedcache.flush(jobs, force=True)
 		await lpd.close()
 		await http.close()
 		await mailqueue.close()

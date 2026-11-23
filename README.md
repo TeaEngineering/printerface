@@ -28,6 +28,7 @@ The following will checkout the source code, build a docker image and start an i
 * `docparser` recognise and parse some plain-text formats from 1990 to JSON
 * `stationary.py` format JSON to nice PDF files
 * `printing.py` printing with CUPS via `lp`. Each document sent is recorded (job, key, printer, CUPS request id or the error) in `~/printerface/printer.pickle`, newest first and trimmed to `[Printing] result_count` (the sent emails and uploads have their own `result_count` under `[Gmail]` and `[Web]`), and listed on the job page. The file is written from the main loop only when something changed
+* `derived.py` a cache, `~/printerface/derived.pickle`, of what is slow to work out from a stored job: its parsed pages and the names of its PDFs. At startup a job whose file is unchanged and whose parser is unchanged takes these from the cache (a thousand jobs in under a second, against about eight), and a job that has left the loaded history drops out of the file the next time it is written (at most every three minutes, and at shutdown). The PDFs are not redrawn when the stationery changes: Settings > Stationery counts the documents drawn under older stationery and redraws them on request
 * `printstatus.py` read-only CUPS status for the Printers page (one `lpstat -t` in the C locale, cached for 10s), and the check of whether auto-printing can work. lpstat can show a stuck or stopped queue but not that a page was printed
 
 A GET never changes anything: sending an email, printing, editing the address book and saving or reverting a

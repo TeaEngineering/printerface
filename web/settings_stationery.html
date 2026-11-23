@@ -1,0 +1,27 @@
+<%inherit file="bootstrap.html"/>
+<%block name="title">- Stationery</%block>
+
+	<h3>Stationery</h3>
+
+	<p>The PDFs for a document are drawn when it arrives, and kept. When Printerface starts it reuses them rather than
+	drawing them all again, so a change to the stationery (<code>stationary.py</code>, or the company details and logos under
+	<code>[Printing]</code> in <code>~/printerface/email.cfg</code>) does not reach documents that have already been drawn until you
+	draw them again here.</p>
+
+	% if redrawn is not None:
+	<div class="alert alert-success">
+		<button type="button" class="close" data-dismiss="alert">&times;</button>
+		Drew ${redrawn} document${'' if redrawn == 1 else 's'} again.
+	</div>
+	% endif
+
+	% if stale:
+	<p><strong>${stale}</strong> of the ${total} loaded documents were drawn under older stationery.</p>
+	<form method="post" action="/settings/stationery">
+		<input type="hidden" name="regenerate" value="1"/>
+		<button type="submit" class="btn btn-primary"><i class="icon-refresh icon-white"></i> Draw them again</button>
+		<span class="muted">The server is busy while this runs, about a second for every few hundred documents.</span>
+	</form>
+	% else:
+	<p>All ${total} loaded documents were drawn under today's stationery.</p>
+	% endif
