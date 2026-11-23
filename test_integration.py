@@ -763,10 +763,68 @@ class TestPrinterface(unittest.TestCase):
 				self.assertEqual([1, 1], [len(PdfReader(io.BytesIO(i['pdf'])).pages) for i, _, _ in sent])    # one page each
 				body = self.get('/pdf?name=%s&key=ACC001&uploading=2' % j['name'])[1]
 				self.assertIn(b'Uploaded from this job', body)
+				self.assertIn(b'>501 / ACC001</a>', body)
 				self.assertIn(b'Queued 2 documents for the website', body)
 				# other types of document have no button
 				d = self.send_invoice(jtype='Delvnote')
 				self.assertNotIn(b'Upload to website', self.get('/pdf?name=%s&key=ACC001' % d['name'])[1])
+			finally:
+				self.thread.call(main.uploadqueue.close())
+
+	def test_web_uploads_settings_and_uploads_pages(self):
+		from unittest import mock
+		r, body = self.get('/settings/web')
+		self.assertEqual(200, r.status)
+		self.assertIn(b'not set', body)
+		self.assertIn(b'Web Uploads', self.get('/home')[1])            # in the Settings menu
+		self.assertIn(b'href="/uploads"', self.get('/home')[1])
+		with mock.patch.object(uploader, 'settings', lambda: ('https://stage.example/', 'abcdefghijklmnopXYZ')):
+			body = self.get('/settings/web')[1]
+		self.assertIn(b'<a href="https://stage.example/" target="_blank" rel="noopener noreferrer"><code>https://stage.example/</code></a>', body)
+		self.assertIn(b'****XYZ', body)
+		self.assertNotIn(b'abcdefghijklmnop', body)
+		with mock.patch.object(uploader, 'settings', lambda: ('https://stage.example/', 'short')):
+			body = self.get('/settings/web')[1]
+			self.assertIn(b'<code>****</code>', body)                    # too short to give any of it away
+			self.assertNotIn(b'<code>short', body)
+		j = self.send_invoice()
+		main.uploadqueue.log.add(dict(job=j['name'], key='ACC001', kind='invoice', account='ACC001', docnum='777', added=datetime.now(), outcome='created', status=201, error=None))
+		main.uploadqueue.log.add(dict(job='job-19990101-000000', key='ACC001', kind='statement', account='ACC002', docnum='st1', added=datetime.now(), outcome='failed', status=400, error='HTTP 400 bad'))
+		body = self.get('/uploads')[1]
+		self.assertIn(b'>777 / ACC001</a>', body)                        # a loaded job links to its page
+		self.assertIn(b'st1 / ACC002', body)
+		self.assertNotIn(b'job-19990101-000000&', body)
+		self.assertIn(b'HTTP 400 bad', body)
+
+	def test_documents_of_the_auto_upload_types_are_uploaded_on_arrival(self):
+		sent = []
+		async def start():
+			main.uploadqueue.transport = lambda item, base, key: (sent.append(item) or (201, '{}'))
+			main.uploadqueue.start()
+		def wait_for(n):
+			deadline = time.time() + 10
+			while len(sent) < n and time.time() < deadline:
+				time.sleep(0.05)
+		def arrive(**kw):
+			return self.send_invoice(pages=1, totals=['144.00'], net='120.00', vat='24.00', **kw)
+		main.config.set('Web', 'auto_types', 'statement, invoice')
+		self.addCleanup(main.config.set, 'Web', 'auto_types', '')
+		self.assertIn(b'<strong>invoice</strong>', self.get('/settings/web')[1].replace(b'statement,', b''))
+		with mock.patch.object(uploader, 'settings', lambda: ('https://stage.example/', 'tok')):
+			self.thread.call(start())
+			try:
+				j = arrive(doc_num='6001')
+				wait_for(1)
+				self.assertEqual(['6001'], [i['docnum'] for i in sent])
+				self.assertEqual('created', main.uploadqueue.log.for_job(j['name'])[0]['outcome'])
+				self.send_invoice(jtype='Delvnote')             # not a listed kind
+				arrive(doc_num='6002', jtype='Cr-note')         # a credit note: not listed either
+				time.sleep(0.5)
+				self.assertEqual(['6001'], [i['docnum'] for i in sent])
+				main.config.set('Web', 'auto_types', '')
+				arrive(doc_num='6003')
+				time.sleep(0.5)
+				self.assertEqual(['6001'], [i['docnum'] for i in sent])      # off when blank
 			finally:
 				self.thread.call(main.uploadqueue.close())
 

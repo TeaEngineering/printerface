@@ -80,6 +80,12 @@ def saveJob(queue, local, remote, control, data):
 		# not registering it here would hide it from the web interface until the next restart
 		traceback.print_exc(file=sys.stdout)
 
+	try:
+		autoUpload(d)
+	except Exception:
+		# likewise: a conversion or queue problem must not lose the job. It shows on the Uploads page if it got that far
+		traceback.print_exc(file=sys.stdout)
+
 	jobs.insert(0, d)
 	if len(jobs) > loadQty: jobs.pop()
 
@@ -97,6 +103,19 @@ def autoPrint(job):
 					except Exception as e:
 						# recorded in the print history; carry on with the other documents
 						print( 'auto printing: Document %s NOT sent to printer %s: %s' % (doc, printer, e))
+
+def autoUpload(job):
+	"""Queue the documents of a job of a kind listed under [Web] auto_types, if uploading is set up."""
+	if not uploader.enabled() or job.get('templ') not in uploader.auto_types() or not job.get('groupfiles'):
+		return
+	try:
+		items = uploader.prepare(job, 'accounts', pdfdir)
+	except webupload.UploadError as e:
+		print('auto upload: %s NOT uploaded: %s' % (job['name'], e))
+		return
+	for item in items:
+		uploadqueue.append(item)
+	print('auto upload: %d document(s) from %s queued' % (len(items), job['name']))
 
 def saveEmails():
 	with open(email_pickle, 'wb') as f:
@@ -314,6 +333,19 @@ def printed(query_string='', resp=None):
 	loaded = set(j['name'] for j in jobs)
 	rows = [dict(p=p, loaded=p.get('job') in loaded) for p in results[:SENT_SHOWN]]
 	return ( template_lookup.get_template("/printed.html").render(rows=rows, total=len(results)), 'text/html')
+
+def uploads(query_string='', resp=None):
+	results = uploadqueue.log.records    # newest first
+	loaded = set(j['name'] for j in jobs)
+	rows = [dict(u=u, loaded=u.get('job') in loaded) for u in results[:SENT_SHOWN]]
+	return ( template_lookup.get_template("/uploads.html").render(rows=rows, total=len(results), waiting=uploadqueue.queue.qsize()), 'text/html')
+
+def settings_web(query_string='', resp=None):
+	"""Where documents are uploaded to. Read only: it is set under [Web] in email.cfg. The API key is never shown, only
+	its last three characters so that the right one can be recognised."""
+	base_url, api_key = uploader.settings()
+	return ( template_lookup.get_template("/settings_web.html").render(base_url=base_url, key=uploader.mask_key(api_key),
+		enabled=uploader.enabled(), auto_types=uploader.auto_types(), waiting=uploadqueue.queue.qsize(), fails=sum(1 for x in uploadqueue.log.records if x['error'])), 'text/html')
 
 def settings_email(query_string='', postreq=None, resp=None):
 	"""The address book. Adding and removing a contact change it, so they only happen on a POST, which then
@@ -648,10 +680,12 @@ path_handlers = {
 	'/pdf_file': pdf_file,
 	'/sent':sent,
 	'/printed':printed,
+	'/uploads':uploads,
 	'/print' : printfn,
 	'/plaintext':plain,
 	'/settings/email':settings_email,
 	'/settings/templates':settings_templates,
+	'/settings/web':settings_web,
 	'/email_body':email_body
 	}
 

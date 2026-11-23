@@ -1,0 +1,47 @@
+<%inherit file="bootstrap.html"/>
+<%block name="title">- Web Uploads</%block>
+
+	<h3>Web Uploads</h3>
+
+	<p>Invoices, credit notes and statements are uploaded to the website from their job page, or automatically.</p>
+
+	<h4>Automatic upload</h4>
+	<p>
+	% if auto_types:
+		Documents of type
+		% for t in auto_types:
+		<strong>${t | h}</strong>${',' if not loop.last else ''}
+		% endfor
+		are uploaded as soon as they arrive${'' if enabled else ', once a website and API key are set'}.
+	% else:
+		Nothing is uploaded automatically. Documents are uploaded from their job page.
+	% endif
+	This is set by <code>auto_types</code> under <code>[Web]</code> in <code>~/printerface/email.cfg</code>
+	(<code>invoice</code>, <code>crednote</code> and <code>statement</code>).</p>
+
+	<h4>Website</h4>
+	<table class="table table-condensed" style="width: auto;">
+		<tr><th>Website</th><td>
+		% if base_url:
+			<a href="${base_url | h}" target="_blank" rel="noopener noreferrer"><code>${base_url | h}</code></a>
+		% else:
+			<span class="muted">not set</span>
+		% endif
+		</td></tr>
+		<tr><th>API key</th><td>
+		% if key:
+			<code>${key | h}</code>
+		% else:
+			<span class="muted">not set</span>
+		% endif
+		</td></tr>
+		<tr><th>Uploading</th><td>
+		% if enabled:
+			<span class="label label-success">on</span>
+		% else:
+			<span class="label">off</span> needs both a website and an API key
+		% endif
+		</td></tr>
+		<tr><th>Waiting</th><td>${waiting}</td></tr>
+		<tr><th>Recent failures</th><td>${fails}</td></tr>
+	</table>
