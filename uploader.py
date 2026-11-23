@@ -40,6 +40,19 @@ def settings():
 	return (config.get('Web', 'base_url', fallback='').strip(), config.get('Web', 'api_key', fallback='').strip())
 
 
+def mask_key(key):
+	"""'****abc' for a page that shows which key is configured without showing it. A key too short to give three
+	characters away safely is only stars."""
+	if not key:
+		return ''
+	return '****' + key[-3:] if len(key) >= 12 else '****'
+
+
+def auto_types():
+	"""The kinds of document ([Web] auto_types: invoice, crednote, statement) uploaded as soon as they arrive."""
+	return [t.strip() for t in config.get('Web', 'auto_types', fallback='').split(',') if t.strip()]
+
+
 def enabled():
 	return all(settings())
 

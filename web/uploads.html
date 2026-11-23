@@ -1,0 +1,38 @@
+<%inherit file="bootstrap.html"/>
+<%block name="title">- Uploads</%block>
+
+	<h3>Uploads</h3>
+
+	% if waiting:
+	<p>${waiting} document${'' if waiting == 1 else 's'} waiting to be uploaded.</p>
+	% endif
+
+	% if total > len(rows):
+	<p class="muted">Showing the latest ${len(rows)} of ${total} uploads.</p>
+	% endif
+
+	% if not rows:
+	<p class="muted">Nothing has been uploaded yet. Invoices, credit notes and statements are uploaded from their job page.
+	<a href="/settings/web">Web Uploads settings</a></p>
+	% else:
+	<table class="table table-striped table-condensed" style="font-size: 11px; line-height: 15px;">
+		<tr><th>Document</th><th>Type</th><th>Result</th><th>Problems?</th></tr>
+	% for row in rows:
+	  <% u = row['u'] %>
+	  % if u['error']:
+	  <tr class="error">
+	  % else:
+	  <tr class="success">
+	  % endif
+		<td style="white-space: nowrap;" title="${u['added'].strftime('%d %b %Y %H:%M:%S') | h}">
+		% if row['loaded']:
+			<a href="/pdf?name=${u['job'] | u}&amp;key=${u['key'] | u}" title="Open the job this was uploaded from">${u['docnum'] | h} / ${u['account'] | h}</a>
+		% else:
+			<span class="muted" title="This job is no longer loaded">${u['docnum'] | h} / ${u['account'] | h}</span>
+		% endif
+		</td>
+		<td>${u['kind'] | h}</td><td>${u['outcome'] | h}</td><td>${u['error'] or '' | h}</td>
+	  </tr>
+	% endfor
+	</table>
+	% endif

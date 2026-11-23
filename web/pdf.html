@@ -113,7 +113,7 @@
 		% for rec in uploaded_from_this_job:
 		<tr class="${'error' if rec['error'] else ''}">
 			<td>${rec['added'].strftime('%d %b %Y %H:%M:%S') | h}</td>
-			<td><a href="/pdf?name=${job['name'] | u}&amp;key=${rec['key'] | u}">${rec['kind'] | h} ${rec['docnum'] | h}</a></td>
+			<td><a href="/pdf?name=${job['name'] | u}&amp;key=${rec['key'] | u}">${rec['docnum'] | h} / ${rec['account'] | h}</a></td>
 			<td>${rec['outcome'] | h}</td>
 			<td>${rec['error'] or '' | h}</td>
 		</tr>
