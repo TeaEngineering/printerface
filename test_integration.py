@@ -21,6 +21,7 @@ import main
 import mailer
 import printing
 import printstatus
+import derived
 import uploader
 import emailtemplates
 from stationary import DocFormatter
@@ -107,6 +108,7 @@ class TestPrinterface(unittest.TestCase):
 		main.pdfdir = os.path.join(cls.home, 'data', 'pdf') + os.sep
 		main.formatter = DocFormatter(main.pdfdir)
 		mailer.pickle_file = os.path.join(cls.home, 'mailer.pickle')
+		cls.old_derived, main.derivedcache = main.derivedcache, derived.DerivedCache(os.path.join(cls.home, 'derived.pickle'))
 		cls.old_uploadlog, main.uploadqueue.log = main.uploadqueue.log, uploader.UploadLog(os.path.join(cls.home, 'upload.pickle'))
 		cls.old_printlog, printing.printlog = printing.printlog, printing.PrintLog(os.path.join(cls.home, 'printer.pickle'))
 		cls.old_user_dir, emailtemplates.USER_DIR = emailtemplates.USER_DIR, os.path.join(cls.home, 'templates')
@@ -135,6 +137,7 @@ class TestPrinterface(unittest.TestCase):
 		cls.lpstat_patch.stop()
 		printing.printlog = cls.old_printlog
 		main.uploadqueue.log = cls.old_uploadlog
+		main.derivedcache = cls.old_derived
 		emailtemplates.USER_DIR = cls.old_user_dir
 		shutil.rmtree(cls.home, ignore_errors=True)
 
@@ -841,6 +844,71 @@ class TestPrinterface(unittest.TestCase):
 		raw = self.send_invoice(jtype='Mystery')                        # nothing recognises it: plain PDF, no colouring
 		self.assertFalse(raw['parsed'])
 		self.assertEqual(200, self.get('/debug?name=%s' % raw['name'])[0].status)
+
+	def reload_raw(self, j):
+		"""The job as it is when read back from its pickle at startup, before cleanJob."""
+		for root, dirs, files in os.walk(main.jobdir):
+			if j['name'] in files:
+				p = os.path.join(root, j['name'])
+				with open(p, 'rb') as f:
+					raw = main.load_job_pickle(f)
+				raw['name'], raw['stat'] = j['name'], main.file_stat(p)
+				return raw
+
+	def test_a_job_with_a_good_cache_entry_is_not_parsed_or_drawn_again(self):
+		j = self.send_invoice(pages=1, totals=['144.00'], net='120.00', vat='24.00')
+		main.derivedcache.dirty = True
+		main.derivedcache.flush(main.jobs, force=True)
+		cache = derived.DerivedCache(main.derivedcache.path)         # as read at the next start
+		raw = self.reload_raw(j)
+		with mock.patch.object(main.mainparser, 'parse', side_effect=AssertionError('parsed')), \
+				mock.patch.object(main.formatter, 'format', side_effect=AssertionError('drawn')):
+			self.assertEqual('hit', main.cleanJob(raw, cache.lookup(raw['name'], raw['stat'])))
+		for key in ('parsed', 'groupkey', 'groupfiles', 'render_stamp', 'summary', 'doctype', 'templ', 'plain', 'autoprint'):
+			self.assertEqual(j[key], raw[key], key)
+		self.assertIn('ACC001', main.email_accounts)                  # the address book is still filled in from the cached pages
+
+		# a PDF that has gone is drawn again, from the cached pages
+		os.remove(main.pdfdir + next(iter(raw['groupfiles'].values())))
+		raw2 = self.reload_raw(j)
+		with mock.patch.object(main.mainparser, 'parse', side_effect=AssertionError('parsed')):
+			self.assertEqual('drawn', main.cleanJob(raw2, cache.lookup(raw2['name'], raw2['stat'])))
+		self.assertTrue(os.path.exists(main.pdfdir + next(iter(raw2['groupfiles'].values()))))
+
+		# a job file that is not the one the entry was made from is parsed again
+		raw3 = self.reload_raw(j)
+		self.assertIsNone(cache.lookup(raw3['name'], (raw3['stat'][0] + 1, raw3['stat'][1])))
+		self.assertEqual('parsed', main.cleanJob(raw3, None))
+		self.assertEqual(j['parsed'], raw3['parsed'])
+
+	def test_stationery_page_redraws_jobs_drawn_under_older_stationery(self):
+		j = self.send_invoice(pages=1, totals=['144.00'], net='120.00', vat='24.00')
+		self.assertEqual(main.derivedcache.render_stamp, j['render_stamp'])
+		self.assertIn(b'were drawn under today', self.get('/settings/stationery')[1])
+		old = config_terms = main.config.get('Printing', 'terms')
+		main.config.set('Printing', 'terms', old + ' (changed)')
+		self.addCleanup(main.config.set, 'Printing', 'terms', old)
+		main.derivedcache.render_stamp = derived.render_stamp()      # what the next start would see
+		self.addCleanup(setattr, main.derivedcache, 'render_stamp', derived.render_stamp())
+		body = self.get('/settings/stationery')[1]
+		self.assertIn(b'were drawn under older stationery', body)
+		self.assertIn(b'Draw them again', body)
+		self.assertIn(b'href="/settings/stationery"', self.get('/home')[1])
+		pdf = main.pdfdir + next(iter(j['groupfiles'].values()))
+		before = os.path.getmtime(pdf)
+		time.sleep(0.05)
+		r, data = self.post('/settings/stationery')                   # no button: nothing happens
+		self.assertEqual(303, r.status)
+		self.assertEqual(before, os.path.getmtime(pdf))
+		r, data = self.post('/settings/stationery', regenerate='1')
+		self.assertEqual(303, r.status)
+		self.assertRegex(r.getheader('Location'), r'redrawn=\d+')
+		self.assertGreater(os.path.getmtime(pdf), before)
+		self.assertEqual(main.derivedcache.render_stamp, j['render_stamp'])
+		body = self.get(r.getheader('Location'))[1]
+		self.assertIn(b'again.', body)
+		self.assertIn(b'were drawn under today', body)
+		self.assertTrue(main.derivedcache.dirty)                       # the new stamps are written at the next flush
 
 	def test_print_history_is_listed_on_the_job_page(self):
 		j = self.send_invoice()
