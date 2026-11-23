@@ -28,7 +28,11 @@ TIMEOUT = 30
 
 class UploadLog(printing.PrintLog):
 	"""What was uploaded, newest first, one record per document: the job and key it came from, what the website
-	did with it and any error. Kept in a side pickle, like the printed history, and capped the same way."""
+	did with it and any error. Kept in a side pickle, like the printed history, and capped at [Web] result_count,
+	which is set independently of the email and print histories."""
+
+	def __init__(self, path=None, limit=None):
+		super().__init__(path, limit if limit is not None else config.getint('Web', 'result_count'))
 
 
 def settings():
