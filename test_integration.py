@@ -910,6 +910,95 @@ class TestPrinterface(unittest.TestCase):
 		self.assertIn(b'were drawn under today', body)
 		self.assertTrue(main.derivedcache.dirty)                       # the new stamps are written at the next flush
 
+	def drop_in(self, jtype, offset, **kw):
+		"""Write a job pickle into the job directory as another instance's copy would be: a name dated `offset` from
+		now, and the file back-dated so that it has settled. Returns its path and name."""
+		from datetime import timedelta
+		ts = datetime.utcnow() + offset
+		name = 'job-%s' % ts.strftime('%Y%m%d-%H%M%S')
+		raw = {'queue': 'RAW', 'from': 'x', 'to': 'y', 'control': {'H': 'other', 'P': 'u', 'J': jtype}, 'data': make_invoice(**kw), 'ts': ts, 'name': name}
+		month = os.path.join(main.jobdir, ts.strftime('%Y%m'))
+		os.makedirs(month, exist_ok=True)
+		path = os.path.join(month, name)
+		with open(path, 'wb') as f:
+			pickle.dump(raw, f, protocol=2)
+		os.utime(path, (time.time() - 60, time.time() - 60))
+		return path, name
+
+	def scan(self):
+		async def run():
+			return main.scan_for_jobs()
+		return self.thread.call(run())
+
+	def test_job_files_that_appear_in_the_directory_are_taken_in_like_new_arrivals(self):
+		from datetime import timedelta
+		time.sleep(main.SETTLING + 0.1)                                    # let what earlier tests wrote settle
+		self.scan()                                                        # files that earlier tests left on disk, not in the history
+		self.send_invoice()
+		self.assertEqual([], self.scan())                                  # what arrived over LPD is not found again
+		main.config.set('Web', 'auto_types', 'invoice')
+		self.addCleanup(main.config.set, 'Web', 'auto_types', '')
+		sent = []
+		async def start():
+			main.uploadqueue.transport = lambda item, base, key: (sent.append(item) or (201, '{}'))
+			main.uploadqueue.start()
+		with mock.patch.object(uploader, 'settings', lambda: ('https://stage.example/', 'tok')):
+			self.thread.call(start())
+			try:
+				printed_before = self.printed.call_count
+				_, delnote = self.drop_in('Delvnote', timedelta(hours=1))
+				_, invoice = self.drop_in('Invoice', timedelta(hours=1, seconds=5), doc_num='7001', pages=1, totals=['144.00'], net='120.00', vat='24.00')
+				found = self.scan()
+				self.assertEqual([delnote, invoice], [j['name'] for j in found])       # oldest first
+				self.assertEqual([invoice, delnote], [j['name'] for j in main.jobs[:2]])   # in the history by name, newest first
+				self.assertGreater(self.printed.call_count, printed_before)            # the delivery note was auto-printed
+				self.assertTrue(self.printed.call_args[0][0].endswith('-accounts.pdf'))
+				deadline = time.time() + 10
+				while not sent and time.time() < deadline:
+					time.sleep(0.05)
+				self.assertEqual(['7001'], [i['docnum'] for i in sent])             # and the invoice was uploaded
+				self.assertEqual('<a href="/pdf?name=%s&key=ACC001">' % invoice, '<a href="/pdf?name=%s&key=ACC001">' % main.jobs[0]['name'])
+				# only once
+				printed = self.printed.call_count
+				self.assertEqual([], self.scan())
+				self.assertEqual(printed, self.printed.call_count)
+				self.assertTrue(main.derivedcache.dirty)
+			finally:
+				self.thread.call(main.uploadqueue.close())
+
+	def test_a_file_still_being_copied_or_unreadable_is_left_until_it_is_complete(self):
+		from datetime import timedelta
+		path, name = self.drop_in('Delvnote', timedelta(hours=2))
+		now = time.time()
+		os.utime(path, (now, now))                                          # written this moment: may be half copied
+		self.assertEqual([], self.scan())
+		os.utime(path, (now - 60, now - 60))
+		self.assertEqual([name], [j['name'] for j in self.scan()])
+
+		path, name = self.drop_in('Delvnote', timedelta(hours=3))
+		whole = open(path, 'rb').read()
+		with open(path, 'wb') as f:
+			f.write(whole[:50])                                             # cut off
+		os.utime(path, (now - 60, now - 60))
+		self.assertEqual([], self.scan())
+		self.assertEqual([], self.scan())                                   # not tried again at the same size
+		with open(path, 'wb') as f:
+			f.write(whole)
+		os.utime(path, (now - 60, now - 60))
+		self.assertEqual([name], [j['name'] for j in self.scan()])
+
+	def test_a_file_older_than_a_full_history_is_ignored(self):
+		from datetime import timedelta
+		self.send_invoice()
+		old_qty = main.loadQty
+		main.loadQty = len(main.jobs)
+		self.addCleanup(setattr, main, 'loadQty', old_qty)
+		printed = self.printed.call_count
+		_, name = self.drop_in('Delvnote', -timedelta(days=3650))
+		self.assertEqual([], self.scan())
+		self.assertNotIn(name, [j['name'] for j in main.jobs])
+		self.assertEqual(printed, self.printed.call_count)                  # nothing printed for a file that old
+
 	def test_print_history_is_listed_on_the_job_page(self):
 		j = self.send_invoice()
 		self.assertNotIn(b'Printed from this job', self.get('/pdf?name=%s&key=ACC001' % j['name'])[1])
