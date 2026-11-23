@@ -126,6 +126,23 @@ class TestSettings(unittest.TestCase):
 
 
 class TestLog(unittest.TestCase):
+	def test_print_history_has_its_own_setting_too(self):
+		import printing
+		from settings import config
+		self.assertEqual(200, printing.PrintLog(None).limit)               # the default
+		config.set('Printing', 'result_count', '3')
+		self.addCleanup(config.set, 'Printing', 'result_count', '200')
+		self.assertEqual(3, printing.PrintLog(None).limit)
+
+	def test_capped_by_the_web_setting_not_the_gmail_one(self):
+		from settings import config
+		config.set('Web', 'result_count', '2')
+		self.addCleanup(config.set, 'Web', 'result_count', '120')
+		log = UploadLog(None)
+		for n in range(5):
+			log.add(dict(job='j%d' % n, error=None))
+		self.assertEqual(['j4', 'j3'], [r['job'] for r in log.records])
+
 	def test_persisted_and_capped(self):
 		with tempfile.TemporaryDirectory() as d:
 			log = UploadLog(d + '/upload.pickle', limit=2)

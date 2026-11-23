@@ -27,7 +27,7 @@ The following will checkout the source code, build a docker image and start an i
 * `mailer.py` asynchronous mail queue to Gmail
 * `docparser` recognise and parse some plain-text formats from 1990 to JSON
 * `stationary.py` format JSON to nice PDF files
-* `printing.py` printing with CUPS via `lp`. Each document sent is recorded (job, key, printer, CUPS request id or the error) in `~/printerface/printer.pickle`, newest first and trimmed to `result_count` like the sent emails, and listed on the job page. The file is written from the main loop only when something changed
+* `printing.py` printing with CUPS via `lp`. Each document sent is recorded (job, key, printer, CUPS request id or the error) in `~/printerface/printer.pickle`, newest first and trimmed to `[Printing] result_count` (the sent emails and uploads have their own `result_count` under `[Gmail]` and `[Web]`), and listed on the job page. The file is written from the main loop only when something changed
 * `printstatus.py` read-only CUPS status for the Printers page (one `lpstat -t` in the C locale, cached for 10s), and the check of whether auto-printing can work. lpstat can show a stuck or stopped queue but not that a page was printed
 
 A GET never changes anything: sending an email, printing, editing the address book and saving or reverting a

@@ -24,12 +24,11 @@ class PrintError(Exception):
 class PrintLog(object):
 	"""What was sent to CUPS, newest first, one record per document: the job and key it came from, the printer, and
 	the CUPS request id (the name lpstat knows the job by) or the error. Kept in a side pickle, like the sent
-	emails, so the job pickles are never rewritten. The newest `limit` records are kept (the same setting as the
-	email history) and the file is only written, by flush(), when something changed."""
+	emails, so the job pickles are never rewritten. The newest `limit` records are kept ([Printing] result_count) and the file is only written, by flush(), when something changed."""
 
 	def __init__(self, path=None, limit=None):
 		self.path = path
-		self.limit = limit if limit is not None else config.getint('Gmail', 'result_count')
+		self.limit = limit if limit is not None else config.getint('Printing', 'result_count')
 		self.records = []
 		self.dirty = False
 		if path:
