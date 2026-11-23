@@ -194,8 +194,9 @@ def cleanJob(j):
 
 	j['autofmt'] = formatter.getBestPageFormat(j['plain'])
 
-	(j['colouring'],j['parsed']) = mainparser.parse(j)
-	if not j['colouring']: del j['colouring']
+	# the parser also returns the fields it found, for the debug page to colour in; that is bulky and only wanted
+	# there, so it isn't kept: debug() parses again
+	j['parsed'] = mainparser.parse(j)[1]
 
 	if j['parsed']:
 		for y in j['parsed'].values():
@@ -217,8 +218,8 @@ def cleanJob(j):
 					print("   got email %s -> %s" % (acc, addr))
 					email_accounts[acc] = (addr),
 
-	# if colouring succeded, might be able to generate docs
-	if j.get('colouring'):
+	# if parsing succeeded, might be able to generate docs
+	if j['parsed']:
 		# protocol: PDF file names are dict values. keys are document
 		# groups {('all'): p}, ('all')
 		(j['groupfiles'], j['groupkey']) = formatter.format(j)
@@ -624,7 +625,7 @@ def debug(query_string=dict(), resp=None):
 
 	pformatted = json.dumps(job.get('parsed'), indent=4)
 
-	colouring = job.get('colouring', [])
+	colouring = mainparser.parse(job)[0] or []
 
 	lines = split_lines(job['plain'])
 	(rows, cols) = (len(lines), max([len(line) for line in lines]))

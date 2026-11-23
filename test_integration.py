@@ -828,6 +828,20 @@ class TestPrinterface(unittest.TestCase):
 			finally:
 				self.thread.call(main.uploadqueue.close())
 
+	def test_the_colouring_is_not_kept_but_the_debug_page_still_shows_it(self):
+		j = self.send_invoice()
+		self.assertNotIn('colouring', j)
+		self.assertTrue(j['parsed'] and j['groupfiles'])                # the PDFs are made from the parsed pages alone
+		r, body = self.get('/debug?name=%s' % j['name'])
+		self.assertEqual(200, r.status)
+		self.assertIn(b'background-color: #', body)                     # the fields are coloured in
+		self.assertIn(b'title="doc_num"', body)
+		d = self.send_invoice(jtype='Delvnote')
+		self.assertNotIn('colouring', d)
+		raw = self.send_invoice(jtype='Mystery')                        # nothing recognises it: plain PDF, no colouring
+		self.assertFalse(raw['parsed'])
+		self.assertEqual(200, self.get('/debug?name=%s' % raw['name'])[0].status)
+
 	def test_print_history_is_listed_on_the_job_page(self):
 		j = self.send_invoice()
 		self.assertNotIn(b'Printed from this job', self.get('/pdf?name=%s&key=ACC001' % j['name'])[1])
