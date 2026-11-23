@@ -76,18 +76,7 @@ def saveJob(queue, local, remote, control, data):
 	d['stat'] = file_stat(os.path.join(jobdir, subdir, jobname))
 
 	cleanJob(d)
-	try:
-		autoPrint(d)
-	except Exception:
-		# a printing problem (no lpr, no CUPS...) must not lose the job: it is already saved to disk, and
-		# not registering it here would hide it from the web interface until the next restart
-		traceback.print_exc(file=sys.stdout)
-
-	try:
-		autoUpload(d)
-	except Exception:
-		# likewise: a conversion or queue problem must not lose the job. It shows on the Uploads page if it got that far
-		traceback.print_exc(file=sys.stdout)
+	run_arrival_actions(d)
 
 	jobs.insert(0, d)
 	if len(jobs) > loadQty: jobs.pop()
@@ -95,10 +84,73 @@ def saveJob(queue, local, remote, control, data):
 
 	time.sleep(1) # hack for unique filenames - oh dear
 
+# Job files that scan_for_jobs has decided about without loading them (older than the loaded history), and ones that
+# would not load, by (size, mtime) so that a file that is then completed is tried again
+_skipped = set()
+_unreadable = {}
+
+# a job file younger than this (seconds) may still be being copied in
+SETTLING = 2
+
+def scan_for_jobs():
+	"""Pick up job pickles that have appeared in the job directory without arriving over LPD, such as copied in from
+	another instance, and treat each as a job that has just arrived: loaded into the history in its place (the
+	history is kept in file name order, newest first) and put through auto-print and auto-upload like any other. A
+	file older than everything in a full history is left alone. Returns the jobs found, oldest first."""
+	known = set(j['name'] for j in jobs)
+	months = sorted((m for m in os.listdir(jobdir) if os.path.isdir(os.path.join(jobdir, m))), reverse=True)[:2]
+	found = []
+	for month in months:
+		for name in sorted(os.listdir(os.path.join(jobdir, month))):
+			path = os.path.join(jobdir, month, name)
+			if not name.startswith('job-') or name in known or name in _skipped or not os.path.isfile(path):
+				continue
+			if jobs and len(jobs) >= loadQty and name < jobs[-1]['name']:
+				_skipped.add(name)
+				continue
+			try:
+				stat = file_stat(path)
+				if time.time() - os.stat(path).st_mtime < SETTLING or _unreadable.get(name) == stat:
+					continue		# still being written, or already known to be unreadable at this size
+				with open(path, 'rb') as f:
+					job = load_job_pickle(f)
+				job['name'], job['stat'] = name, stat
+				cleanJob(job, derivedcache.lookup(name, stat))
+			except Exception as e:
+				print('[control] cannot load new job file %s: %r' % (path, e))
+				_unreadable[name] = stat
+				continue
+			_unreadable.pop(name, None)
+			index = next((i for i, j in enumerate(jobs) if j['name'] < name), len(jobs))
+			jobs.insert(index, job)
+			if len(jobs) > loadQty: jobs.pop()
+			derivedcache.dirty = True
+			print('[control] new job file %s' % path)
+			found.append(job)
+	found.sort(key=lambda j: j['name'])
+	for job in found:
+		run_arrival_actions(job)
+	return found
+
 def file_stat(path):
 	"""What says a job file is the one a cache entry was made from."""
 	st = os.stat(path)
 	return (st.st_size, st.st_mtime_ns)
+
+def run_arrival_actions(job):
+	"""What happens to a job when it arrives: auto-print, and auto-upload."""
+	try:
+		autoPrint(job)
+	except Exception:
+		# a printing problem (no lpr, no CUPS...) must not lose the job: it is already saved to disk, and
+		# not registering it would hide it from the web interface until the next restart
+		traceback.print_exc(file=sys.stdout)
+
+	try:
+		autoUpload(job)
+	except Exception:
+		# likewise: a conversion or queue problem must not lose the job. It shows on the Uploads page if it got that far
+		traceback.print_exc(file=sys.stdout)
 
 def autoPrint(job):
 	if job['autoprint']:
@@ -757,6 +809,10 @@ async def serve():
 			except asyncio.TimeoutError:
 				pass
 			print('[control] poll %s' % str(datetime.now()))
+			try:
+				scan_for_jobs()
+			except Exception:
+				traceback.print_exc(file=sys.stdout)
 			printing.printlog.flush()
 			uploadqueue.log.flush()
 			derivedcache.flush(jobs)

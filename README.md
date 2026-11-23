@@ -31,6 +31,12 @@ The following will checkout the source code, build a docker image and start an i
 * `derived.py` a cache, `~/printerface/derived.pickle`, of what is slow to work out from a stored job: its parsed pages and the names of its PDFs. At startup a job whose file is unchanged and whose parser is unchanged takes these from the cache (a thousand jobs in under a second, against about eight), and a job that has left the loaded history drops out of the file the next time it is written (at most every three minutes, and at shutdown). The PDFs are not redrawn when the stationery changes: Settings > Stationery counts the documents drawn under older stationery and redraws them on request
 * `printstatus.py` read-only CUPS status for the Printers page (one `lpstat -t` in the C locale, cached for 10s), and the check of whether auto-printing can work. lpstat can show a stuck or stopped queue but not that a page was printed
 
+Job pickles that appear in `~/printerface/data/pickle` without arriving over LPD (copied in from another instance, say)
+are picked up every few seconds, once they have been still for a couple of seconds, and are treated exactly like a job
+that has just arrived: they go into the history in file name order and are auto-printed and auto-uploaded if their
+type says so. So copy in only what should be acted on: a file older than everything in a full history is ignored, but
+one inside it is not.
+
 A GET never changes anything: sending an email, printing, editing the address book and saving or reverting a
 template are POSTs, and their handlers return `httpserver.Redirect(...)` (a 303) to a page that is safe to refresh,
 carrying at most a harmless note in the query string ("queued=1"). A POST that is refused re-renders the form
