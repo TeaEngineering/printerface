@@ -21,27 +21,27 @@ def headerDetails(c, ctx, doctype="DELIVERY NOTE", terms_key='terms'):
 
 	textobject = c.beginText(0*cm, top-1.5*cm)
 	textobject.setFont("Helvetica", 8)
-	textobject.textLines(config.get('Printing', 'address').split("\\n"))
+	textobject.textLines(config.get('Stationery', 'address').split("\\n"))
 	c.drawText(textobject)
 
 	textobject = c.beginText(5.5*cm, top-1.5*cm)
 	textobject.setFont("Helvetica", 8)
-	textobject.textLine(config.get('Printing', 'vatreg'))
-	textobject.textLine(config.get('Printing', 'fax1'))
-	textobject.textLine(config.get('Printing', 'fax2'))
-	textobject.textLine(config.get('Printing', 'email'))
-	textobject.textLine(config.get('Printing', 'website'))
+	textobject.textLine(config.get('Stationery', 'vatreg'))
+	textobject.textLine(config.get('Stationery', 'fax1'))
+	textobject.textLine(config.get('Stationery', 'fax2'))
+	textobject.textLine(config.get('Stationery', 'email'))
+	textobject.textLine(config.get('Stationery', 'website'))
 	c.drawText(textobject)
 
 	c.setFont("Helvetica", 18)
 	c.drawRightString(pagewidth, top, doctype)
 	c.restoreState()
-	c.drawImage(os.path.expanduser(config.get('Printing', 'logo')) , 0.0*cm, top-1.1*cm, width=7.0*cm,height=1.8*cm, preserveAspectRatio=True, anchor='sw')
-	if config.get('Printing', 'logo2'):
-		c.drawImage(os.path.expanduser(config.get('Printing', 'logo2')), 5.0*cm, top-0.9*cm, width=5.0*cm,height=1.4*cm, preserveAspectRatio=True, anchor='sw')
+	c.drawImage(os.path.expanduser(config.get('Stationery', 'logo')) , 0.0*cm, top-1.1*cm, width=7.0*cm,height=1.8*cm, preserveAspectRatio=True, anchor='sw')
+	if config.get('Stationery', 'logo2'):
+		c.drawImage(os.path.expanduser(config.get('Stationery', 'logo2')), 5.0*cm, top-0.9*cm, width=5.0*cm,height=1.4*cm, preserveAspectRatio=True, anchor='sw')
 
 	c.setFont("Helvetica", 10)
-	c.drawString(0, 0.40*cm, config.get('Printing', terms_key))
+	c.drawString(0, 0.40*cm, config.get('Stationery', terms_key))
 
 	# marker of progress on CLI
 	sys.stdout.write('.')
@@ -176,7 +176,7 @@ def deliveryNotePage(c, ctx, mark):
 	w = pagewidth / 2.0
 	h = 0.45*cm
 	topBox(c, 0, y, w=w, h=h, title='SECTION TO BE COMPLETED BY CUSTOMER', content='', align='c')
-	topBox(c, w, y, w=w, h=h, title=config.get('Printing', 'inv_rhs'), content='', align='c')
+	topBox(c, w, y, w=w, h=h, title=config.get('Stationery', 'inv_rhs'), content='', align='c')
 	y = y-h
 	h = 0.85*cm
 	leftBox(c, 0, y, w=w, h=h, title='SIGNED', content='')
@@ -319,7 +319,7 @@ def purchasePage(c, ctx, mark):
 	(x, y1) = leftBox(c, x, y0-vpad, w=pagewidth-x, title='TOTAL NET', content=price_tot, colfmt='dr')
 
 	w = 10.4*cm
-	(x, y) = topBox(c, 0, y0-vpad, w=w, h=3.7*cm, pad=0.2*cm, title=config.get('Printing', 'purch_instruction_header'), align='c', content=config.get('Printing', 'purch_instruction_en').replace("\\n", '\n'))
+	(x, y) = topBox(c, 0, y0-vpad, w=w, h=3.7*cm, pad=0.2*cm, title=config.get('Stationery', 'purch_instruction_header'), align='c', content=config.get('Stationery', 'purch_instruction_en').replace("\\n", '\n'))
 
 	c.showPage()
 
@@ -341,8 +341,8 @@ def statementPage(c, ctx, mark):
 	textobject.setTextOrigin(divide+vpad, top-vpad)
 	textobject.setFont("Helvetica", 8)
 	textobject.textLines('PLEASE DETACH AND RETURN\nWITH YOUR REMITTANCE TO:')
-	textobject.textLines(config.get('Printing', 'address').replace("\\n", '\n'))
-	textobject.textLines(config.get('Printing', 'fax1'))
+	textobject.textLines(config.get('Stationery', 'address').replace("\\n", '\n'))
+	textobject.textLines(config.get('Stationery', 'fax1'))
 	c.drawText(textobject)
 
 	h = 0.85*cm
@@ -417,7 +417,7 @@ def genericPage(c, data, title=None, fontsz=7, landsc=False, overlay=None, decor
 	if title:
 		c.setFont("Helvetica", 18)
 		c.drawRightString(pagewidth, top, title)
-		c.drawImage(os.path.expanduser(config.get('Printing', 'logo')) , 0.0*cm, top-1.1*cm, width=7.0*cm,height=1.8*cm, preserveAspectRatio=True, anchor='sw')
+		c.drawImage(os.path.expanduser(config.get('Stationery', 'logo')) , 0.0*cm, top-1.1*cm, width=7.0*cm,height=1.8*cm, preserveAspectRatio=True, anchor='sw')
 		y = y - 2.0*cm
 
 	textobject = c.beginText()
@@ -700,7 +700,7 @@ class DocFormatter(object):
 
 import unittest
 from datetime import datetime
-class TestStationary(unittest.TestCase):
+class TestStationery(unittest.TestCase):
 
 	def setUp(self):
 		import tempfile

@@ -11,7 +11,7 @@ dropped from the file the next time it is written.
 An entry is only trusted if
   * the job file is the one it was made from (size and modification time),
   * it was parsed by the same parser (`parse_stamp`: docparser.py and textutil.py),
-and the PDFs it names are still on disk. How the PDFs were drawn (`render_stamp`: stationary.py, the [Printing]
+and the PDFs it names are still on disk. How the PDFs were drawn (`render_stamp`: stationery.py, the [Stationery]
 company details and the logos) is recorded with it, but a change does not redraw them by itself: the Stationery
 settings page counts the jobs drawn under older stationery and has the button that redraws them.
 """
@@ -51,9 +51,9 @@ def parse_stamp():
 
 
 def render_stamp():
-	parts = [FORMAT, _source('stationary.py'), sorted(config.items('Printing'))]
+	parts = [FORMAT, _source('stationery.py'), sorted(config.items('Stationery'))]
 	for key in ('logo', 'logo2'):
-		path = os.path.expanduser(config.get('Printing', key, fallback=''))
+		path = os.path.expanduser(config.get('Stationery', key, fallback=''))
 		try:
 			st = os.stat(path) if path else None
 		except OSError:

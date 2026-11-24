@@ -144,7 +144,7 @@ def build_context(job, key, names=(), addresses=(), company=None):
 	  all      facts about all of them together, see summarise(): all.numbers, all.total, all.many, all.s
 	  email    the recipients: email.name ('Ann and Bob', or 'Sir or Madam' with none), email.address
 	  job      job.name, job.doctype, job.host
-	  company  company.name, company.email, company.website, from the [Printing] settings
+	  company  company.name, company.email, company.website, from the [Stationery] settings
 	The default template has email, job and company but no doc or docs: for the other document types there
 	are no fields we know of."""
 	addresses = [a for a in addresses if a]

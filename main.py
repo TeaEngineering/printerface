@@ -11,7 +11,7 @@ from httpserver import HttpServer, Redirect
 import mailer
 from mailer import JobMailer
 from docparser import DocParser
-from stationary import DocFormatter
+from stationery import DocFormatter
 from printing import getPrinters, printFile
 import printing
 import printstatus
@@ -28,6 +28,7 @@ import traceback
 import json
 import time
 import pytz
+import settings
 from settings import config, HOME
 import emailtemplates
 from textutil import split_lines, load_job_pickle, load_user_pickles, PICKLE_PROTOCOL
@@ -276,8 +277,8 @@ def cleanJob(j, entry=None):
 
 	# all done
 	j['autoprint'] = None
-	if j['doctype'] in config.get('Robot', 'auto_types').split(','):
-		j['autoprint'] = config.get('Robot', 'auto_printer')
+	if j['doctype'] in config.get('Printing', 'auto_types').split(','):
+		j['autoprint'] = config.get('Printing', 'auto_printer')
 	return outcome
 
 def register_accounts(j):
@@ -379,8 +380,8 @@ def job(query_string=dict(), resp=None):
 
 def printers(query_string='', resp=None):
 	"""What CUPS says about the printers and the auto-print setup. Read-only: lpstat is the only thing run."""
-	auto_types = [t for t in config.get('Robot', 'auto_types').split(',') if t]
-	auto_printer = config.get('Robot', 'auto_printer')
+	auto_types = [t for t in config.get('Printing', 'auto_types').split(',') if t]
+	auto_printer = config.get('Printing', 'auto_printer')
 	try:
 		st = printstatus.status()
 		error = None
@@ -427,9 +428,25 @@ def regenerate_stationery():
 		derivedcache.dirty = True
 	return len(stale)
 
+STATIONERY_LOGOS = ('logo', 'logo2')
+
+def stationery_details():
+	"""The [Stationery] settings the documents are drawn with, as the Stationery page lists them: each key with its
+	value (split on the \\n that stands for a line break), whether email.cfg sets it or it is the default, and for a
+	logo whether the file is there."""
+	rows = []
+	for key in config.options('Stationery'):
+		value = config.get('Stationery', key)
+		row = dict(key=key, lines=value.split('\\n') if value else [], set=('Stationery', key) in settings.overridden, logo=None)
+		if key in STATIONERY_LOGOS and value:
+			path = os.path.expanduser(value)
+			row['logo'] = (path, os.path.isfile(path))
+		rows.append(row)
+	return rows
+
 def settings_stationery(query_string='', postreq=None, resp=None):
-	"""How many loaded jobs have PDFs drawn under older stationery (a change to stationary.py, or to the company
-	details or logos under [Printing]), with the button that draws them again. It blocks the server while it works,
+	"""How many loaded jobs have PDFs drawn under older stationery (a change to stationery.py, or to the company
+	details or logos under [Stationery]), with the button that draws them again. It blocks the server while it works,
 	about a second for every few hundred jobs, so it is an admin action rather than something done on its own."""
 	if postreq is not None:
 		n = regenerate_stationery() if 'regenerate' in postreq else 0
@@ -438,7 +455,8 @@ def settings_stationery(query_string='', postreq=None, resp=None):
 		redrawn = int(query_string.get('redrawn', [''])[0])
 	except ValueError:
 		redrawn = None
-	return ( template_lookup.get_template("/settings_stationery.html").render(stale=len(derivedcache.stale(jobs)), total=len(jobs), redrawn=redrawn), 'text/html')
+	return ( template_lookup.get_template("/settings_stationery.html").render(stale=len(derivedcache.stale(jobs)), total=len(jobs), redrawn=redrawn,
+		details=stationery_details(), config_path=os.path.join(HOME, 'email.cfg')), 'text/html')
 
 def settings_web(query_string='', resp=None):
 	"""Where documents are uploaded to. Read only: it is set under [Web] in email.cfg. The API key is never shown, only
@@ -491,7 +509,7 @@ def printfn(query_string='', postreq=None, resp=None):
 	return doMessage(title='Printing', message='Could not find the document, or a problem printing it! Source: %s sent to printer %s<br>' % (html.escape(str(docf)), html.escape(printer)))
 
 def company_info():
-	printing = lambda k: config.get('Printing', k, fallback='')
+	printing = lambda k: config.get('Stationery', k, fallback='')
 	return {'name': printing('address').split('\\n')[0].strip(), 'email': printing('email'), 'website': printing('website')}
 
 def settings_templates(query_string='', postreq=None, resp=None):

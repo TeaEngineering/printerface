@@ -24,7 +24,7 @@ import printstatus
 import derived
 import uploader
 import emailtemplates
-from stationary import DocFormatter
+from stationery import DocFormatter
 from lpdserver import LpdServer
 from httpserver import HttpServer
 from textutil import split_lines
@@ -143,9 +143,9 @@ class TestPrinterface(unittest.TestCase):
 
 	def test_printers_page(self):
 		printstatus.reset_cache()
-		old = main.config.get('Robot', 'auto_printer')
+		old = main.config.get('Printing', 'auto_printer')
 		try:
-			main.config.set('Robot', 'auto_printer', 'DESK_LASER')
+			main.config.set('Printing', 'auto_printer', 'DESK_LASER')
 			r, body = self.get('/printers')
 			self.assertEqual(r.status, 200)
 			text = body.decode()
@@ -153,11 +153,11 @@ class TestPrinterface(unittest.TestCase):
 				self.assertIn(expected, text)
 			# DESK_LASER has a 2017 job waiting
 			self.assertIn('may not be working', text)
-			main.config.set('Robot', 'auto_printer', 'NOPE')
+			main.config.set('Printing', 'auto_printer', 'NOPE')
 			printstatus.reset_cache()
 			self.assertIn('no printer called NOPE', self.get('/printers')[1].decode())
 		finally:
-			main.config.set('Robot', 'auto_printer', old)
+			main.config.set('Printing', 'auto_printer', old)
 			printstatus.reset_cache()
 
 	def test_printers_page_without_cups(self):
@@ -885,9 +885,20 @@ class TestPrinterface(unittest.TestCase):
 		j = self.send_invoice(pages=1, totals=['144.00'], net='120.00', vat='24.00')
 		self.assertEqual(main.derivedcache.render_stamp, j['render_stamp'])
 		self.assertIn(b'were drawn under today', self.get('/settings/stationery')[1])
-		old = config_terms = main.config.get('Printing', 'terms')
-		main.config.set('Printing', 'terms', old + ' (changed)')
-		self.addCleanup(main.config.set, 'Printing', 'terms', old)
+		body = self.get('/settings/stationery')[1]
+		self.assertIn(b'<code>address</code>', body)                    # the [Stationery] settings the documents are drawn with
+		self.assertIn(b'<code>terms_purch</code>', body)
+		self.assertIn(b'YOUR DOMAIN LTD.', body)                        # the address, one line per \\n
+		self.assertIn(b'SOME BUSINESS PARK', body)
+		self.assertNotIn(b'\\nSOME', body)
+		self.assertNotIn(b'label-important">missing', body)             # logo.jpg is found, logo2 is blank
+		main.config.set('Stationery', 'logo2', '/no/such/logo.jpg')
+		self.addCleanup(main.config.set, 'Stationery', 'logo2', '')
+		self.assertIn(b'label-important">missing', self.get('/settings/stationery')[1])
+		main.config.set('Stationery', 'logo2', '')
+		old = config_terms = main.config.get('Stationery', 'terms')
+		main.config.set('Stationery', 'terms', old + ' (changed)')
+		self.addCleanup(main.config.set, 'Stationery', 'terms', old)
 		main.derivedcache.render_stamp = derived.render_stamp()      # what the next start would see
 		self.addCleanup(setattr, main.derivedcache, 'render_stamp', derived.render_stamp())
 		body = self.get('/settings/stationery')[1]
@@ -1080,10 +1091,10 @@ class TestPrinterface(unittest.TestCase):
 
 	def test_delivery_notes_are_auto_printed(self):
 		j = self.send_invoice('Delvnote')
-		self.assertEqual(main.config.get('Robot', 'auto_printer'), j['autoprint'])
+		self.assertEqual(main.config.get('Printing', 'auto_printer'), j['autoprint'])
 		self.printed.assert_called_once()
 		path, printer = self.printed.call_args[0]
-		self.assertEqual(main.config.get('Robot', 'auto_printer'), printer)
+		self.assertEqual(main.config.get('Printing', 'auto_printer'), printer)
 		self.assertTrue(path.startswith(main.pdfdir) and path.endswith('.pdf'), path)
 		# an invoice is not an auto-print type
 		self.printed.reset_mock()
