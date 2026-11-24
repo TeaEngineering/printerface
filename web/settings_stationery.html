@@ -4,8 +4,8 @@
 	<h3>Stationery</h3>
 
 	<p>The PDFs for a document are drawn when it arrives, and kept. When Printerface starts it reuses them rather than
-	drawing them all again, so a change to the stationery (<code>stationary.py</code>, or the company details and logos under
-	<code>[Printing]</code> in <code>~/printerface/email.cfg</code>) does not reach documents that have already been drawn until you
+	drawing them all again, so a change to the stationery (<code>stationery.py</code>, or the company details and logos under
+	<code>[Stationery]</code> in <code>~/printerface/email.cfg</code>) does not reach documents that have already been drawn until you
 	draw them again here.</p>
 
 	% if redrawn is not None:
@@ -25,3 +25,33 @@
 	% else:
 	<p>All ${total} loaded documents were drawn under today's stationery.</p>
 	% endif
+
+	<h4>Settings the documents are drawn with</h4>
+	<p>From <code>[Stationery]</code> in <code>${config_path | h}</code>. A setting marked <span class="label label-info">set</span> is
+	in that file; the rest are the defaults from <code>defaults.cfg</code>, which are only placeholders for a real company.</p>
+	<table class="table table-condensed table-striped">
+		<tr><th>Setting</th><th>Value</th><th></th></tr>
+	% for d in details:
+		<tr>
+			<td><code>${d['key'] | h}</code></td>
+			<td>
+			% if d['lines']:
+				% for line in d['lines']:
+				${line | h}${'' if loop.last else ' '}<br/>
+				% endfor
+			% else:
+				<span class="muted">blank</span>
+			% endif
+			% if d['logo']:
+				<br/>
+				% if d['logo'][1]:
+				<span class="muted">${d['logo'][0] | h}</span>
+				% else:
+				<span class="label label-important">missing</span> <span class="muted">${d['logo'][0] | h}</span>
+				% endif
+			% endif
+			</td>
+			<td>${'<span class="label label-info">set</span>' if d['set'] else ''}</td>
+		</tr>
+	% endfor
+	</table>

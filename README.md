@@ -5,7 +5,7 @@ Printerface is an application that acts as a virtual printer, accepting LPD (Lin
 
 The service is written in Python, with a Javascript web front end using bootstrap JS. It has a rich JSON API and can be used as a centralised interface to legacy system output, whereby documents can be parsed and then consumed by downstream services. We have production instances with over 100k documents a year, 5-6M pages.
 
-Computer systems as old as Windows NT4 can print to LPD printers as standard, so integration even into the most challenging environments is relatively easy compared to modifying legacy systems. Printerface provides a great path forward for customers trapped with old fixed-width, fanfold or pre-printed stationary systems, or struggling to maintain old dot-matrix line printers.
+Computer systems as old as Windows NT4 can print to LPD printers as standard, so integration even into the most challenging environments is relatively easy compared to modifying legacy systems. Printerface provides a great path forward for customers trapped with old fixed-width, fanfold or pre-printed stationery systems, or struggling to maintain old dot-matrix line printers.
 
 Often we can de-duplicate or drop entirely sections of the documents that are no longer required in hard copies, to reduce the environmental footprint of legacy print jobs.
 
@@ -26,7 +26,7 @@ The following will checkout the source code, build a docker image and start an i
 * `httpserver.py` the web server: path handlers and static files on aiohttp, handlers run on the event loop one at a time
 * `mailer.py` asynchronous mail queue to Gmail
 * `docparser` recognise and parse some plain-text formats from 1990 to JSON
-* `stationary.py` format JSON to nice PDF files
+* `stationery.py` format JSON to nice PDF files
 * `printing.py` printing with CUPS via `lp`. Each document sent is recorded (job, key, printer, CUPS request id or the error) in `~/printerface/printer.pickle`, newest first and trimmed to `[Printing] result_count` (the sent emails and uploads have their own `result_count` under `[Gmail]` and `[Web]`), and listed on the job page. The file is written from the main loop only when something changed
 * `derived.py` a cache, `~/printerface/derived.pickle`, of what is slow to work out from a stored job: its parsed pages and the names of its PDFs. At startup a job whose file is unchanged and whose parser is unchanged takes these from the cache (a thousand jobs in under a second, against about eight), and a job that has left the loaded history drops out of the file the next time it is written (at most every three minutes, and at shutdown). The PDFs are not redrawn when the stationery changes: Settings > Stationery counts the documents drawn under older stationery and redraws them on request
 * `printstatus.py` read-only CUPS status for the Printers page (one `lpstat -t` in the C locale, cached for 10s), and the check of whether auto-printing can work. lpstat can show a stuck or stopped queue but not that a page was printed
@@ -53,6 +53,18 @@ Uses python asyncio/aiohttp/smtplib, bootstrap web framework
 Jobs, rendered PDFs, the email address book and `email.cfg` overrides live in `~/printerface`. Set the
 `PRINTERFACE_HOME` environment variable to use a different directory, for example to run a second instance
 against a copy of the data on other ports (`lpd_port` and `http_port` in `defaults.cfg`/`email.cfg`).
+
+### Configuration
+
+`defaults.cfg` lists every setting; `~/printerface/email.cfg` overrides what you need to, under the same section names:
+
+* `[Stationery]` how documents are drawn: the company details, terms and logos on the PDFs. Settings > Stationery lists the values in use
+* `[Printing]` what is done with documents once drawn: `auto_types` and `auto_printer` for printing on arrival, and `result_count` for the printed history
+* `[Web]` the website documents are uploaded to (`base_url`, `api_key`), `auto_types` for uploading on arrival, and `result_count` for the upload history
+* `[Gmail]` the mail account and `result_count` for the sent history; `[Main]` ports, time zone and the like; `[History]` how many jobs to load and show
+
+These were `[Printing]` (the company details) and `[Robot]` (auto-printing) before. A file written for those is still read, with a
+notice in the log, and `tools/migrate_config.py` rewrites one in place (`--dry-run` shows the result first, and the original is kept).
 
 ### Email templates
 
