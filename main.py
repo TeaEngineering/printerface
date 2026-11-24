@@ -373,7 +373,7 @@ def job(query_string=dict(), resp=None):
 			'templ': job.get('templ'),
 			'doctype': job.get('doctype'),
 			'autofmt': job.get('autofmt'),
-			'stationary':
+			'stationery':
 				dict([ (' '.join(k), '{base}/pdf/{pdf}'.format(base=base_uri, pdf=v)) for k,v in job.get('groupfiles', {}).items() ])
 		}
 	return json.dumps(output, indent=3), 'text/json'

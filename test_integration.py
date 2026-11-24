@@ -265,7 +265,8 @@ class TestPrinterface(unittest.TestCase):
 		r, body = self.get('/job?name=' + name)
 		parsed = json.loads(body.decode('utf-8'))
 		self.assertEqual('12345', parsed['parsed']['ACC001'][0]['doc_num'])
-		pdf_uri = parsed['stationary']['ACC001']
+		pdf_uri = parsed['stationery']['ACC001']
+		self.assertNotIn('stationary', parsed)                       # the key's old spelling
 		self.assertTrue(pdf_uri.endswith('.pdf'))
 
 		r, body = self.get('/raw?name=' + name)
