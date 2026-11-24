@@ -820,6 +820,9 @@ class TestPrinterface(unittest.TestCase):
 				j = arrive(doc_num='6001')
 				wait_for(1)
 				self.assertEqual(['6001'], [i['docnum'] for i in sent])
+				deadline = time.time() + 10
+				while not main.uploadqueue.log.for_job(j['name']) and time.time() < deadline:      # recorded just after the transport returns
+					time.sleep(0.05)
 				self.assertEqual('created', main.uploadqueue.log.for_job(j['name'])[0]['outcome'])
 				self.send_invoice(jtype='Delvnote')             # not a listed kind
 				arrive(doc_num='6002', jtype='Cr-note')         # a credit note: not listed either
@@ -893,9 +896,20 @@ class TestPrinterface(unittest.TestCase):
 		self.assertIn(b'SOME BUSINESS PARK', body)
 		self.assertNotIn(b'\\nSOME', body)
 		self.assertNotIn(b'label-important">missing', body)             # logo.jpg is found, logo2 is blank
+		self.assertIn(b'<img src="/settings/stationery_logo?key=logo"', body)          # shown, for the logo that is there
+		self.assertNotIn(b'stationery_logo?key=logo2', body)
+		r, image = self.get('/settings/stationery_logo?key=logo')
+		self.assertEqual(('image/jpeg', open('logo.jpg', 'rb').read()), (r.getheader('Content-Type'), image))
+		self.assertEqual(404, self.get('/settings/stationery_logo?key=logo2')[0].status)           # blank
+		self.assertEqual(404, self.get('/settings/stationery_logo?key=terms')[0].status)           # only the logos are served
+		self.assertEqual(404, self.get('/settings/stationery_logo?key=../email.cfg')[0].status)
+		self.assertEqual(404, self.get('/settings/stationery_logo')[0].status)
 		main.config.set('Stationery', 'logo2', '/no/such/logo.jpg')
 		self.addCleanup(main.config.set, 'Stationery', 'logo2', '')
-		self.assertIn(b'label-important">missing', self.get('/settings/stationery')[1])
+		body = self.get('/settings/stationery')[1]
+		self.assertIn(b'label-important">missing', body)
+		self.assertNotIn(b'stationery_logo?key=logo2', body)             # no image for a file that is not there
+		self.assertEqual(404, self.get('/settings/stationery_logo?key=logo2')[0].status)
 		main.config.set('Stationery', 'logo2', '')
 		old = config_terms = main.config.get('Stationery', 'terms')
 		main.config.set('Stationery', 'terms', old + ' (changed)')

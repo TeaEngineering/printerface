@@ -45,6 +45,7 @@
 			% if d['logo']:
 				<br/>
 				% if d['logo'][1]:
+				<img src="/settings/stationery_logo?key=${d['key'] | u}" alt="${d['key'] | h}" style="max-width: 265px; max-height: 70px; margin: 4px 0; background: #fff; border: 1px solid #ddd; padding: 2px;"><br/>
 				<span class="muted">${d['logo'][0] | h}</span>
 				% else:
 				<span class="label label-important">missing</span> <span class="muted">${d['logo'][0] | h}</span>

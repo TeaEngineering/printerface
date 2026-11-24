@@ -8,7 +8,7 @@ import tempfile
 import threading
 import unittest
 
-from httpserver import HttpServer, Redirect
+from httpserver import HttpServer, NotFound, Redirect
 from lpdserver import LpdServer
 
 
@@ -166,12 +166,15 @@ class TestHttp(unittest.TestCase):
 		def broken(query_string=None, resp=None, postreq=None):
 			raise RuntimeError('boom')
 
+		def missing(query_string=None, resp=None, postreq=None):
+			raise NotFound()
+
 		def blob(query_string=None, resp=None):
 			import io
 			return (io.BytesIO(b'%PDF-1.4 data'), 'application/pdf')
 
 		cls.loop = LoopThread()
-		cls.server = cls.loop.call(HttpServer({'/echo': echo, '/broken': broken, '/blob': blob}, cls.webroot, ip='127.0.0.1', port=0).start())
+		cls.server = cls.loop.call(HttpServer({'/echo': echo, '/broken': broken, '/blob': blob, '/missing': missing}, cls.webroot, ip='127.0.0.1', port=0).start())
 
 	@classmethod
 	def tearDownClass(cls):
@@ -215,6 +218,11 @@ class TestHttp(unittest.TestCase):
 	def test_a_failing_handler_is_a_500_and_the_server_carries_on(self):
 		self.assertEqual(500, self.request('GET', '/broken')[0].status)
 		self.assertEqual(500, self.request('POST', '/broken', 'a=1')[0].status)
+		self.assertEqual(200, self.request('GET', '/echo')[0].status)
+
+	def test_a_handler_can_answer_404(self):
+		self.assertEqual(404, self.request('GET', '/missing')[0].status)
+		self.assertEqual(404, self.request('POST', '/missing', 'a=1')[0].status)
 		self.assertEqual(200, self.request('GET', '/echo')[0].status)
 
 	def test_unknown_paths_and_methods(self):

@@ -7,7 +7,7 @@ from mako import exceptions
 import asyncio, os, re, signal
 from datetime import datetime
 from lpdserver import LpdServer
-from httpserver import HttpServer, Redirect
+from httpserver import HttpServer, Redirect, NotFound, guess_type
 import mailer
 from mailer import JobMailer
 from docparser import DocParser
@@ -444,6 +444,17 @@ def stationery_details():
 		rows.append(row)
 	return rows
 
+def stationery_logo(query_string='', resp=None):
+	"""The logo file that [Stationery] names under `key` (logo or logo2), for the Stationery page to show. Only
+	those two settings are served, never a path from the request."""
+	key = query_string.get('key', [''])[0]
+	value = config.get('Stationery', key, fallback='') if key in STATIONERY_LOGOS else ''
+	path = os.path.expanduser(value) if value else ''
+	if not path or not os.path.isfile(path):
+		raise NotFound()
+	with open(path, 'rb') as f:
+		return f.read(), guess_type(path)
+
 def settings_stationery(query_string='', postreq=None, resp=None):
 	"""How many loaded jobs have PDFs drawn under older stationery (a change to stationery.py, or to the company
 	details or logos under [Stationery]), with the button that draws them again. It blocks the server while it works,
@@ -805,6 +816,7 @@ path_handlers = {
 	'/settings/templates':settings_templates,
 	'/settings/web':settings_web,
 	'/settings/stationery':settings_stationery,
+	'/settings/stationery_logo':stationery_logo,
 	'/email_body':email_body
 	}
 
