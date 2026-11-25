@@ -795,8 +795,10 @@ class TestPrinterface(unittest.TestCase):
 		main.uploadqueue.log.add(dict(job=j['name'], key='ACC001', kind='invoice', account='ACC001', docnum='777', added=datetime.now(), outcome='created', status=201, error=None))
 		main.uploadqueue.log.add(dict(job='job-19990101-000000', key='ACC001', kind='statement', account='ACC002', docnum='st1', added=datetime.now(), outcome='failed', status=400, error='HTTP 400 bad'))
 		body = self.get('/uploads')[1]
-		self.assertIn(b'>777 / ACC001</a>', body)                        # a loaded job links to its page
-		self.assertIn(b'st1 / ACC002', body)
+		self.assertIn(('>%s / ACC001</a>' % j['name']).encode(), body)    # job / key, as on the other history pages; a loaded job links to its page
+		self.assertIn(b'<td>invoice 777</td>', body)                      # what was uploaded is in the next column
+		self.assertIn(b'<td>statement st1</td>', body)
+		self.assertIn(b'job-19990101-000000 / ACC001</span>', body)       # not loaded: not linked
 		self.assertNotIn(b'job-19990101-000000&', body)
 		self.assertIn(b'HTTP 400 bad', body)
 

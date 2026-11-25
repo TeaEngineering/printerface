@@ -16,7 +16,7 @@
 	<a href="/settings/web">Web Uploads settings</a></p>
 	% else:
 	<table class="table table-striped table-condensed" style="font-size: 11px; line-height: 15px;">
-		<tr><th>Document</th><th>Type</th><th>Result</th><th>Problems?</th></tr>
+		<tr><th>Document</th><th>Uploaded</th><th>Result</th><th>Problems?</th></tr>
 	% for row in rows:
 	  <% u = row['u'] %>
 	  % if u['error']:
@@ -26,12 +26,12 @@
 	  % endif
 		<td style="white-space: nowrap;" title="${u['added'].strftime('%d %b %Y %H:%M:%S') | h}">
 		% if row['loaded']:
-			<a href="/pdf?name=${u['job'] | u}&amp;key=${u['key'] | u}" title="Open the job this was uploaded from">${u['docnum'] | h} / ${u['account'] | h}</a>
+			<a href="/pdf?name=${u['job'] | u}&amp;key=${u['key'] | u}" title="Open the job this was uploaded from">${u['job'] | h} / ${u['key'] | h}</a>
 		% else:
-			<span class="muted" title="This job is no longer loaded">${u['docnum'] | h} / ${u['account'] | h}</span>
+			<span class="muted" title="This job is no longer loaded">${u['job'] | h} / ${u['key'] | h}</span>
 		% endif
 		</td>
-		<td>${u['kind'] | h}</td><td>${u['outcome'] | h}</td><td>${u['error'] or '' | h}</td>
+		<td>${u['kind'] | h} ${u['docnum'] | h}</td><td>${u['outcome'] | h}</td><td>${u['error'] or '' | h}</td>
 	  </tr>
 	% endfor
 	</table>
