@@ -61,6 +61,7 @@ against a copy of the data on other ports (`lpd_port` and `http_port` in `defaul
 * `[Stationery]` how documents are drawn: the company details, terms and logos on the PDFs. Settings > Stationery lists the values in use
 * `[Printing]` what is done with documents once drawn: `auto_types` and `auto_printer` for printing on arrival, and `result_count` for the printed history
 * `[Web]` the website documents are uploaded to (`base_url`, `api_key`), `auto_types` for uploading on arrival, and `result_count` for the upload history
+* `[Main]` also has `brand`, the name at the left of the menu bar and in page titles (default `Printerface`), which is a way to tell instances apart
 * `[Gmail]` the mail account and `result_count` for the sent history; `[Main]` ports, time zone and the like; `[History]` how many jobs to load and show
 
 These were `[Printing]` (the company details) and `[Robot]` (auto-printing) before. A file written for those is still read, with a

@@ -1025,6 +1025,21 @@ class TestPrinterface(unittest.TestCase):
 		self.assertNotIn(name, [j['name'] for j in main.jobs])
 		self.assertEqual(printed, self.printed.call_count)                  # nothing printed for a file that old
 
+	def test_the_brand_in_the_menu_bar_and_titles_comes_from_the_config(self):
+		def brand_and_title(path='/home'):
+			body = self.get(path)[1].decode('utf-8')
+			return (re.search(r'<a class="brand" href="/home">(.*?)</a>', body).group(1), re.search(r'<title>(.*?)</title>', body, re.S).group(1))
+		self.assertEqual('Printerface', brand_and_title()[0])                     # the default
+		self.assertTrue(self.get('/home')[1].startswith(b'<!DOCTYPE html>'))       # the template's own code adds nothing before the doctype
+		self.assertTrue(brand_and_title('/printed')[1].startswith('Printerface - Printed'))
+		old = main.config.get('Main', 'brand')
+		self.addCleanup(main.config.set, 'Main', 'brand', old)
+		main.config.set('Main', 'brand', 'Printertest <&>')
+		for path in ('/home', '/recent', '/printers', '/settings/web'):
+			brand, title = brand_and_title(path)
+			self.assertEqual('Printertest &lt;&amp;&gt;', brand, path)                # escaped
+			self.assertTrue(title.startswith('Printertest &lt;&amp;&gt;'), path)
+
 	def test_print_history_is_listed_on_the_job_page(self):
 		j = self.send_invoice()
 		self.assertNotIn(b'Printed from this job', self.get('/pdf?name=%s&key=ACC001' % j['name'])[1])

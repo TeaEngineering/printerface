@@ -1,8 +1,9 @@
+<%! from settings import config %>\
 <!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="utf-8">
-    <title>Printerface <%block name="title"/></title>
+    <title>${config.get('Main', 'brand', fallback='Printerface') | h} <%block name="title"/></title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="description" content="">
     <meta name="author" content="">
@@ -32,7 +33,7 @@
     <div class="navbar navbar-inverse navbar-fixed-top hidden-print">
       <div class="navbar-inner">
         <div class="container">
-          <a class="brand" href="/home">Printerface</a>
+          <a class="brand" href="/home">${config.get('Main', 'brand', fallback='Printerface') | h}</a>
           <div class="">
             <ul class="nav">
               <li ><a href="/recent">Recent Documents</a></li>
