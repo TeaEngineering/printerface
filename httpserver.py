@@ -4,7 +4,7 @@ The web server, on aiohttp.
 Pages are plain functions registered by path (`pathhandlers`), the same ones the asyncore server called:
 `handler(query_string=..., resp=...)` for GET and HEAD and `handler(query_string=..., postreq=...)` for POST,
 where the query string and the form fields arrive as {name: [values]}. A handler returns `(body, content type)`,
-with body a str, bytes or binary file object, or a `Redirect`. Anything else is served as a file from the
+with body a str, bytes or binary file object, or a `Redirect`; raising `NotFound` answers 404. Anything else is served as a file from the
 web root.
 
 Handlers run on the event loop, one at a time, exactly as before: they and the LPD receiver share one thread, so
@@ -30,6 +30,10 @@ BODY_ENCODING = 'utf-8'
 
 # a form post (an email body, a template) is small; this only stops a runaway client
 MAX_REQUEST_BYTES = 16 * 1024 * 1024
+
+
+class NotFound(Exception):
+	"""A path handler raises this to answer 404, for a thing that is not there (a file it was asked for by name)."""
 
 
 class Redirect(object):
@@ -148,6 +152,8 @@ class HttpServer(object):
 			body = f.read()
 			f.close()
 			return self.reply(request, 200, body, headers)
+		except NotFound:
+			return self.error(request, 404, 'Not Found')
 		except Exception:
 			print(traceback.format_exc())
 			return self.error(request, 500, 'Internal Server Error')

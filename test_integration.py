@@ -795,8 +795,10 @@ class TestPrinterface(unittest.TestCase):
 		main.uploadqueue.log.add(dict(job=j['name'], key='ACC001', kind='invoice', account='ACC001', docnum='777', added=datetime.now(), outcome='created', status=201, error=None))
 		main.uploadqueue.log.add(dict(job='job-19990101-000000', key='ACC001', kind='statement', account='ACC002', docnum='st1', added=datetime.now(), outcome='failed', status=400, error='HTTP 400 bad'))
 		body = self.get('/uploads')[1]
-		self.assertIn(b'>777 / ACC001</a>', body)                        # a loaded job links to its page
-		self.assertIn(b'st1 / ACC002', body)
+		self.assertIn(('>%s / ACC001</a>' % j['name']).encode(), body)    # job / key, as on the other history pages; a loaded job links to its page
+		self.assertIn(b'<td>invoice 777</td>', body)                      # what was uploaded is in the next column
+		self.assertIn(b'<td>statement st1</td>', body)
+		self.assertIn(b'job-19990101-000000 / ACC001</span>', body)       # not loaded: not linked
 		self.assertNotIn(b'job-19990101-000000&', body)
 		self.assertIn(b'HTTP 400 bad', body)
 
@@ -820,6 +822,9 @@ class TestPrinterface(unittest.TestCase):
 				j = arrive(doc_num='6001')
 				wait_for(1)
 				self.assertEqual(['6001'], [i['docnum'] for i in sent])
+				deadline = time.time() + 10
+				while not main.uploadqueue.log.for_job(j['name']) and time.time() < deadline:      # recorded just after the transport returns
+					time.sleep(0.05)
 				self.assertEqual('created', main.uploadqueue.log.for_job(j['name'])[0]['outcome'])
 				self.send_invoice(jtype='Delvnote')             # not a listed kind
 				arrive(doc_num='6002', jtype='Cr-note')         # a credit note: not listed either
@@ -893,9 +898,20 @@ class TestPrinterface(unittest.TestCase):
 		self.assertIn(b'SOME BUSINESS PARK', body)
 		self.assertNotIn(b'\\nSOME', body)
 		self.assertNotIn(b'label-important">missing', body)             # logo.jpg is found, logo2 is blank
+		self.assertIn(b'<img src="/settings/stationery_logo?key=logo"', body)          # shown, for the logo that is there
+		self.assertNotIn(b'stationery_logo?key=logo2', body)
+		r, image = self.get('/settings/stationery_logo?key=logo')
+		self.assertEqual(('image/jpeg', open('logo.jpg', 'rb').read()), (r.getheader('Content-Type'), image))
+		self.assertEqual(404, self.get('/settings/stationery_logo?key=logo2')[0].status)           # blank
+		self.assertEqual(404, self.get('/settings/stationery_logo?key=terms')[0].status)           # only the logos are served
+		self.assertEqual(404, self.get('/settings/stationery_logo?key=../email.cfg')[0].status)
+		self.assertEqual(404, self.get('/settings/stationery_logo')[0].status)
 		main.config.set('Stationery', 'logo2', '/no/such/logo.jpg')
 		self.addCleanup(main.config.set, 'Stationery', 'logo2', '')
-		self.assertIn(b'label-important">missing', self.get('/settings/stationery')[1])
+		body = self.get('/settings/stationery')[1]
+		self.assertIn(b'label-important">missing', body)
+		self.assertNotIn(b'stationery_logo?key=logo2', body)             # no image for a file that is not there
+		self.assertEqual(404, self.get('/settings/stationery_logo?key=logo2')[0].status)
 		main.config.set('Stationery', 'logo2', '')
 		old = config_terms = main.config.get('Stationery', 'terms')
 		main.config.set('Stationery', 'terms', old + ' (changed)')
@@ -1010,6 +1026,21 @@ class TestPrinterface(unittest.TestCase):
 		self.assertEqual([], self.scan())
 		self.assertNotIn(name, [j['name'] for j in main.jobs])
 		self.assertEqual(printed, self.printed.call_count)                  # nothing printed for a file that old
+
+	def test_the_brand_in_the_menu_bar_and_titles_comes_from_the_config(self):
+		def brand_and_title(path='/home'):
+			body = self.get(path)[1].decode('utf-8')
+			return (re.search(r'<a class="brand" href="/home">(.*?)</a>', body).group(1), re.search(r'<title>(.*?)</title>', body, re.S).group(1))
+		self.assertEqual('Printerface', brand_and_title()[0])                     # the default
+		self.assertTrue(self.get('/home')[1].startswith(b'<!DOCTYPE html>'))       # the template's own code adds nothing before the doctype
+		self.assertTrue(brand_and_title('/printed')[1].startswith('Printerface - Printed'))
+		old = main.config.get('Main', 'brand')
+		self.addCleanup(main.config.set, 'Main', 'brand', old)
+		main.config.set('Main', 'brand', 'Printertest <&>')
+		for path in ('/home', '/recent', '/printers', '/settings/web'):
+			brand, title = brand_and_title(path)
+			self.assertEqual('Printertest &lt;&amp;&gt;', brand, path)                # escaped
+			self.assertTrue(title.startswith('Printertest &lt;&amp;&gt;'), path)
 
 	def test_print_history_is_listed_on_the_job_page(self):
 		j = self.send_invoice()
